@@ -9,10 +9,10 @@ fewest API calls possible.
 from __future__ import annotations
 
 from notionify.config import NotionifyConfig
-from notionify.models import DiffOp, DiffOpType, BlockSignature
+from notionify.models import BlockSignature, DiffOp, DiffOpType
 
-from .signature import compute_signature
 from .lcs_matcher import lcs_match
+from .signature import compute_signature
 
 
 class DiffPlanner:
@@ -121,9 +121,6 @@ class DiffPlanner:
 
         matched_existing: set[int] = {pair[0] for pair in matched_pairs}
         matched_new: set[int] = {pair[1] for pair in matched_pairs}
-
-        # Build a mapping from existing index to new index for matched pairs.
-        existing_to_new: dict[int, int] = {e: n for e, n in matched_pairs}
 
         # Walk through all indices in a merged order.
         # Strategy: iterate through new blocks in order, interleaving deletes

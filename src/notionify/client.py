@@ -20,9 +20,8 @@ Usage::
 
 from __future__ import annotations
 
-import base64
-import os
 from pathlib import Path
+from typing import Any
 
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
@@ -66,7 +65,7 @@ class NotionifyClient:
         :class:`NotionifyConfig`.
     """
 
-    def __init__(self, token: str, **kwargs) -> None:
+    def __init__(self, token: str, **kwargs: Any) -> None:
         """Create client.  All kwargs are forwarded to NotionifyConfig."""
         self._config = NotionifyConfig(token=token, **kwargs)
         self._transport = NotionTransport(self._config)
@@ -511,7 +510,7 @@ class NotionifyClient:
     def __enter__(self) -> NotionifyClient:
         return self
 
-    def __exit__(self, *args) -> None:
+    def __exit__(self, *args: Any) -> None:
         self.close()
 
     # ------------------------------------------------------------------
@@ -677,14 +676,9 @@ class NotionifyClient:
                 )
             )
         else:
-            # "skip" -- remove the placeholder block by replacing with an
-            # empty paragraph that produces no visible output, or we can
-            # mark it for removal.  We replace with None sentinel and
-            # filter later... but simpler to just leave the existing
-            # placeholder or remove it.
-            # The safest approach: replace with an empty paragraph.
+            # "skip" -- remove the placeholder block entirely.
             if 0 <= pending.block_index < len(blocks):
-                blocks[pending.block_index] = None  # type: ignore[assignment]
+                del blocks[pending.block_index]
 
             warnings.append(
                 ConversionWarning(
@@ -693,10 +687,6 @@ class NotionifyClient:
                     context={"src": pending.src, "error": str(exc)},
                 )
             )
-
-        # Clean up None entries from skip policy.
-        while None in blocks:
-            blocks.remove(None)
 
     def _fetch_blocks_recursive(
         self,

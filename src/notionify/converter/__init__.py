@@ -9,9 +9,9 @@ Public API:
 - :func:`split_rich_text` — split oversized rich_text segments.
 """
 
-from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.ast_normalizer import ASTNormalizer
 from notionify.converter.block_builder import build_blocks
+from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.rich_text import build_rich_text, split_rich_text
 
 __all__ = [

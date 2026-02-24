@@ -16,11 +16,13 @@ Usage::
 
 from __future__ import annotations
 
+from collections.abc import Callable as _Callable
+
 from notionify.config import NotionifyConfig
 from notionify.errors import NotionifyUnsupportedBlockError
 from notionify.models import ConversionWarning
-from .inline_renderer import render_rich_text, markdown_escape
 
+from .inline_renderer import markdown_escape, render_rich_text
 
 # Block types that are silently omitted (no Markdown equivalent).
 _OMITTED_TYPES: frozenset[str] = frozenset({
@@ -528,7 +530,9 @@ class NotionToMarkdownRenderer:
 # Block renderer dispatch table
 # ------------------------------------------------------------------
 
-_BLOCK_RENDERERS: dict[str, object] = {
+_BlockRenderer = _Callable[["NotionToMarkdownRenderer", dict, int], str]
+
+_BLOCK_RENDERERS: dict[str, _BlockRenderer] = {
     "heading_1": NotionToMarkdownRenderer._render_heading_1,
     "heading_2": NotionToMarkdownRenderer._render_heading_2,
     "heading_3": NotionToMarkdownRenderer._render_heading_3,

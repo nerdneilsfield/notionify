@@ -10,7 +10,6 @@ from __future__ import annotations
 import base64
 import mimetypes
 import re
-from pathlib import Path
 
 from notionify.config import NotionifyConfig
 from notionify.errors import (
@@ -19,7 +18,6 @@ from notionify.errors import (
     NotionifyImageTypeError,
 )
 from notionify.models import ImageSourceType
-
 
 # Regex to parse data URIs: data:[<mediatype>][;base64],<data>
 _DATA_URI_RE = re.compile(

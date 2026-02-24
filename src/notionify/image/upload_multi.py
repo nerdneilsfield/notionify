@@ -6,9 +6,11 @@ chunk as a separate part, then completing the upload.
 
 from __future__ import annotations
 
+from typing import Any
+
 
 def upload_multi(
-    file_api,
+    file_api: Any,
     name: str,
     content_type: str,
     data: bytes,
@@ -82,7 +84,7 @@ def upload_multi(
 
 
 async def async_upload_multi(
-    file_api,
+    file_api: Any,
     name: str,
     content_type: str,
     data: bytes,

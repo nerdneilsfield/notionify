@@ -10,8 +10,8 @@ AsyncDiffExecutor
     Applies diff operations asynchronously via the Notion API.
 """
 
-from .planner import DiffPlanner
 from .executor import AsyncDiffExecutor, DiffExecutor
+from .planner import DiffPlanner
 
 __all__ = [
     "DiffPlanner",

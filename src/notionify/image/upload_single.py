@@ -5,9 +5,11 @@ Handles the simple case where an entire image fits in one PUT request.
 
 from __future__ import annotations
 
+from typing import Any
+
 
 def upload_single(
-    file_api,
+    file_api: Any,
     name: str,
     content_type: str,
     data: bytes,
@@ -47,7 +49,7 @@ def upload_single(
 
 
 async def async_upload_single(
-    file_api,
+    file_api: Any,
     name: str,
     content_type: str,
     data: bytes,

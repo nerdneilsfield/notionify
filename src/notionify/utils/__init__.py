@@ -1,7 +1,7 @@
 from .chunk import chunk_children
-from .text_split import split_string
-from .hashing import md5_hash, hash_dict
+from .hashing import hash_dict, md5_hash
 from .redact import redact
+from .text_split import split_string
 
 __all__ = [
     "chunk_children",

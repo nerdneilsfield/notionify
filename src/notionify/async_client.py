@@ -24,8 +24,8 @@ Usage::
 from __future__ import annotations
 
 import asyncio
-import base64
 from pathlib import Path
+from typing import Any
 
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
@@ -69,7 +69,7 @@ class AsyncNotionifyClient:
         :class:`NotionifyConfig`.
     """
 
-    def __init__(self, token: str, **kwargs) -> None:
+    def __init__(self, token: str, **kwargs: Any) -> None:
         """Create client.  All kwargs are forwarded to NotionifyConfig."""
         self._config = NotionifyConfig(token=token, **kwargs)
         self._transport = AsyncNotionTransport(self._config)
@@ -512,7 +512,7 @@ class AsyncNotionifyClient:
     async def __aenter__(self) -> AsyncNotionifyClient:
         return self
 
-    async def __aexit__(self, *args) -> None:
+    async def __aexit__(self, *args: Any) -> None:
         await self.close()
 
     # ------------------------------------------------------------------
@@ -539,7 +539,6 @@ class AsyncNotionifyClient:
             return 0
 
         semaphore = asyncio.Semaphore(self._config.image_max_concurrent)
-        uploaded_count = 0
 
         async def _process_one(pending: PendingImage) -> int:
             async with semaphore:
@@ -685,9 +684,9 @@ class AsyncNotionifyClient:
                 )
             )
         else:
-            # "skip"
+            # "skip" -- remove the placeholder block entirely.
             if 0 <= pending.block_index < len(blocks):
-                blocks[pending.block_index] = None  # type: ignore[assignment]
+                del blocks[pending.block_index]
 
             warnings.append(
                 ConversionWarning(
@@ -696,10 +695,6 @@ class AsyncNotionifyClient:
                     context={"src": pending.src, "error": str(exc)},
                 )
             )
-
-        # Clean up None entries from skip policy.
-        while None in blocks:
-            blocks.remove(None)
 
     async def _fetch_blocks_recursive(
         self,

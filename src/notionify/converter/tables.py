@@ -61,9 +61,9 @@ The resulting Notion block::
 from __future__ import annotations
 
 from notionify.config import NotionifyConfig
+from notionify.converter.rich_text import build_rich_text, split_rich_text
 from notionify.errors import NotionifyConversionError
 from notionify.models import ConversionWarning
-from notionify.converter.rich_text import build_rich_text, split_rich_text
 
 
 def build_table(

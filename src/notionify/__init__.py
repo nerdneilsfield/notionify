@@ -22,6 +22,11 @@ Usage::
 
 from __future__ import annotations
 
+from notionify.async_client import AsyncNotionifyClient
+
+# ── Clients ────────────────────────────────────────────────────────────
+from notionify.client import NotionifyClient
+
 # ── Configuration ───────────────────────────────────────────────────────
 from notionify.config import (
     DEFAULT_EXTERNAL_MIMES,
@@ -72,11 +77,6 @@ from notionify.models import (
     UpdateResult,
     UploadState,
 )
-
-# ── Clients ────────────────────────────────────────────────────────────
-from notionify.client import NotionifyClient
-from notionify.async_client import AsyncNotionifyClient
-
 
 # ── Public surface ──────────────────────────────────────────────────────
 

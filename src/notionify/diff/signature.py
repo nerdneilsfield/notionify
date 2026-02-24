@@ -8,8 +8,7 @@ diff planner.
 from __future__ import annotations
 
 from notionify.models import BlockSignature
-from notionify.utils.hashing import md5_hash, hash_dict
-
+from notionify.utils.hashing import hash_dict, md5_hash
 
 # Block types that carry type-specific attributes worth tracking.
 _ATTRS_EXTRACTORS: dict[str, list[str]] = {

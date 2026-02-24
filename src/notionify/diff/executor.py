@@ -7,8 +7,10 @@ or :class:`AsyncBlockAPI` (async).
 
 from __future__ import annotations
 
+from typing import Any
+
 from notionify.config import NotionifyConfig
-from notionify.models import DiffOp, DiffOpType, UpdateResult, ConversionWarning
+from notionify.models import ConversionWarning, DiffOp, DiffOpType, UpdateResult
 from notionify.utils.chunk import chunk_children
 
 
@@ -23,7 +25,7 @@ class DiffExecutor:
         SDK configuration.
     """
 
-    def __init__(self, block_api, config: NotionifyConfig) -> None:
+    def __init__(self, block_api: Any, config: NotionifyConfig) -> None:
         self._api = block_api
         self._config = config
 
@@ -96,8 +98,9 @@ class DiffExecutor:
                 # Batch consecutive inserts.
                 insert_blocks: list[dict] = []
                 while i < len(ops) and ops[i].op_type == DiffOpType.INSERT:
-                    if ops[i].new_block:
-                        insert_blocks.append(ops[i].new_block)
+                    block = ops[i].new_block
+                    if block is not None:
+                        insert_blocks.append(block)
                     i += 1
 
                 if insert_blocks:
@@ -145,7 +148,7 @@ class AsyncDiffExecutor:
         SDK configuration.
     """
 
-    def __init__(self, block_api, config: NotionifyConfig) -> None:
+    def __init__(self, block_api: Any, config: NotionifyConfig) -> None:
         self._api = block_api
         self._config = config
 
@@ -210,8 +213,9 @@ class AsyncDiffExecutor:
             elif op.op_type == DiffOpType.INSERT:
                 insert_blocks: list[dict] = []
                 while i < len(ops) and ops[i].op_type == DiffOpType.INSERT:
-                    if ops[i].new_block:
-                        insert_blocks.append(ops[i].new_block)
+                    block = ops[i].new_block
+                    if block is not None:
+                        insert_blocks.append(block)
                     i += 1
 
                 if insert_blocks:

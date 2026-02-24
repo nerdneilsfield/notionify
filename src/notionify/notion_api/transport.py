@@ -287,14 +287,18 @@ class NotionTransport:
                     resp_body = response.json()
                 except Exception:
                     resp_body = response.text[:1000]
-                _dump_payload(method, str(response.url), json_payload, response.status_code, resp_body)
+                _dump_payload(
+                    method, str(response.url), json_payload,
+                    response.status_code, resp_body,
+                )
 
             # 3a. Success
             if 200 <= response.status_code < 300:
                 # Some endpoints return 204 with no body.
                 if response.status_code == 204 or not response.content:
                     return {}
-                return response.json()
+                result: dict = response.json()
+                return result
 
             # 3b. Is this a retryable status code?
             is_retryable = response.status_code in _RETRYABLE_STATUSES
@@ -564,13 +568,17 @@ class AsyncNotionTransport:
                     resp_body = response.json()
                 except Exception:
                     resp_body = response.text[:1000]
-                _dump_payload(method, str(response.url), json_payload, response.status_code, resp_body)
+                _dump_payload(
+                    method, str(response.url), json_payload,
+                    response.status_code, resp_body,
+                )
 
             # 3a. Success
             if 200 <= response.status_code < 300:
                 if response.status_code == 204 or not response.content:
                     return {}
-                return response.json()
+                result: dict = response.json()
+                return result
 
             # 3b. Is this a retryable status code?
             is_retryable = response.status_code in _RETRYABLE_STATUSES

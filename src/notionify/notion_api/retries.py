@@ -14,7 +14,6 @@ import random
 
 import httpx
 
-
 # HTTP status codes that are safe to retry.
 _RETRYABLE_STATUSES: frozenset[int] = frozenset({429, 500, 502, 503, 504})
 

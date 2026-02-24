@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 
 from notionify.models import ImageSourceType
 
-
 # Regex for data URIs: data:[<mediatype>][;base64],<data>
 _DATA_URI_RE = re.compile(r"^data:", re.IGNORECASE)
 

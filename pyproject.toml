@@ -22,6 +22,8 @@ dev = [
     "pytest-asyncio>=0.23",
     "hypothesis>=6.0",
     "respx>=0.21",
+    "mypy>=1.10",
+    "ruff>=0.4",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -30,3 +32,19 @@ packages = ["src/notionify"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = ["SIM108", "SIM102"]

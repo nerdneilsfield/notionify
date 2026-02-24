@@ -28,7 +28,6 @@ from notionify.config import NotionifyConfig
 from notionify.models import ConversionWarning
 from notionify.utils.text_split import split_string
 
-
 # ---------------------------------------------------------------------------
 # Annotation defaults
 # ---------------------------------------------------------------------------
@@ -264,7 +263,7 @@ def _make_text_segment(
 
 def _has_non_default_annotations(annotations: dict) -> bool:
     """Check if any annotation deviates from default values."""
-    return (
+    return bool(
         annotations.get("bold", False)
         or annotations.get("italic", False)
         or annotations.get("strikethrough", False)

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import mistune
 
-
 # ---------------------------------------------------------------------------
 # Mistune-to-canonical type mapping
 # ---------------------------------------------------------------------------
@@ -77,6 +76,8 @@ class ASTNormalizer:
     def parse(self, markdown: str) -> list[dict]:
         """Parse markdown and return normalized AST token list."""
         raw_tokens = self._parser(markdown)
+        if isinstance(raw_tokens, str):
+            return []
         return self._normalize_tokens(raw_tokens)
 
     def _normalize_tokens(self, tokens: list[dict]) -> list[dict]:

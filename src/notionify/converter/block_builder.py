@@ -21,11 +21,10 @@ import re
 from urllib.parse import urlparse
 
 from notionify.config import NotionifyConfig
-from notionify.models import ConversionWarning, ImageSourceType, PendingImage
-from notionify.converter.rich_text import build_rich_text, split_rich_text
 from notionify.converter.math import build_block_math
+from notionify.converter.rich_text import build_rich_text, split_rich_text
 from notionify.converter.tables import build_table
-
+from notionify.models import ConversionWarning, ImageSourceType, PendingImage
 
 # ---------------------------------------------------------------------------
 # Notion code language mapping
@@ -567,37 +566,30 @@ def _build_image_block(token: dict, ctx: _BuildContext) -> list[dict]:
     source_type = _classify_image_source(url)
 
     if source_type == ImageSourceType.EXTERNAL_URL:
-        block = {
-            "object": "block",
-            "type": "image",
-            "image": {
-                "type": "external",
-                "external": {"url": url},
-            },
+        image_data: dict = {
+            "type": "external",
+            "external": {"url": url},
         }
-        # Add caption if there's alt text
         if alt_text:
-            block["image"]["caption"] = [
+            image_data["caption"] = [
                 {"type": "text", "text": {"content": alt_text}},
             ]
-        idx = ctx.add_block(block)
+        block: dict = {"object": "block", "type": "image", "image": image_data}
+        ctx.add_block(block)
         return [block]
 
     if source_type in (ImageSourceType.LOCAL_FILE, ImageSourceType.DATA_URI):
         if ctx.config.image_upload:
             # Create a placeholder block that will be patched by the upload pipeline
-            block = {
-                "object": "block",
-                "type": "image",
-                "image": {
-                    "type": "external",
-                    "external": {"url": "https://placeholder.notionify.invalid"},
-                },
+            placeholder_data: dict = {
+                "type": "external",
+                "external": {"url": "https://placeholder.notionify.invalid"},
             }
             if alt_text:
-                block["image"]["caption"] = [
+                placeholder_data["caption"] = [
                     {"type": "text", "text": {"content": alt_text}},
                 ]
+            block = {"object": "block", "type": "image", "image": placeholder_data}
             idx = ctx.add_block(block)
             ctx.add_image(url, source_type, idx)
             return [block]

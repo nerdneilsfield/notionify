@@ -31,7 +31,6 @@ from notionify.config import NotionifyConfig
 from notionify.models import ConversionWarning
 from notionify.utils.text_split import split_string
 
-
 EQUATION_CHAR_LIMIT: int = 1000
 
 
