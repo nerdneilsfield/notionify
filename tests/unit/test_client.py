@@ -1059,3 +1059,186 @@ class TestFetchBlocksRecursiveElseBranch:
         await client._fetch_blocks_recursive([block], current_depth=0, max_depth=1)
         assert block.get("children") == [child]
         await client.close()
+
+
+# =========================================================================
+# Additional async_client tests for remaining coverage gaps
+# =========================================================================
+
+
+class TestAsyncCreatePageMultipleBatches:
+    """create_page appends remaining batches when blocks > 100 (line 172)."""
+
+    @pytest.mark.asyncio
+    async def test_large_markdown_appends_batches(self):
+        """More than 100 blocks causes append_children for extra batches."""
+        client = AsyncNotionifyClient(token="test-token")
+        client._pages.create = AsyncMock(return_value={"id": "pg-1", "url": "https://n.so/p"})
+        client._blocks.append_children = AsyncMock(return_value={"results": []})
+
+        # 101 paragraphs → first batch of 100, second batch of 1
+        big_markdown = "\n\n".join(f"Paragraph {i}" for i in range(101))
+        result = await client.create_page_with_markdown(parent_id="p-parent", title="Big Page", markdown=big_markdown)
+        assert result.page_id == "pg-1"
+        client._blocks.append_children.assert_awaited_once()  # second batch
+        await client.close()
+
+
+class TestAsyncUpdatePageOverwriteStrategy:
+    """update_page_from_markdown with strategy='overwrite' delegates (line 309)."""
+
+    @pytest.mark.asyncio
+    async def test_overwrite_strategy(self):
+        client = AsyncNotionifyClient(token="test-token")
+        client._blocks.get_children = AsyncMock(return_value=[])
+        client._blocks.delete = AsyncMock(return_value={})
+        client._blocks.append_children = AsyncMock(return_value={"results": []})
+
+        result = await client.update_page_from_markdown(
+            page_id="page-1",
+            markdown="New content",
+            strategy="overwrite",
+        )
+        assert result.strategy_used == "overwrite"
+        await client.close()
+
+
+class TestAsyncUpdateBlockEmpty:
+    """update_block with empty markdown returns early (line 361)."""
+
+    @pytest.mark.asyncio
+    async def test_empty_markdown_returns_early(self):
+        client = AsyncNotionifyClient(token="test-token")
+        result = await client.update_block(block_id="b-1", markdown_fragment="")
+        assert isinstance(result, BlockUpdateResult)
+        assert result.block_id == "b-1"
+        await client.close()
+
+
+class TestAsyncInsertAfterEmpty:
+    """insert_after with empty markdown returns early (line 413)."""
+
+    @pytest.mark.asyncio
+    async def test_empty_markdown_returns_early(self):
+        client = AsyncNotionifyClient(token="test-token")
+        result = await client.insert_after(block_id="b-1", markdown_fragment="")
+        assert isinstance(result, InsertResult)
+        assert result.inserted_block_ids == []
+        await client.close()
+
+
+class TestAsyncProcessImagesExceptionHandling:
+    """_process_images catches NotionifyImageError (lines 550-555)."""
+
+    @pytest.mark.asyncio
+    async def test_image_error_caught_and_handled(self, tmp_path):
+        from notionify.errors import NotionifyImageError
+        from notionify.models import ConversionResult
+
+        client = AsyncNotionifyClient(token="test-token", image_fallback="placeholder")
+
+        # Create a real file that fails validation
+        bad_file = tmp_path / "bad.png"
+        bad_file.write_bytes(b"not a valid image")
+
+        conversion = ConversionResult(
+            blocks=[{"type": "image"}],
+            images=[
+                PendingImage(
+                    src=str(bad_file),
+                    source_type=ImageSourceType.LOCAL_FILE,
+                    block_index=0,
+                )
+            ],
+            warnings=[],
+        )
+
+        # Mock upload to raise NotionifyImageError
+        with patch("notionify.async_client.validate_image",
+                   side_effect=NotionifyImageError(message="bad image", context={})):
+            count = await client._process_images(conversion)
+
+        # Should handle the error gracefully (placeholder policy)
+        assert count == 0
+        await client.close()
+
+
+class TestAsyncUploadLocalFileEdgeCases:
+    """Edge cases in _upload_local_file (lines 597-600, 607, 623)."""
+
+    @pytest.mark.asyncio
+    async def test_file_not_found_raises(self, tmp_path):
+        from notionify.errors import NotionifyImageNotFoundError
+
+        client = AsyncNotionifyClient(token="test-token")
+        pending = PendingImage(
+            src=str(tmp_path / "nonexistent.png"),
+            source_type=ImageSourceType.LOCAL_FILE,
+            block_index=0,
+        )
+        with pytest.raises(NotionifyImageNotFoundError):
+            await client._upload_local_file(pending, [], [])
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_validate_returns_none_data_uses_raw(self, tmp_path):
+        """When validate_image returns None for data, raw bytes are used."""
+        import base64
+        from unittest.mock import patch, AsyncMock as AM
+
+        img_data = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+        img_file = tmp_path / "test.png"
+        img_file.write_bytes(img_data)
+
+        client = AsyncNotionifyClient(token="test-token")
+
+        # validate_image returns (mime, None) → raw bytes should be used
+        with patch("notionify.async_client.validate_image", return_value=("image/png", None)):
+            with patch("notionify.async_client.async_upload_single", new=AM(return_value="uid-1")):
+                pending = PendingImage(
+                    src=str(img_file),
+                    source_type=ImageSourceType.LOCAL_FILE,
+                    block_index=0,
+                )
+                blocks = [{"type": "image"}]
+                result = await client._upload_local_file(pending, blocks, [])
+
+        assert result == 1
+        await client.close()
+
+
+class TestAsyncUploadDataUriNone:
+    """_upload_data_uri returns 0 when decoded_data is None (line 649)."""
+
+    @pytest.mark.asyncio
+    async def test_none_decoded_data_returns_zero(self):
+        from unittest.mock import patch
+
+        client = AsyncNotionifyClient(token="test-token")
+        pending = PendingImage(
+            src="data:image/png;base64,INVALID",
+            source_type=ImageSourceType.DATA_URI,
+            block_index=0,
+        )
+
+        # validate_image returns None decoded data
+        with patch("notionify.async_client.validate_image", return_value=("image/png", None)):
+            result = await client._upload_data_uri(pending, [], [])
+
+        assert result == 0
+        await client.close()
+
+
+class TestFetchBlocksRecursiveNoId:
+    """Blocks without id are skipped in _fetch_blocks_recursive (line 747)."""
+
+    @pytest.mark.asyncio
+    async def test_block_without_id_is_skipped(self):
+        client = AsyncNotionifyClient(token="test-token")
+        # Block has has_children=True but no "id" key
+        block = {"type": "paragraph", "has_children": True}
+        client._blocks.get_children = AsyncMock(return_value=[])
+
+        await client._fetch_blocks_recursive([block], current_depth=0, max_depth=5)
+        client._blocks.get_children.assert_not_awaited()
+        await client.close()
