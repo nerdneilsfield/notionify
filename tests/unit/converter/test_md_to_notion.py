@@ -771,3 +771,92 @@ class TestConversionResult:
         result = c.convert("<div>html content</div>")
         # HTML blocks should be skipped with a warning
         assert any(w.code == "HTML_BLOCK_SKIPPED" for w in result.warnings)
+
+
+class TestDebugDumpAst:
+    def test_debug_dump_ast_prints_to_stderr(self, capsys):
+        from notionify.config import NotionifyConfig
+        from notionify.converter.md_to_notion import MarkdownToNotionConverter
+        config = NotionifyConfig(token="test", debug_dump_ast=True)
+        conv = MarkdownToNotionConverter(config)
+        conv.convert("# Hello")
+        captured = capsys.readouterr()
+        assert "[notionify] Normalized AST:" in captured.err
+
+class TestDebugDumpPayload:
+    def test_debug_dump_payload_prints_to_stderr(self, capsys):
+        from notionify.config import NotionifyConfig
+        from notionify.converter.md_to_notion import MarkdownToNotionConverter
+        config = NotionifyConfig(token="test", debug_dump_payload=True)
+        conv = MarkdownToNotionConverter(config)
+        conv.convert("Hello world")
+        captured = capsys.readouterr()
+        assert "[notionify] Notion blocks payload:" in captured.err
+
+class TestASTNormalizerEdgeCases:
+    def test_footnotes_token_skipped(self):
+        """Footnotes block token is silently dropped."""
+        from notionify.converter.ast_normalizer import ASTNormalizer
+        from unittest.mock import patch
+        normalizer = ASTNormalizer()
+        # Inject a footnotes token
+        with patch.object(normalizer, '_parser', return_value=[{"type": "footnotes"}]):
+            tokens = normalizer.parse("anything")
+        assert tokens == []
+
+    def test_footnote_ref_becomes_text(self):
+        """footnote_ref token becomes a text token with [^key] content."""
+        from notionify.converter.ast_normalizer import ASTNormalizer
+        from unittest.mock import patch
+        normalizer = ASTNormalizer()
+        with patch.object(normalizer, '_parser', return_value=[
+            {"type": "footnote_ref", "raw": "1"}
+        ]):
+            tokens = normalizer.parse("anything")
+        assert len(tokens) == 1
+        assert tokens[0]["type"] == "text"
+        assert tokens[0]["raw"] == "[^1]"
+
+    def test_footnote_ref_uses_attrs_index_fallback(self):
+        """footnote_ref without raw uses attrs.index."""
+        from notionify.converter.ast_normalizer import ASTNormalizer
+        from unittest.mock import patch
+        normalizer = ASTNormalizer()
+        with patch.object(normalizer, '_parser', return_value=[
+            {"type": "footnote_ref", "attrs": {"index": "note1"}}
+        ]):
+            tokens = normalizer.parse("anything")
+        assert tokens[0]["raw"] == "[^note1]"
+
+    def test_raw_type_becomes_text(self):
+        """'raw' type token becomes text token."""
+        from notionify.converter.ast_normalizer import ASTNormalizer
+        from unittest.mock import patch
+        normalizer = ASTNormalizer()
+        with patch.object(normalizer, '_parser', return_value=[
+            {"type": "raw", "raw": "some raw content"}
+        ]):
+            tokens = normalizer.parse("anything")
+        assert len(tokens) == 1
+        assert tokens[0]["type"] == "text"
+        assert tokens[0]["raw"] == "some raw content"
+
+    def test_unknown_token_type_skipped(self):
+        """Unknown token types are silently dropped."""
+        from notionify.converter.ast_normalizer import ASTNormalizer
+        from unittest.mock import patch
+        normalizer = ASTNormalizer()
+        with patch.object(normalizer, '_parser', return_value=[
+            {"type": "completely_unknown_type", "raw": "???"}
+        ]):
+            tokens = normalizer.parse("anything")
+        assert tokens == []
+
+    def test_parser_returning_string_gives_empty(self):
+        """If the parser returns a string instead of list, parse() returns []."""
+        from notionify.converter.ast_normalizer import ASTNormalizer
+        from unittest.mock import patch
+        normalizer = ASTNormalizer()
+        with patch.object(normalizer, '_parser', return_value="not a list"):
+            tokens = normalizer.parse("anything")
+        assert tokens == []

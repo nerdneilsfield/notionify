@@ -334,3 +334,28 @@ class TestRedact:
         result = redact(payload, token=token)
         # The last 4 chars should appear after "redacted:..."
         assert "3456" in result["api_key"]
+
+    def test_invalid_base64_data_uri_falls_back_to_estimate(self):
+        """_estimate_data_uri_bytes falls back to byte estimate on invalid base64."""
+        from notionify.utils.redact import _estimate_data_uri_bytes
+        # Construct a data URI with padding chars that fail strict validate=True
+        bad_uri = "data:image/png;base64,!!!notvalidbase64!!!"
+        # Should not raise — returns a rough estimate
+        result = _estimate_data_uri_bytes(bad_uri)
+        assert isinstance(result, int)
+        assert result >= 0
+
+    def test_binary_looking_string_redacted(self):
+        """Strings with >10% non-printable chars are replaced with <binary:N_bytes>."""
+        # Build a string > 256 chars with many non-printable characters
+        binary_str = "\x00\x01\x02\x03" * 70  # 280 chars, all non-printable
+        payload = {"data": binary_str}
+        result = redact(payload)
+        assert "<binary:" in result["data"]
+
+    def test_short_binary_string_not_redacted(self):
+        """Strings below the binary threshold are not replaced."""
+        short_binary = "\x00\x01\x02"  # only 3 chars, below threshold of 256
+        payload = {"data": short_binary}
+        result = redact(payload)
+        assert result["data"] == short_binary

@@ -899,3 +899,163 @@ class TestAsyncFetchBlocksRecursive:
         block_type = parent["type"]
         assert "children" in parent.get(block_type, {}) or "children" in parent
         await client.close()
+
+
+# ===========================================================================
+# Additional async_client coverage tests
+# ===========================================================================
+
+
+class TestAsyncMimeToExtension:
+    def test_known_types(self):
+        from notionify.async_client import _mime_to_extension
+        assert _mime_to_extension("image/jpeg") == ".jpg"
+        assert _mime_to_extension("image/png") == ".png"
+        assert _mime_to_extension("image/gif") == ".gif"
+        assert _mime_to_extension("image/webp") == ".webp"
+        assert _mime_to_extension("image/svg+xml") == ".svg"
+        assert _mime_to_extension("image/bmp") == ".bmp"
+        assert _mime_to_extension("image/tiff") == ".tiff"
+
+    def test_unknown_type_returns_bin(self):
+        from notionify.async_client import _mime_to_extension
+        assert _mime_to_extension("application/octet-stream") == ".bin"
+
+
+class TestHandleImageError:
+    @pytest.mark.asyncio
+    async def test_raise_policy_reraises(self):
+        from notionify.errors import NotionifyImageError
+        client = AsyncNotionifyClient(token="test-token", image_fallback="raise")
+        exc = NotionifyImageError(message="fail", context={})
+        pending = PendingImage(src="img.png", source_type=ImageSourceType.LOCAL_FILE, block_index=0)
+        blocks = [{"type": "image"}]
+        warnings = []
+        with pytest.raises(NotionifyImageError):
+            client._handle_image_error(pending, blocks, warnings, exc)
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_placeholder_policy_replaces_block(self):
+        from notionify.errors import NotionifyImageError
+        client = AsyncNotionifyClient(token="test-token", image_fallback="placeholder")
+        exc = NotionifyImageError(message="upload fail", context={})
+        pending = PendingImage(src="img.png", source_type=ImageSourceType.LOCAL_FILE, block_index=0)
+        blocks = [{"type": "image"}]
+        warnings = []
+        client._handle_image_error(pending, blocks, warnings, exc)
+        assert blocks[0]["type"] == "paragraph"
+        assert len(warnings) == 1
+        assert warnings[0].code == "IMAGE_UPLOAD_FAILED"
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_skip_policy_marks_sentinel(self):
+        from notionify.errors import NotionifyImageError
+        client = AsyncNotionifyClient(token="test-token", image_fallback="skip")
+        exc = NotionifyImageError(message="upload fail", context={})
+        pending = PendingImage(src="img.png", source_type=ImageSourceType.LOCAL_FILE, block_index=0)
+        sentinel = {"_notionify_skip": True}
+        blocks = [{"type": "image"}]
+        warnings = []
+        client._handle_image_error(pending, blocks, warnings, exc, skip_sentinel=sentinel)
+        assert blocks[0] is sentinel
+        assert len(warnings) == 1
+        assert warnings[0].code == "IMAGE_SKIPPED"
+        await client.close()
+
+
+class TestAsyncProcessSingleImage:
+    @pytest.mark.asyncio
+    async def test_external_url_returns_zero(self):
+        client = AsyncNotionifyClient(token="test-token")
+        pending = PendingImage(src="https://example.com/img.png",
+                               source_type=ImageSourceType.EXTERNAL_URL, block_index=0)
+        result = await client._process_single_image(pending, [], [])
+        assert result == 0
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_unknown_source_returns_zero(self):
+        client = AsyncNotionifyClient(token="test-token")
+        pending = PendingImage(src="???", source_type=ImageSourceType.UNKNOWN, block_index=0)
+        result = await client._process_single_image(pending, [], [])
+        assert result == 0
+        await client.close()
+
+
+class TestAsyncDoUpload:
+    @pytest.mark.asyncio
+    async def test_large_file_uses_multi_part(self):
+        """Files larger than image_max_size_bytes use multi-part upload."""
+        client = AsyncNotionifyClient(token="test-token", image_max_size_bytes=10)
+        client._files.create_upload = AsyncMock(return_value={
+            "id": "upload-mp",
+            "upload_urls": [{"upload_url": "https://s3/p1"}, {"upload_url": "https://s3/p2"}],
+        })
+        client._files.send_part = AsyncMock(return_value=None)
+        client._files.complete_upload = AsyncMock(return_value={})
+
+        big_data = b"x" * 20  # > image_max_size_bytes=10
+        result = await client._do_upload("big.png", "image/png", big_data)
+        assert result == "upload-mp"
+        client._files.create_upload.assert_called_once()
+        await client.close()
+
+
+class TestAsyncUploadDataUri:
+    @pytest.mark.asyncio
+    async def test_data_uri_upload(self):
+        import base64
+        client = AsyncNotionifyClient(token="test-token")
+        # Create a valid PNG data URI
+        png_data = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+        b64 = base64.b64encode(png_data).decode()
+        data_uri = f"data:image/png;base64,{b64}"
+
+        pending = PendingImage(src=data_uri, source_type=ImageSourceType.DATA_URI, block_index=0)
+        blocks = [{"type": "image"}]
+
+        with patch("notionify.async_client.validate_image") as mock_validate:
+            mock_validate.return_value = ("image/png", png_data)
+            with patch("notionify.async_client.async_upload_single", new=AsyncMock(return_value="upload-uri")):
+                result = await client._process_single_image(pending, blocks, [])
+
+        assert result == 1
+        assert blocks[0]["type"] == "image"
+        await client.close()
+
+
+class TestAsyncCreatePageDatabase:
+    @pytest.mark.asyncio
+    async def test_create_page_with_database_parent(self):
+        client = AsyncNotionifyClient(token="test-token")
+        client._pages.create = AsyncMock(return_value={"id": "pg-db", "url": "https://notion.so/p"})
+        client._blocks.append_children = AsyncMock(return_value={"results": []})
+
+        result = await client.create_page_with_markdown(
+            parent_id="db-123",
+            title="Hello",
+            markdown="# Hello",
+            parent_type="database",
+        )
+        assert result.page_id == "pg-db"
+        # Verify database_id was used in parent
+        call_args = client._pages.create.call_args
+        assert "database_id" in call_args.kwargs["parent"]
+        await client.close()
+
+
+class TestFetchBlocksRecursiveElseBranch:
+    @pytest.mark.asyncio
+    async def test_block_type_not_in_block_uses_children_key(self):
+        """When block_type not in block dict, children go under block['children']."""
+        client = AsyncNotionifyClient(token="test-token")
+        # block_type is "paragraph" but block dict doesn't have "paragraph" key
+        block = {"id": "b1", "type": "paragraph", "has_children": True}
+        child = {"id": "c1", "type": "paragraph", "has_children": False}
+        client._blocks.get_children = AsyncMock(return_value=[child])
+
+        await client._fetch_blocks_recursive([block], current_depth=0, max_depth=1)
+        assert block.get("children") == [child]
+        await client.close()

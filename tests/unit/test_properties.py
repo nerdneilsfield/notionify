@@ -12,7 +12,7 @@ import re
 import string
 
 import pytest
-from hypothesis import given, settings, assume
+from hypothesis import HealthCheck, given, settings, assume
 from hypothesis import strategies as st
 
 from notionify.utils.chunk import chunk_children
@@ -482,6 +482,7 @@ class TestRedactProperties:
             max_size=10,
         ),
     )
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_non_sensitive_plain_values_unchanged(self, payload: dict) -> None:
         """Non-sensitive keys with plain text values are left unchanged."""
         result = redact(payload)

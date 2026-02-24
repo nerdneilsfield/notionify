@@ -25,6 +25,7 @@ from notionify.errors import (
     NotionifyImageParseError,
     NotionifyImageSizeError,
     NotionifyImageTypeError,
+    NotionifyMathOverflowError,
     NotionifyNetworkError,
     NotionifyNotFoundError,
     NotionifyPermissionError,
@@ -668,6 +669,7 @@ class TestErrorContextNoLeaks:
             (NotionifyUploadTransportError, ErrorCode.UPLOAD_TRANSPORT_ERROR),
             (NotionifyTextOverflowError, ErrorCode.TEXT_OVERFLOW),
             (NotionifyDiffConflictError, ErrorCode.DIFF_CONFLICT),
+            (NotionifyMathOverflowError, ErrorCode.MATH_OVERFLOW),
         ],
     )
     def test_subclass_error_code(self, cls, expected_code):
