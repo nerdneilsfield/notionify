@@ -8,6 +8,7 @@ processes it.
 from __future__ import annotations
 
 import base64
+import binascii
 import mimetypes
 import re
 
@@ -180,7 +181,7 @@ def _parse_data_uri(src: str) -> tuple[str, bytes]:
             )
         try:
             decoded = base64.b64decode(raw_data, validate=True)
-        except Exception as exc:
+        except binascii.Error as exc:
             raise NotionifyImageParseError(
                 message="Failed to decode base64 data URI",
                 context={"src": _truncate_src(src), "reason": "base64_decode_error"},
@@ -191,7 +192,7 @@ def _parse_data_uri(src: str) -> tuple[str, bytes]:
         try:
             from urllib.parse import unquote_to_bytes
             decoded = unquote_to_bytes(raw_data)
-        except Exception as exc:
+        except (ValueError, UnicodeDecodeError) as exc:
             raise NotionifyImageParseError(
                 message="Failed to decode data URI payload",
                 context={"src": _truncate_src(src), "reason": "url_decode_error"},

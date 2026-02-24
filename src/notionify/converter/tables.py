@@ -98,7 +98,7 @@ def build_table(
     try:
         block = _build_table_block(token, config, warnings)
         return block, warnings
-    except Exception as exc:
+    except (KeyError, TypeError, IndexError, AttributeError, NotionifyConversionError) as exc:
         warnings.append(ConversionWarning(
             code="TABLE_CONVERSION_ERROR",
             message=f"Table conversion failed: {exc}",
