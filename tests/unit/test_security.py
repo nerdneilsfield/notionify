@@ -797,3 +797,33 @@ class TestErrorContextNoLeaks:
         )
         assert err.__cause__ is original
         assert err.cause is original
+
+
+class TestDataUriUrlEncoded:
+    """URL-encoded (non-base64) data URIs and error path in validate.py lines 194-195."""
+
+    def test_plain_text_data_uri_decoded(self):
+        """data:text/plain,Hello%20World hits the URL-decode branch."""
+        from notionify.image.validate import _parse_data_uri
+        src = "data:text/plain,Hello%20World"
+        mime, data = _parse_data_uri(src)
+        assert mime == "text/plain"
+        assert b"Hello World" in data
+
+    def test_plain_data_uri_no_encoding(self):
+        """data URI without encoding or base64 hits the URL-decode branch."""
+        from notionify.image.validate import _parse_data_uri
+        src = "data:text/plain,hello"
+        mime, data = _parse_data_uri(src)
+        assert b"hello" in data
+
+    def test_url_decode_failure_raises_parse_error(self):
+        """When unquote_to_bytes raises, lines 194-195 are hit."""
+        from unittest.mock import patch
+        from notionify.image.validate import _parse_data_uri
+        from notionify.errors import NotionifyImageParseError
+        src = "data:text/plain,hello"
+        with patch("urllib.parse.unquote_to_bytes", side_effect=ValueError("bad")):
+            with pytest.raises(NotionifyImageParseError) as exc_info:
+                _parse_data_uri(src)
+        assert exc_info.value.context["reason"] == "url_decode_error"

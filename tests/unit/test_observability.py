@@ -103,3 +103,23 @@ class TestGetLogger:
         # At least one handler should have written to the stream
         # (may not if logger was already configured - use unique name)
         assert isinstance(output, str)
+
+
+class TestNoopMetricsHook:
+    """NoopMetricsHook discards all data points silently (line 136)."""
+
+    def test_gauge_returns_none(self):
+        from notionify.observability.metrics import NoopMetricsHook
+        hook = NoopMetricsHook()
+        result = hook.gauge("requests.in_flight", 5.0, tags={"env": "test"})
+        assert result is None
+
+    def test_increment_returns_none(self):
+        from notionify.observability.metrics import NoopMetricsHook
+        hook = NoopMetricsHook()
+        assert hook.increment("requests.count") is None
+
+    def test_timing_returns_none(self):
+        from notionify.observability.metrics import NoopMetricsHook
+        hook = NoopMetricsHook()
+        assert hook.timing("request.duration_ms", 123.4) is None

@@ -861,6 +861,19 @@ class TestASTNormalizerEdgeCases:
             tokens = normalizer.parse("anything")
         assert tokens == []
 
+    def test_html_inline_token_normalized(self):
+        """inline_html mistune token becomes html_inline canonical type (lines 182-183)."""
+        from notionify.converter.ast_normalizer import ASTNormalizer
+        from unittest.mock import patch
+        normalizer = ASTNormalizer()
+        with patch.object(normalizer, '_parser', return_value=[
+            {"type": "inline_html", "raw": "<br>"}
+        ]):
+            tokens = normalizer.parse("anything")
+        assert len(tokens) == 1
+        assert tokens[0]["type"] == "html_inline"
+        assert tokens[0]["raw"] == "<br>"
+
 
 # =========================================================================
 # Coverage gap tests: block_builder.py lines 97-102, 112, 114, 121,
