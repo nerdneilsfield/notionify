@@ -228,6 +228,21 @@ class NotionifyConfig:
 
     debug_dump_diff: bool = False
 
+    def __post_init__(self) -> None:
+        """Validate configuration after initialization."""
+        from urllib.parse import urlparse
+
+        parsed = urlparse(self.base_url)
+        if parsed.scheme == "http" and parsed.hostname not in (
+            "localhost",
+            "127.0.0.1",
+            "::1",
+        ):
+            raise ValueError(
+                f"base_url uses insecure HTTP for non-local host '{parsed.hostname}'. "
+                "Use HTTPS to protect your API token, or target localhost for testing."
+            )
+
     def __repr__(self) -> str:
         """Mask the token to prevent accidental credential leakage."""
         parts: list[str] = []
