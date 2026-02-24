@@ -22,40 +22,18 @@ def _config(**kwargs):
 
 
 def _roundtrip(md: str, **kwargs) -> str:
-    """Convert Markdown → Notion blocks → Markdown."""
+    """Convert Markdown → Notion blocks → Markdown.
+
+    Works directly without any patching — the renderer and converter both
+    handle both ``plain_text`` (API format) and ``text.content`` (converter
+    format) transparently.
+    """
     config = _config(**kwargs)
     converter = MarkdownToNotionConverter(config)
     result = converter.convert(md)
 
-    # Add plain_text fields so the renderer can extract text content.
-    blocks = _add_plain_text(result.blocks)
-
     renderer = NotionToMarkdownRenderer(config)
-    return renderer.render_blocks(blocks)
-
-
-def _add_plain_text(blocks: list[dict]) -> list[dict]:
-    """Add 'plain_text' to rich_text segments (mimicking API response)."""
-    for block in blocks:
-        block_type = block.get("type", "")
-        type_data = block.get(block_type, {})
-        if isinstance(type_data, dict):
-            for rt in type_data.get("rich_text", []):
-                if "plain_text" not in rt and "text" in rt:
-                    rt["plain_text"] = rt["text"].get("content", "")
-            # Recurse into children
-            for child_key in ("children",):
-                if child_key in type_data and isinstance(type_data[child_key], list):
-                    _add_plain_text(type_data[child_key])
-            # Also recurse into table rows
-            if block_type == "table":
-                for row in type_data.get("children", []):
-                    row_data = row.get("table_row", {})
-                    for cell in row_data.get("cells", []):
-                        for rt in cell:
-                            if isinstance(rt, dict) and "plain_text" not in rt and "text" in rt:
-                                rt["plain_text"] = rt["text"].get("content", "")
-    return blocks
+    return renderer.render_blocks(result.blocks)
 
 
 def _strip_escapes(text: str) -> str:

@@ -250,7 +250,10 @@ class NotionToMarkdownRenderer:
 
         # Get code content from rich_text
         rich_text = block_data.get("rich_text", [])
-        code_text = "".join(seg.get("plain_text", "") for seg in rich_text)
+        code_text = "".join(
+            seg.get("plain_text", "") or seg.get("text", {}).get("content", "")
+            for seg in rich_text
+        )
 
         # detect_latex_code: treat code blocks with language="latex" as math
         if self._config.detect_latex_code and language == "latex":
@@ -578,6 +581,9 @@ def _extract_plain_text(block: dict) -> str:
     if isinstance(block_data, dict):
         rich_text = block_data.get("rich_text", [])
         if rich_text:
-            return "".join(seg.get("plain_text", "") for seg in rich_text)
+            return "".join(
+                seg.get("plain_text", "") or seg.get("text", {}).get("content", "")
+                for seg in rich_text
+            )
 
     return ""
