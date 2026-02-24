@@ -492,12 +492,16 @@ class TestRedactProperties:
         payload=st.fixed_dictionaries({
             "data": st.text(max_size=100),
         }),
-        token=st.text(min_size=5, max_size=50),
+        token=st.from_regex(r"ntn_[a-zA-Z0-9]{10,40}", fullmatch=True),
     )
     def test_token_scrubbed_from_values(
         self, payload: dict, token: str
     ) -> None:
-        """If a token is supplied, it must not appear in any output value."""
+        """If a token is supplied, it must not appear in any output value.
+
+        Uses realistic token format (ntn_...) to avoid false positives
+        where the token accidentally matches the redaction suffix.
+        """
         # Inject the token into a value.
         injected = {**payload, "body": f"prefix {token} suffix"}
         result = redact(injected, token=token)
