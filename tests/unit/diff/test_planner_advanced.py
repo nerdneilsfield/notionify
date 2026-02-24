@@ -400,3 +400,222 @@ class TestAsyncExecutorMirror:
         result = await executor.execute("page-1", ops)
         assert result.blocks_inserted == 5
         assert len(mock_api.appends) == 1
+
+
+class TestSyncExecutor:
+    """Verify the sync DiffExecutor edge cases."""
+
+    @pytest.fixture()
+    def mock_api(self):
+        class SyncMockBlockAPI:
+            def __init__(self):
+                self.updates = []
+                self.deletes = []
+                self.appends = []
+                self._counter = 0
+
+            def update(self, block_id, payload):
+                self.updates.append((block_id, payload))
+                return {"id": block_id}
+
+            def delete(self, block_id):
+                self.deletes.append(block_id)
+                return {"id": block_id}
+
+            def append_children(self, parent_id, children, after=None):
+                self.appends.append((parent_id, children, after))
+                results = []
+                for _ in children:
+                    results.append({"id": f"new-{self._counter}"})
+                    self._counter += 1
+                return {"results": results}
+
+        return SyncMockBlockAPI()
+
+    def test_empty_ops_returns_zero_counts(self, mock_api):
+        """Empty operation list produces zero counts."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        result = executor.execute("page-1", [])
+        assert result.blocks_kept == 0
+        assert result.blocks_inserted == 0
+        assert result.blocks_deleted == 0
+        assert result.blocks_replaced == 0
+        assert result.strategy_used == "diff"
+
+    def test_keep_updates_last_block_id(self, mock_api):
+        """KEEP operations advance last_block_id for correct insert positioning."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.KEEP, existing_id="blk-1"),
+            DiffOp(op_type=DiffOpType.INSERT, new_block=_para("new")),
+        ]
+        executor.execute("page-1", ops)
+        # INSERT should be positioned after blk-1
+        assert mock_api.appends[0][2] == "blk-1"  # after=blk-1
+
+    def test_replace_tracks_new_block_id(self, mock_api):
+        """REPLACE updates last_block_id from the newly inserted block."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(
+                op_type=DiffOpType.REPLACE,
+                existing_id="old-1",
+                new_block=_para("replacement"),
+            ),
+            DiffOp(op_type=DiffOpType.INSERT, new_block=_para("after-replace")),
+        ]
+        executor.execute("page-1", ops)
+        assert "old-1" in mock_api.deletes
+        # Second append (the INSERT) should be after the replace's new block
+        assert mock_api.appends[1][2] == "new-0"
+
+    def test_update_with_none_existing_id_skips_api_call(self, mock_api):
+        """UPDATE with None existing_id skips the API call but still advances."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.UPDATE, existing_id=None, new_block=_para("x")),
+        ]
+        result = executor.execute("page-1", ops)
+        assert len(mock_api.updates) == 0
+        assert result.blocks_inserted == 1  # still counted as write
+
+    def test_update_with_none_new_block_skips_api_call(self, mock_api):
+        """UPDATE with None new_block skips the API call."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.UPDATE, existing_id="blk-1", new_block=None),
+        ]
+        result = executor.execute("page-1", ops)
+        assert len(mock_api.updates) == 0
+
+    def test_delete_with_none_existing_id(self, mock_api):
+        """DELETE with None existing_id skips the API call but counts it."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.DELETE, existing_id=None),
+        ]
+        result = executor.execute("page-1", ops)
+        assert len(mock_api.deletes) == 0
+        assert result.blocks_deleted == 1  # still counted
+
+    def test_replace_with_none_new_block(self, mock_api):
+        """REPLACE with None new_block still deletes the existing block."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.REPLACE, existing_id="old-1", new_block=None),
+        ]
+        result = executor.execute("page-1", ops)
+        assert "old-1" in mock_api.deletes
+        assert result.blocks_deleted == 1
+        assert result.blocks_replaced == 0  # no insert happened
+
+    def test_insert_with_none_new_block_skipped(self, mock_api):
+        """INSERT ops with None new_block are silently filtered out."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.INSERT, new_block=None),
+            DiffOp(op_type=DiffOpType.INSERT, new_block=_para("real")),
+        ]
+        result = executor.execute("page-1", ops)
+        assert result.blocks_inserted == 1
+        assert len(mock_api.appends) == 1
+
+    def test_append_response_without_results_key(self, mock_api):
+        """If append_children returns no 'results', last_block_id stays None."""
+        mock_api.append_children = lambda pid, ch, after=None: {}
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.INSERT, new_block=_para("a")),
+            DiffOp(op_type=DiffOpType.INSERT, new_block=_para("b")),
+        ]
+        result = executor.execute("page-1", ops)
+        assert result.blocks_inserted == 2
+
+    def test_mixed_ops_sequence(self, mock_api):
+        """Full scenario: KEEP → UPDATE → DELETE → INSERT → REPLACE."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.KEEP, existing_id="blk-1"),
+            DiffOp(op_type=DiffOpType.UPDATE, existing_id="blk-2", new_block=_para("updated")),
+            DiffOp(op_type=DiffOpType.DELETE, existing_id="blk-3"),
+            DiffOp(op_type=DiffOpType.INSERT, new_block=_para("inserted")),
+            DiffOp(op_type=DiffOpType.REPLACE, existing_id="blk-4", new_block=_heading("title")),
+        ]
+        result = executor.execute("page-1", ops)
+        assert result.blocks_kept == 1
+        assert result.blocks_inserted == 2  # UPDATE + INSERT both counted
+        assert result.blocks_deleted == 2  # DELETE + REPLACE's delete
+        assert result.blocks_replaced == 1
+
+
+class TestPlannerEdgeCases:
+    """Test edge cases in planner logic."""
+
+    def _plan(self, existing, new):
+        planner = DiffPlanner(NotionifyConfig(token="test"))
+        return planner.plan(existing, new)
+
+    def test_existing_blocks_missing_id_field(self):
+        """Blocks without 'id' should produce ops with existing_id=None."""
+        existing = [
+            {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "A"}], "color": "default"}},
+        ]
+        new = []
+        ops = self._plan(existing, new)
+        assert len(ops) == 1
+        assert ops[0].op_type == DiffOpType.DELETE
+        assert ops[0].existing_id is None
+
+    def test_block_type_by_id_returns_none_for_unknown_id(self):
+        """_block_type_by_id with unknown ID returns None."""
+        result = DiffPlanner._block_type_by_id(
+            [_para("A", "e1")], "nonexistent-id"
+        )
+        assert result is None
+
+    def test_block_type_by_id_returns_none_for_none(self):
+        """_block_type_by_id with None ID returns None."""
+        result = DiffPlanner._block_type_by_id([_para("A", "e1")], None)
+        assert result is None
+
+    def test_upgrade_delete_insert_with_mismatched_types(self):
+        """DELETE paragraph + INSERT heading → REPLACE (type differs)."""
+        existing = [
+            _para("anchor-1", "e0"),
+            _para("text", "e1"),
+            _para("anchor-2", "e2"),
+        ]
+        new = [
+            _para("anchor-1"),
+            _heading("text"),  # different type
+            _para("anchor-2"),
+        ]
+        ops = self._plan(existing, new)
+        replaces = [o for o in ops if o.op_type == DiffOpType.REPLACE]
+        assert len(replaces) == 1
+        assert replaces[0].existing_id == "e1"
+        assert replaces[0].new_block["type"] == "heading_1"
+
+    def test_full_overwrite_preserves_block_order(self):
+        """Full overwrite produces DELETEs before INSERTs in order."""
+        existing = [_para("A", "e1"), _para("B", "e2")]
+        new = [_heading("X"), _heading("Y")]
+        ops = self._plan(existing, new)
+        deletes = [o for o in ops if o.op_type == DiffOpType.DELETE]
+        inserts = [o for o in ops if o.op_type == DiffOpType.INSERT]
+        # All deletes come before all inserts
+        last_delete_idx = max(i for i, o in enumerate(ops) if o.op_type == DiffOpType.DELETE)
+        first_insert_idx = min(i for i, o in enumerate(ops) if o.op_type == DiffOpType.INSERT)
+        assert last_delete_idx < first_insert_idx
+        assert deletes[0].existing_id == "e1"
+        assert deletes[1].existing_id == "e2"

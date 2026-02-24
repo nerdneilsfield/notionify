@@ -103,6 +103,9 @@ class TestIdenticalBlocks:
         ops = planner.plan(existing, new)
         assert all(op.op_type == DiffOpType.KEEP for op in ops)
         assert len(ops) == 2
+        # Verify specific block IDs are preserved in KEEP ops
+        assert ops[0].existing_id == "b1"
+        assert ops[1].existing_id == "b2"
 
 
 # =========================================================================
@@ -178,7 +181,10 @@ class TestBlockAppended:
         keep_ops = [op for op in ops if op.op_type == DiffOpType.KEEP]
         insert_ops = [op for op in ops if op.op_type == DiffOpType.INSERT]
         assert len(keep_ops) == 1
+        assert keep_ops[0].existing_id == "b1"
         assert len(insert_ops) == 1
+        assert insert_ops[0].new_block is not None
+        assert insert_ops[0].new_block["type"] == "paragraph"
 
 
 # =========================================================================
@@ -221,11 +227,13 @@ class TestBlockContentChanged:
             _make_paragraph_block("New text"),
         ]
         ops = planner.plan(existing, new)
-        # Should be either UPDATE or a DELETE+INSERT that was upgraded
-        op_types = {op.op_type for op in ops}
-        assert DiffOpType.UPDATE in op_types or (
-            DiffOpType.DELETE in op_types and DiffOpType.INSERT in op_types
-        ) or DiffOpType.REPLACE in op_types
+        # Single block with 0 matches → ratio 0/1=0 < 0.3 → full overwrite
+        # Full overwrite: DELETE + INSERT (no upgrade since full overwrite skips it)
+        assert len(ops) == 2
+        assert ops[0].op_type == DiffOpType.DELETE
+        assert ops[0].existing_id == "b1"
+        assert ops[1].op_type == DiffOpType.INSERT
+        assert ops[1].new_block["type"] == "paragraph"
 
 
 # =========================================================================
