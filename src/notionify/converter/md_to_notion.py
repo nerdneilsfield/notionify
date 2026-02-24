@@ -17,9 +17,9 @@ from __future__ import annotations
 import sys
 
 from notionify.config import NotionifyConfig
-from notionify.models import ConversionResult
 from notionify.converter.ast_normalizer import ASTNormalizer
 from notionify.converter.block_builder import build_blocks
+from notionify.models import ConversionResult
 
 
 class MarkdownToNotionConverter:
@@ -76,12 +76,15 @@ class MarkdownToNotionConverter:
         # Stage 3: Build Notion blocks
         blocks, images, warnings = build_blocks(tokens, self._config)
 
-        # Debug: dump payload
+        # Debug: dump redacted payload
         if self._config.debug_dump_payload:
             import json
+
+            from notionify.utils.redact import redact
+            safe = redact({"blocks": blocks}, self._config.token)
             print(
                 "[notionify] Notion blocks payload:",
-                json.dumps(blocks, indent=2, ensure_ascii=False),
+                json.dumps(safe["blocks"], indent=2, ensure_ascii=False),
                 file=sys.stderr,
             )
 

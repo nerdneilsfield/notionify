@@ -25,17 +25,21 @@ _DATA_URI_RE = re.compile(
     r"data:[a-zA-Z0-9_.+-]+/[a-zA-Z0-9_.+-]+;base64,[A-Za-z0-9+/=]+"
 )
 
-# Keys whose values are always fully redacted (case-insensitive comparison).
-_SENSITIVE_KEYS: set[str] = {
-    "authorization",
-    "x-api-key",
-    "api_key",
-    "api-key",
-    "secret",
+# Substrings: if any of these appear in a key name (case-insensitive), the
+# value is redacted.  This catches variants like ``access_token``,
+# ``api_secret``, ``private_key``, etc.
+_SENSITIVE_KEY_PATTERNS: frozenset[str] = frozenset({
     "token",
+    "secret",
     "password",
     "credential",
-}
+    "authorization",
+    "cookie",
+    "private_key",
+    "api_key",
+    "api-key",
+    "x-api-key",
+})
 
 # Heuristic: a string value longer than this threshold that looks like raw
 # bytes (not valid readable text) is treated as binary.
@@ -113,7 +117,7 @@ def _redact_dict(d: dict, token: str | None) -> dict:
     result: dict = {}
     for key, value in d.items():
         key_lower = key.lower() if isinstance(key, str) else ""
-        if key_lower in _SENSITIVE_KEYS:
+        if any(pat in key_lower for pat in _SENSITIVE_KEY_PATTERNS):
             if isinstance(value, str):
                 result[key] = _mask_token(value, token)
             else:

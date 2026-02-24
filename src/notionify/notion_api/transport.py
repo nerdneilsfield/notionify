@@ -110,8 +110,11 @@ def _dump_payload(
     payload: dict | None,
     response_status: int | None,
     response_body: Any | None,
+    token: str | None = None,
 ) -> None:
-    """Write a debug dump of the request/response to stderr."""
+    """Write a redacted debug dump of the request/response to stderr."""
+    from notionify.utils.redact import redact
+
     dump: dict[str, Any] = {
         "method": method,
         "url": url,
@@ -122,8 +125,9 @@ def _dump_payload(
         dump["response_status"] = response_status
     if response_body is not None:
         dump["response_body"] = response_body
+    safe_dump = redact(dump, token)
     print(  # noqa: T201
-        _json.dumps(dump, indent=2, default=str),
+        _json.dumps(safe_dump, indent=2, default=str),
         file=sys.stderr,
     )
 
@@ -290,6 +294,7 @@ class NotionTransport:
                 _dump_payload(
                     method, str(response.url), json_payload,
                     response.status_code, resp_body,
+                    token=self._config.token,
                 )
 
             # 3a. Success
@@ -571,6 +576,7 @@ class AsyncNotionTransport:
                 _dump_payload(
                     method, str(response.url), json_payload,
                     response.status_code, resp_body,
+                    token=self._config.token,
                 )
 
             # 3a. Success

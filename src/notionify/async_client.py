@@ -584,11 +584,21 @@ class AsyncNotionifyClient:
         warnings: list[ConversionWarning],
     ) -> int:
         """Read, validate, upload a local file image and replace the block."""
-        file_path = Path(pending.src).expanduser().resolve()
+        base = self._config.image_base_dir
+        if base is not None:
+            base_path = Path(base).resolve()
+            file_path = (base_path / pending.src).resolve()
+            if not file_path.is_relative_to(base_path):
+                raise NotionifyImageNotFoundError(
+                    message=f"Image path escapes base directory: {pending.src}",
+                    context={"src": pending.src},
+                )
+        else:
+            file_path = Path(pending.src).expanduser().resolve()
         if not file_path.is_file():
             raise NotionifyImageNotFoundError(
                 message=f"Image file not found: {pending.src}",
-                context={"src": pending.src, "resolved_path": str(file_path)},
+                context={"src": pending.src},
             )
 
         # Read file bytes in an executor to avoid blocking the event loop.

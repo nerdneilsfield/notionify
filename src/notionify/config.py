@@ -12,6 +12,7 @@ Two module-level constants define the default MIME allowlists:
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -184,6 +185,12 @@ class NotionifyConfig:
 
     image_verify_external: bool = False
 
+    image_base_dir: str | None = None
+    """If set, local image file paths are resolved relative to this
+    directory and must remain within it.  Prevents path traversal attacks
+    when processing untrusted Markdown.  The value is resolved to an
+    absolute path at use time."""
+
     # ── Tables ──────────────────────────────────────────────────────────
     enable_tables: bool = True
 
@@ -220,3 +227,15 @@ class NotionifyConfig:
     debug_dump_payload: bool = False
 
     debug_dump_diff: bool = False
+
+    def __repr__(self) -> str:
+        """Mask the token to prevent accidental credential leakage."""
+        parts: list[str] = []
+        for f in dataclasses.fields(self):
+            val = getattr(self, f.name)
+            if f.name == "token":
+                masked = f"...{val[-4:]}" if len(val) >= 4 else "****"
+                parts.append(f"token='{masked}'")
+            else:
+                parts.append(f"{f.name}={val!r}")
+        return f"NotionifyConfig({', '.join(parts)})"
