@@ -751,7 +751,7 @@ class AsyncNotionifyClient:
             # Attach children under the block's type-specific key so the
             # renderer can find them.
             block_type = block.get("type", "")
-            if block_type and block_type in block:
+            if block_type and block_type in block and isinstance(block[block_type], dict):
                 block[block_type]["children"] = children
             else:
                 block["children"] = children
