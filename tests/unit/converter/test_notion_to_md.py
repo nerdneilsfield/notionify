@@ -693,3 +693,221 @@ class TestUnderlineRendering:
         assert "<u>" in md
         assert "underlined" in md
         assert "</u>" in md
+
+
+# =========================================================================
+# Additional coverage tests for previously uncovered paths
+# =========================================================================
+
+
+class TestRenderBlockPublicMethod:
+    """render_block() is a public single-block method (line 105)."""
+
+    def test_render_single_block(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [_make_text_segment("hello")]},
+        }
+        md = r.render_block(block)
+        assert "hello" in md
+
+
+class TestMediaBlockRendering:
+    """Media types (video, audio, pdf) use _render_media (line 147)."""
+
+    def test_video_external(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "video",
+            "video": {"type": "external", "external": {"url": "https://youtube.com/v/123"}},
+        }
+        md = r.render_blocks([block])
+        assert "[Video]" in md or "youtube.com" in md
+
+    def test_audio_file(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "audio",
+            "audio": {"type": "file", "file": {"url": "https://cdn.example.com/sound.mp3"}},
+        }
+        md = r.render_blocks([block])
+        assert "[Audio]" in md or "sound.mp3" in md
+
+    def test_media_no_url(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {"type": "video", "video": {"type": "external", "external": {}}}
+        md = r.render_blocks([block])
+        assert "[Video]" in md
+
+
+class TestNestedChildrenRendering:
+    """Nested children in quote, bulleted, numbered, to_do (lines 193-202, 228, 241)."""
+
+    def test_quote_with_children(self):
+        r = NotionToMarkdownRenderer(make_config())
+        child = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [_make_text_segment("nested")]},
+        }
+        block = {
+            "type": "quote",
+            "quote": {
+                "rich_text": [_make_text_segment("outer")],
+                "children": [child],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "outer" in md
+        assert "nested" in md
+
+    def test_quote_empty_child_line(self):
+        """Empty lines in children get > prefix (line 387)."""
+        r = NotionToMarkdownRenderer(make_config())
+        child = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [_make_text_segment("line1")]},
+        }
+        block = {
+            "type": "quote",
+            "quote": {
+                "rich_text": [],
+                "children": [child],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "line1" in md
+
+    def test_bulleted_with_children(self):
+        r = NotionToMarkdownRenderer(make_config())
+        child = {
+            "type": "bulleted_list_item",
+            "bulleted_list_item": {"rich_text": [_make_text_segment("child")]},
+        }
+        block = {
+            "type": "bulleted_list_item",
+            "bulleted_list_item": {
+                "rich_text": [_make_text_segment("parent")],
+                "children": [child],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "parent" in md
+        assert "child" in md
+
+    def test_numbered_with_children(self):
+        r = NotionToMarkdownRenderer(make_config())
+        child = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [_make_text_segment("sub")]},
+        }
+        block = {
+            "type": "numbered_list_item",
+            "numbered_list_item": {
+                "rich_text": [_make_text_segment("item")],
+                "children": [child],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "item" in md
+        assert "sub" in md
+
+    def test_todo_with_children(self):
+        r = NotionToMarkdownRenderer(make_config())
+        child = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [_make_text_segment("detail")]},
+        }
+        block = {
+            "type": "to_do",
+            "to_do": {
+                "rich_text": [_make_text_segment("task")],
+                "checked": False,
+                "children": [child],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "task" in md
+        assert "detail" in md
+
+
+class TestToggleRendering:
+    """Toggle block with children (lines 393-401)."""
+
+    def test_toggle_with_children(self):
+        r = NotionToMarkdownRenderer(make_config())
+        child = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [_make_text_segment("hidden content")]},
+        }
+        block = {
+            "type": "toggle",
+            "toggle": {
+                "rich_text": [_make_text_segment("Click to expand")],
+                "children": [child],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "Click to expand" in md
+        assert "hidden content" in md
+
+
+class TestPassthroughBlocks:
+    """column_list / column blocks pass through children (lines 492-493)."""
+
+    def test_column_list_passthrough(self):
+        r = NotionToMarkdownRenderer(make_config())
+        child = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [_make_text_segment("col content")]},
+        }
+        block = {
+            "type": "column_list",
+            "column_list": {"children": [child]},
+        }
+        md = r.render_blocks([block])
+        assert "col content" in md
+
+    def test_passthrough_no_children(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {"type": "column_list", "column_list": {}}
+        md = r.render_blocks([block])
+        assert md == ""
+
+
+class TestUnsupportedBlockWithText:
+    """_render_unsupported comment mode with non-empty text (line 524)."""
+
+    def test_unsupported_comment_with_text(self):
+        r = NotionToMarkdownRenderer(make_config(unsupported_block_policy="comment"))
+        # Use a completely custom type not in any dispatch table
+        block = {
+            "type": "custom_widget",
+            "custom_widget": {
+                "rich_text": [{"plain_text": "widget text", "type": "text"}]
+            },
+        }
+        md = r.render_blocks([block])
+        assert "<!-- notion:custom_widget -->" in md
+        assert "widget text" in md
+
+
+class TestExtractPlainTextHelper:
+    """_extract_plain_text helper (line 581)."""
+
+    def test_extracts_from_rich_text(self):
+        from notionify.converter.notion_to_md import _extract_plain_text
+        block = {
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [
+                    {"plain_text": "Hello ", "type": "text"},
+                    {"plain_text": "world", "type": "text"},
+                ]
+            },
+        }
+        assert _extract_plain_text(block) == "Hello world"
+
+    def test_empty_block_returns_empty(self):
+        from notionify.converter.notion_to_md import _extract_plain_text
+        assert _extract_plain_text({}) == ""

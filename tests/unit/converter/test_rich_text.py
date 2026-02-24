@@ -306,3 +306,92 @@ class TestBuildRichText:
         assert len(result) == 1
         assert result[0]["annotations"]["bold"] is True
         assert result[0]["annotations"]["italic"] is True
+
+
+class TestBuildRichTextImageToken:
+    """Tests for image token inline rendering (lines 149-160)."""
+
+    def test_image_with_alt_and_url(self):
+        tokens = [{"type": "image", "attrs": {"url": "https://example.com/img.png"},
+                   "children": [{"type": "text", "raw": "alt text"}]}]
+        result = build_rich_text(tokens, make_config())
+        assert len(result) == 1
+        assert result[0]["text"]["content"] == "[alt text](https://example.com/img.png)"
+
+    def test_image_with_url_only(self):
+        tokens = [{"type": "image", "attrs": {"url": "https://example.com/img.png"},
+                   "children": []}]
+        result = build_rich_text(tokens, make_config())
+        assert len(result) == 1
+        assert result[0]["text"]["content"] == "https://example.com/img.png"
+
+    def test_image_with_alt_only(self):
+        tokens = [{"type": "image", "attrs": {},
+                   "children": [{"type": "text", "raw": "my alt"}]}]
+        result = build_rich_text(tokens, make_config())
+        assert len(result) == 1
+        assert result[0]["text"]["content"] == "my alt"
+
+    def test_image_with_neither_alt_nor_url(self):
+        tokens = [{"type": "image", "attrs": {}, "children": []}]
+        result = build_rich_text(tokens, make_config())
+        assert len(result) == 1
+        assert result[0]["text"]["content"] == "[image]"
+
+
+class TestBuildRichTextHtmlInline:
+    """Tests for html_inline token handling (lines 184-189)."""
+
+    def test_html_inline_rendered_as_text(self):
+        tokens = [{"type": "html_inline", "raw": "<br/>"}]
+        result = build_rich_text(tokens, make_config())
+        assert len(result) == 1
+        assert result[0]["text"]["content"] == "<br/>"
+
+    def test_empty_html_inline_skipped(self):
+        tokens = [{"type": "html_inline", "raw": ""}]
+        result = build_rich_text(tokens, make_config())
+        assert result == []
+
+
+class TestBuildRichTextInlineMathList:
+    """Tests for inline_math where build_inline_math returns a list (line 170)."""
+
+    def test_inline_math_list_result_extended(self):
+        """When build_inline_math returns a list, all segments are extended."""
+        from unittest.mock import patch
+        mock_segs = [
+            {"type": "text", "text": {"content": "E"}},
+            {"type": "text", "text": {"content": "=mc^2"}},
+        ]
+        with patch("notionify.converter.math.build_inline_math",
+                   return_value=(mock_segs, [])):
+            tokens = [{"type": "inline_math", "raw": "E=mc^2"}]
+            result = build_rich_text(tokens, make_config())
+        assert len(result) == 2
+        assert result[0]["text"]["content"] == "E"
+        assert result[1]["text"]["content"] == "=mc^2"
+
+
+class TestExtractText:
+    """Tests for _extract_text recursive helper (lines 289-300)."""
+
+    def test_extract_nested_children(self):
+        from notionify.converter.rich_text import _extract_text
+        # token with children (no "raw") → recurse
+        tokens = [{"type": "strong", "children": [{"type": "text", "raw": "bold"}]}]
+        assert _extract_text(tokens) == "bold"
+
+    def test_extract_raw_fallback(self):
+        from notionify.converter.rich_text import _extract_text
+        # token with "raw" but no "children" and not "text" type
+        tokens = [{"type": "codespan", "raw": "code"}]
+        assert _extract_text(tokens) == "code"
+
+    def test_extract_mixed(self):
+        from notionify.converter.rich_text import _extract_text
+        tokens = [
+            {"type": "text", "raw": "hello "},
+            {"type": "strong", "children": [{"type": "text", "raw": "world"}]},
+        ]
+        assert _extract_text(tokens) == "hello world"
