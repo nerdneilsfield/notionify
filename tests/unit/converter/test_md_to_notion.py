@@ -860,3 +860,680 @@ class TestASTNormalizerEdgeCases:
         with patch.object(normalizer, '_parser', return_value="not a list"):
             tokens = normalizer.parse("anything")
         assert tokens == []
+
+
+# =========================================================================
+# Coverage gap tests: block_builder.py lines 97-102, 112, 114, 121,
+# 233-238, 311, 345, 431-435, 468-479, 494, 542, 600, 641-647, 657-660
+# =========================================================================
+
+class TestNormalizeLanguageCoverageGaps:
+    """Cover _normalize_language alias lookup and stripped-digits fallback
+    (lines 97-102).
+    """
+
+    def test_alias_py_maps_to_python(self):
+        """'py' is an alias that must map to 'python' (line 97-98)."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("```py\nprint('hi')\n```")
+        assert result.blocks[0]["code"]["language"] == "python"
+
+    def test_alias_js_maps_to_javascript(self):
+        """'js' alias must map to 'javascript'."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("```js\nconsole.log(1)\n```")
+        assert result.blocks[0]["code"]["language"] == "javascript"
+
+    def test_alias_ts_maps_to_typescript(self):
+        """'ts' alias must map to 'typescript'."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("```ts\nlet x: number = 1\n```")
+        assert result.blocks[0]["code"]["language"] == "typescript"
+
+    def test_alias_sh_maps_to_shell(self):
+        """'sh' alias must map to 'shell'."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("```sh\necho hi\n```")
+        assert result.blocks[0]["code"]["language"] == "shell"
+
+    def test_alias_rb_maps_to_ruby(self):
+        """'rb' alias must map to 'ruby'."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("```rb\nputs 'hi'\n```")
+        assert result.blocks[0]["code"]["language"] == "ruby"
+
+    def test_stripped_digits_python3_maps_to_python(self):
+        """'python3' strips trailing digit to 'python' (line 99-102)."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("```python3\nprint(1)\n```")
+        assert result.blocks[0]["code"]["language"] == "python"
+
+    def test_stripped_digits_ruby2_maps_to_ruby(self):
+        """'ruby2' strips trailing digit to 'ruby'."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("```ruby2\nputs 1\n```")
+        assert result.blocks[0]["code"]["language"] == "ruby"
+
+    def test_stripped_digits_alias_py3_maps_to_python(self):
+        """'py3' strips digit -> 'py' -> alias lookup -> 'python'."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("```py3\nprint(1)\n```")
+        assert result.blocks[0]["code"]["language"] == "python"
+
+    def test_completely_unknown_lang_becomes_plain_text(self):
+        """A language not in any list falls back to 'plain text'."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("```totallyfakelang\ncode\n```")
+        assert result.blocks[0]["code"]["language"] == "plain text"
+
+
+class TestClassifyImageSourceCoverageGaps:
+    """Cover _classify_image_source file:// scheme and UNKNOWN fallback
+    (lines 112, 114, 121).
+    """
+
+    def test_file_uri_absolute_path_is_local_file(self):
+        """file:/// URI must be classified as LOCAL_FILE (line 114)."""
+        c = MarkdownToNotionConverter(make_config(image_upload=True))
+        result = c.convert("![pic](file:///home/user/image.png)")
+        # With upload enabled, a LOCAL_FILE produces a placeholder block
+        # and a PendingImage entry.
+        assert len(result.blocks) == 1
+        assert result.blocks[0]["type"] == "image"
+        assert len(result.images) == 1
+        assert result.images[0].src == "file:///home/user/image.png"
+
+    def test_file_uri_localhost_is_local_file(self):
+        """file://localhost/ URI must be classified as LOCAL_FILE (line 114)."""
+        c = MarkdownToNotionConverter(make_config(image_upload=True))
+        result = c.convert("![pic](file://localhost/tmp/img.png)")
+        assert len(result.images) == 1
+        assert result.images[0].src == "file://localhost/tmp/img.png"
+
+    def test_ftp_url_is_unknown_source(self):
+        """ftp:// URL hits the UNKNOWN fallback branch (line 121)."""
+        c = MarkdownToNotionConverter(make_config(image_fallback="skip"))
+        result = c.convert("![pic](ftp://files.example.com/img.png)")
+        # UNKNOWN with fallback=skip -> no block, one warning
+        assert result.blocks == []
+        assert any(w.code == "IMAGE_SKIPPED" for w in result.warnings)
+
+    def test_sftp_url_is_unknown_source(self):
+        """sftp:// URL hits the UNKNOWN fallback branch (line 121)."""
+        c = MarkdownToNotionConverter(make_config(image_fallback="skip"))
+        result = c.convert("![pic](sftp://server.example.com/img.png)")
+        assert result.blocks == []
+        assert any(w.code == "IMAGE_SKIPPED" for w in result.warnings)
+
+    def test_empty_url_is_unknown_source(self):
+        """An empty URL is classified UNKNOWN (line 112)."""
+        c = MarkdownToNotionConverter(make_config(image_fallback="skip"))
+        # Build a paragraph with a bare image token using an empty URL via
+        # direct block_builder call so we bypass markdown parsing.
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": ""},
+                "children": [],
+            }],
+        }]
+        blocks, images, warnings = build_blocks(tokens, make_config(image_fallback="skip"))
+        assert blocks == []
+        assert any(w.code == "IMAGE_SKIPPED" for w in warnings)
+
+
+class TestHeadingOverflowParagraph:
+    """Cover the heading_overflow='paragraph' path (lines 233-238)."""
+
+    def test_h4_with_paragraph_overflow_produces_bold_paragraph(self):
+        """H4 with heading_overflow='paragraph' renders as bold paragraph."""
+        c = MarkdownToNotionConverter(make_config(heading_overflow="paragraph"))
+        result = c.convert("#### Heading Four")
+        assert len(result.blocks) == 1
+        block = result.blocks[0]
+        assert block["type"] == "paragraph"
+        rich_text = block["paragraph"]["rich_text"]
+        assert len(rich_text) >= 1
+        assert rich_text[0]["annotations"]["bold"] is True
+        assert rich_text[0]["text"]["content"] == "Heading Four"
+
+    def test_h5_with_paragraph_overflow_produces_bold_paragraph(self):
+        """H5 with heading_overflow='paragraph' renders as bold paragraph."""
+        c = MarkdownToNotionConverter(make_config(heading_overflow="paragraph"))
+        result = c.convert("##### Heading Five")
+        block = result.blocks[0]
+        assert block["type"] == "paragraph"
+        assert block["paragraph"]["rich_text"][0]["annotations"]["bold"] is True
+
+    def test_h6_with_paragraph_overflow_produces_bold_paragraph(self):
+        """H6 with heading_overflow='paragraph' renders as bold paragraph."""
+        c = MarkdownToNotionConverter(make_config(heading_overflow="paragraph"))
+        result = c.convert("###### Heading Six")
+        block = result.blocks[0]
+        assert block["type"] == "paragraph"
+        assert block["paragraph"]["rich_text"][0]["annotations"]["bold"] is True
+
+
+class TestBlockQuoteWithNonParagraphChild:
+    """Cover the block_quote non-paragraph nested block path (line 311)."""
+
+    def test_blockquote_with_nested_code_block(self):
+        """A blockquote containing a fenced code block uses nested children."""
+        c = MarkdownToNotionConverter(make_config())
+        md = "> intro text\n>\n> ```python\n> x = 1\n> ```"
+        result = c.convert(md)
+        # The quote block is the first block produced
+        quote_block = result.blocks[0]
+        assert quote_block["type"] == "quote"
+        # The code block should appear as a child of the quote
+        children = quote_block["quote"].get("children", [])
+        assert len(children) >= 1
+        assert children[0]["type"] == "code"
+        assert children[0]["code"]["language"] == "python"
+
+    def test_blockquote_with_nested_heading_produces_children(self):
+        """A blockquote may contain non-paragraph tokens as nested children."""
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{
+            "type": "block_quote",
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [{"type": "text", "raw": "intro"}],
+                },
+                {
+                    "type": "heading",
+                    "attrs": {"level": 2},
+                    "children": [{"type": "text", "raw": "section"}],
+                },
+            ],
+        }]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        assert blocks[0]["type"] == "quote"
+        children = blocks[0]["quote"].get("children", [])
+        assert len(children) == 1
+        assert children[0]["type"] == "heading_2"
+
+
+class TestTaskListItemInList:
+    """Cover task_list_item dispatch inside _build_list (line 345)."""
+
+    def test_task_list_checked_item(self):
+        """A checked task list item produces a to_do block with checked=True."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("- [x] Done")
+        assert len(result.blocks) == 1
+        assert result.blocks[0]["type"] == "to_do"
+        assert result.blocks[0]["to_do"]["checked"] is True
+
+    def test_task_list_unchecked_item(self):
+        """An unchecked task list item produces a to_do block with checked=False."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("- [ ] Not done")
+        assert result.blocks[0]["type"] == "to_do"
+        assert result.blocks[0]["to_do"]["checked"] is False
+
+    def test_mixed_task_and_regular_items(self):
+        """A list mixing task and regular items produces correct block types."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("- [x] Task A\n- [ ] Task B\n- Regular item")
+        types = [b["type"] for b in result.blocks]
+        assert types[0] == "to_do"
+        assert types[1] == "to_do"
+        assert types[2] == "bulleted_list_item"
+
+
+class TestListItemOtherNestedBlock:
+    """Cover the 'other nested block' path inside _build_list_item (lines 431-435)."""
+
+    def test_list_item_with_nested_code_block(self):
+        """A list item containing a code block has the code as a child."""
+        c = MarkdownToNotionConverter(make_config())
+        md = "- item text\n\n  ```python\n  x = 1\n  ```"
+        result = c.convert(md)
+        assert result.blocks[0]["type"] == "bulleted_list_item"
+        children = result.blocks[0]["bulleted_list_item"].get("children", [])
+        assert len(children) >= 1
+        assert children[0]["type"] == "code"
+
+    def test_ordered_list_item_with_nested_code_block(self):
+        """An ordered list item containing a code block has the code as a child."""
+        c = MarkdownToNotionConverter(make_config())
+        md = "1. first item\n\n   ```python\n   y = 2\n   ```"
+        result = c.convert(md)
+        assert result.blocks[0]["type"] == "numbered_list_item"
+        children = result.blocks[0]["numbered_list_item"].get("children", [])
+        assert len(children) >= 1
+        assert children[0]["type"] == "code"
+
+    def test_list_item_other_nested_block_via_direct_call(self):
+        """Direct token: list_item with a non-list, non-paragraph child."""
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{
+            "type": "list",
+            "attrs": {"ordered": False},
+            "children": [{
+                "type": "list_item",
+                "children": [
+                    {
+                        "type": "paragraph",
+                        "children": [{"type": "text", "raw": "item"}],
+                    },
+                    {
+                        "type": "thematic_break",
+                    },
+                ],
+            }],
+        }]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        assert blocks[0]["type"] == "bulleted_list_item"
+        children = blocks[0]["bulleted_list_item"].get("children", [])
+        assert any(c["type"] == "divider" for c in children)
+
+
+class TestTaskListItemNestedBlockPaths:
+    """Cover nested list and other-block paths in _build_task_list_item
+    (lines 468-479, 494).
+    """
+
+    def test_task_item_with_nested_list_produces_children(self):
+        """A task list item followed by an indented sub-list has children."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("- [x] Parent task\n  - sub item")
+        assert result.blocks[0]["type"] == "to_do"
+        children = result.blocks[0]["to_do"].get("children", [])
+        assert len(children) >= 1
+        assert children[0]["type"] == "bulleted_list_item"
+
+    def test_task_item_with_nested_unordered_list(self):
+        """Nested unordered list items appear as bulleted_list_item children."""
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("- [ ] Todo\n  - first\n  - second")
+        children = result.blocks[0]["to_do"].get("children", [])
+        assert len(children) == 2
+        assert all(c["type"] == "bulleted_list_item" for c in children)
+
+    def test_task_item_with_nested_code_block(self):
+        """A task list item with a nested code block has the code as a child."""
+        c = MarkdownToNotionConverter(make_config())
+        md = "- [x] Task\n\n  ```python\n  code\n  ```"
+        result = c.convert(md)
+        assert result.blocks[0]["type"] == "to_do"
+        children = result.blocks[0]["to_do"].get("children", [])
+        assert len(children) >= 1
+        assert children[0]["type"] == "code"
+
+    def test_task_item_nested_blocks_via_direct_token(self):
+        """Direct token: task_list_item with both list child and other child."""
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{
+            "type": "list",
+            "attrs": {"ordered": False},
+            "children": [{
+                "type": "task_list_item",
+                "attrs": {"checked": True},
+                "children": [
+                    {
+                        "type": "paragraph",
+                        "children": [{"type": "text", "raw": "main text"}],
+                    },
+                    {
+                        "type": "list",
+                        "attrs": {"ordered": False},
+                        "children": [{
+                            "type": "list_item",
+                            "children": [
+                                {"type": "block_text",
+                                 "children": [{"type": "text", "raw": "sub"}]},
+                            ],
+                        }],
+                    },
+                    {
+                        "type": "thematic_break",
+                    },
+                ],
+            }],
+        }]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        assert blocks[0]["type"] == "to_do"
+        assert blocks[0]["to_do"]["checked"] is True
+        children = blocks[0]["to_do"].get("children", [])
+        child_types = [ch["type"] for ch in children]
+        assert "bulleted_list_item" in child_types
+        assert "divider" in child_types
+
+
+class TestDataUriImageWithUpload:
+    """Cover the DATA_URI + image_upload=True path (line 542)."""
+
+    def test_data_uri_image_with_upload_creates_placeholder(self):
+        """A data: URI image with upload enabled creates a placeholder block."""
+        c = MarkdownToNotionConverter(make_config(image_upload=True))
+        data_uri = "data:image/png;base64,iVBORw0KGgo="
+        result = c.convert(f"![logo]({data_uri})")
+        assert len(result.blocks) == 1
+        block = result.blocks[0]
+        assert block["type"] == "image"
+        assert block["image"]["external"]["url"] == "https://placeholder.notionify.invalid"
+        assert len(result.images) == 1
+        assert result.images[0].src == data_uri
+
+    def test_data_uri_image_caption_included(self):
+        """A data: URI image with alt text has caption in the placeholder block."""
+        c = MarkdownToNotionConverter(make_config(image_upload=True))
+        data_uri = "data:image/jpeg;base64,/9j/4AAQ=="
+        result = c.convert(f"![my caption]({data_uri})")
+        block = result.blocks[0]
+        caption = block["image"].get("caption", [])
+        assert len(caption) == 1
+        assert caption[0]["text"]["content"] == "my caption"
+
+    def test_data_uri_image_without_upload_hits_fallback(self):
+        """A data: URI image with upload disabled triggers fallback."""
+        c = MarkdownToNotionConverter(make_config(image_upload=False, image_fallback="skip"))
+        data_uri = "data:image/png;base64,iVBORw0KGgo="
+        result = c.convert(f"![logo]({data_uri})")
+        assert result.blocks == []
+        assert any(w.code == "IMAGE_SKIPPED" for w in result.warnings)
+
+
+class TestImageFallbackRaise:
+    """Cover the image_fallback='raise' path (line 600)."""
+
+    def test_local_file_fallback_raise_produces_warning(self):
+        """A local file image with fallback='raise' emits IMAGE_ERROR warning."""
+        c = MarkdownToNotionConverter(make_config(image_upload=False, image_fallback="raise"))
+        result = c.convert("![alt](/tmp/image.png)")
+        assert result.blocks == []
+        assert len(result.warnings) == 1
+        w = result.warnings[0]
+        assert w.code == "IMAGE_ERROR"
+        assert w.context.get("fallback") == "raise"
+
+    def test_unknown_scheme_fallback_raise_produces_warning(self):
+        """An ftp:// image with fallback='raise' emits IMAGE_ERROR warning."""
+        c = MarkdownToNotionConverter(make_config(image_fallback="raise"))
+        result = c.convert("![alt](ftp://example.com/img.png)")
+        assert result.blocks == []
+        assert any(w.code == "IMAGE_ERROR" for w in result.warnings)
+
+    def test_data_uri_without_upload_fallback_raise(self):
+        """A data: URI with upload disabled and fallback='raise' emits IMAGE_ERROR."""
+        c = MarkdownToNotionConverter(make_config(image_upload=False, image_fallback="raise"))
+        result = c.convert("![x](data:image/png;base64,abc=)")
+        assert result.blocks == []
+        assert any(w.code == "IMAGE_ERROR" for w in result.warnings)
+
+
+class TestLocalFileImageFallbackPaths:
+    """Cover LOCAL_FILE with upload=False and UNKNOWN source fallback paths
+    (lines 641-647, 657-660).
+    """
+
+    def test_local_file_upload_disabled_fallback_skip(self):
+        """Local file image with upload=False and fallback='skip' produces warning."""
+        c = MarkdownToNotionConverter(make_config(image_upload=False, image_fallback="skip"))
+        result = c.convert("![alt](/path/to/image.png)")
+        assert result.blocks == []
+        assert any(w.code == "IMAGE_SKIPPED" for w in result.warnings)
+
+    def test_local_file_upload_disabled_fallback_placeholder(self):
+        """Local file image with upload=False and fallback='placeholder'
+        produces a paragraph block with placeholder text (lines 657-660).
+        """
+        c = MarkdownToNotionConverter(make_config(image_upload=False, image_fallback="placeholder"))
+        result = c.convert("![my alt text](/images/photo.jpg)")
+        assert len(result.blocks) == 1
+        block = result.blocks[0]
+        assert block["type"] == "paragraph"
+        content = block["paragraph"]["rich_text"][0]["text"]["content"]
+        assert content == "[image: my alt text]"
+        assert any(w.code == "IMAGE_PLACEHOLDER" for w in result.warnings)
+
+    def test_local_file_without_alt_placeholder_uses_url(self):
+        """Local file image with no alt text uses URL in placeholder text."""
+        c = MarkdownToNotionConverter(make_config(image_upload=False, image_fallback="placeholder"))
+        result = c.convert("![](/images/photo.jpg)")
+        block = result.blocks[0]
+        content = block["paragraph"]["rich_text"][0]["text"]["content"]
+        # alt_text is empty, so display falls back to url
+        assert "/images/photo.jpg" in content
+
+    def test_unknown_source_upload_disabled_fallback_placeholder(self):
+        """UNKNOWN source type (ftp://) with fallback='placeholder' gives
+        a paragraph block (lines 641-647 + 657-660).
+        """
+        c = MarkdownToNotionConverter(make_config(image_fallback="placeholder"))
+        result = c.convert("![fig](ftp://server/img.png)")
+        assert len(result.blocks) == 1
+        assert result.blocks[0]["type"] == "paragraph"
+        assert any(w.code == "IMAGE_PLACEHOLDER" for w in result.warnings)
+
+    def test_file_uri_upload_disabled_fallback_placeholder(self):
+        """file:// URI with upload=False and fallback='placeholder' gives
+        a placeholder paragraph.
+        """
+        c = MarkdownToNotionConverter(make_config(image_upload=False, image_fallback="placeholder"))
+        result = c.convert("![diagram](file:///home/user/diagram.svg)")
+        assert len(result.blocks) == 1
+        block = result.blocks[0]
+        assert block["type"] == "paragraph"
+        assert any(w.code == "IMAGE_PLACEHOLDER" for w in result.warnings)
+
+
+class TestRemainingCoverageGaps:
+    """Cover remaining uncovered lines:
+    233-238 (UNKNOWN_TOKEN), 311 (empty paragraph), 345 (blockquote newline sep),
+    542 (table returns None), 657-660 (_extract_text children/raw branches).
+    """
+
+    # --- Line 233-238: UNKNOWN_TOKEN warning ---
+
+    def test_unknown_token_type_produces_warning(self):
+        """A token with an unrecognized type emits UNKNOWN_TOKEN warning
+        and produces no block (lines 233-238).
+        """
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{"type": "some_completely_unknown_type", "raw": "data"}]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        assert blocks == []
+        assert len(warnings) == 1
+        assert warnings[0].code == "UNKNOWN_TOKEN"
+        assert "some_completely_unknown_type" in warnings[0].message
+
+    def test_token_with_empty_type_produces_no_warning(self):
+        """A token with empty type string is silently skipped (line 238 else branch)."""
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{"type": "", "raw": "data"}]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        assert blocks == []
+        assert warnings == []
+
+    def test_multiple_unknown_tokens_each_produce_warning(self):
+        """Each unknown token type emits its own UNKNOWN_TOKEN warning."""
+        from notionify.converter.block_builder import build_blocks
+        tokens = [
+            {"type": "foo_block", "raw": "a"},
+            {"type": "bar_block", "raw": "b"},
+        ]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        assert blocks == []
+        assert len(warnings) == 2
+        codes = [w.code for w in warnings]
+        assert all(c == "UNKNOWN_TOKEN" for c in codes)
+
+    # --- Line 311: empty paragraph returns [] ---
+
+    def test_empty_paragraph_token_produces_no_block(self):
+        """A paragraph token with no children produces no block (line 311)."""
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{"type": "paragraph", "children": []}]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        assert blocks == []
+
+    def test_paragraph_with_unrecognized_inline_produces_no_block(self):
+        """A paragraph whose children produce no rich_text emits no block (line 311).
+
+        An unrecognized inline token type returns [] from build_rich_text,
+        making rich_text falsy, which triggers the early return on line 311.
+        """
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{"type": "paragraph", "children": [{"type": "_unrecognized_inline_"}]}]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        assert blocks == []
+
+    # --- Line 345: blockquote with multiple paragraphs inserts newline ---
+
+    def test_blockquote_two_paragraphs_joined_with_newline(self):
+        """A blockquote with two paragraph children joins them with a newline
+        separator in the rich_text (line 345).
+        """
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{
+            "type": "block_quote",
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [{"type": "text", "raw": "First line"}],
+                },
+                {
+                    "type": "paragraph",
+                    "children": [{"type": "text", "raw": "Second line"}],
+                },
+            ],
+        }]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        assert blocks[0]["type"] == "quote"
+        rich_text = blocks[0]["quote"]["rich_text"]
+        # There should be a newline segment between the two paragraphs
+        contents = [seg["text"]["content"] for seg in rich_text if seg["type"] == "text"]
+        assert "First line" in contents
+        assert "\n" in contents
+        assert "Second line" in contents
+
+    def test_blockquote_three_paragraphs_has_two_newline_separators(self):
+        """Three paragraph children in a blockquote produce two newline separators."""
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{
+            "type": "block_quote",
+            "children": [
+                {"type": "paragraph", "children": [{"type": "text", "raw": "A"}]},
+                {"type": "paragraph", "children": [{"type": "text", "raw": "B"}]},
+                {"type": "paragraph", "children": [{"type": "text", "raw": "C"}]},
+            ],
+        }]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        rich_text = blocks[0]["quote"]["rich_text"]
+        newline_count = sum(
+            1 for seg in rich_text
+            if seg["type"] == "text" and seg["text"]["content"] == "\n"
+        )
+        assert newline_count == 2
+
+    # --- Line 542: _build_table returns [] when build_table returns None ---
+
+    def test_build_table_returning_none_produces_no_block(self):
+        """When the underlying build_table returns (None, warnings), no block
+        is added (line 542).
+        """
+        from unittest.mock import patch
+        from notionify.converter.block_builder import build_blocks
+        from notionify.models import ConversionWarning
+
+        sentinel_warning = ConversionWarning(
+            code="TABLE_DISABLED", message="patched out", context={}
+        )
+        tokens = [{"type": "table", "children": []}]
+        with patch(
+            "notionify.converter.block_builder.build_table",
+            return_value=(None, [sentinel_warning]),
+        ):
+            blocks, images, warnings = build_blocks(tokens, make_config())
+
+        assert blocks == []
+        assert any(w.code == "TABLE_DISABLED" for w in warnings)
+
+    # --- Lines 657-660: _extract_text children and raw fallback branches ---
+
+    def test_extract_text_from_nested_inline_token_with_children(self):
+        """_extract_text recurses into tokens that have a 'children' key
+        (line 657-658), e.g. a strong/em inline node.
+        """
+        from notionify.converter.block_builder import _extract_text
+        children = [
+            {
+                "type": "strong",
+                "children": [{"type": "text", "raw": "bold text"}],
+            }
+        ]
+        result = _extract_text(children)
+        assert result == "bold text"
+
+    def test_extract_text_from_token_with_raw_no_children(self):
+        """_extract_text uses the 'raw' field for tokens that have no
+        'children' key and are not type='text' (lines 659-660), e.g. code_inline.
+        """
+        from notionify.converter.block_builder import _extract_text
+        children = [
+            {"type": "code_inline", "raw": "inline_code()"},
+        ]
+        result = _extract_text(children)
+        assert result == "inline_code()"
+
+    def test_extract_text_mixed_token_types(self):
+        """_extract_text handles a mix of text, children, and raw tokens."""
+        from notionify.converter.block_builder import _extract_text
+        children = [
+            {"type": "text", "raw": "Hello "},
+            {"type": "strong", "children": [{"type": "text", "raw": "world"}]},
+            {"type": "code_inline", "raw": "!"},
+        ]
+        result = _extract_text(children)
+        assert result == "Hello world!"
+
+    def test_image_alt_text_uses_extract_text_children_branch(self):
+        """An image with a nested inline token in alt uses _extract_text
+        children branch (line 657-658) to extract the caption.
+        """
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "https://example.com/img.png"},
+                "children": [
+                    {
+                        "type": "strong",
+                        "children": [{"type": "text", "raw": "bold alt"}],
+                    }
+                ],
+            }],
+        }]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        assert blocks[0]["type"] == "image"
+        caption = blocks[0]["image"].get("caption", [])
+        assert len(caption) == 1
+        assert caption[0]["text"]["content"] == "bold alt"
+
+    def test_image_alt_text_uses_extract_text_raw_branch(self):
+        """An image with a code_inline alt token uses _extract_text raw
+        branch (lines 659-660) to extract the caption.
+        """
+        from notionify.converter.block_builder import build_blocks
+        tokens = [{
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "https://example.com/img.png"},
+                "children": [
+                    {"type": "code_inline", "raw": "myCode"},
+                ],
+            }],
+        }]
+        blocks, images, warnings = build_blocks(tokens, make_config())
+        assert blocks[0]["type"] == "image"
+        caption = blocks[0]["image"].get("caption", [])
+        assert len(caption) == 1
+        assert caption[0]["text"]["content"] == "myCode"

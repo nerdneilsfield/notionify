@@ -911,3 +911,86 @@ class TestExtractPlainTextHelper:
     def test_empty_block_returns_empty(self):
         from notionify.converter.notion_to_md import _extract_plain_text
         assert _extract_plain_text({}) == ""
+
+
+class TestQuoteEmptyChildLineBranch:
+    """Quote children with multiple blocks produce internal empty lines (line 201)."""
+
+    def test_quote_two_children_hits_empty_line_branch(self):
+        """Two children create blank line between them, hitting prefix.rstrip() branch."""
+        r = NotionToMarkdownRenderer(make_config())
+        child1 = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [_make_text_segment("first")]},
+        }
+        child2 = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [_make_text_segment("second")]},
+        }
+        block = {
+            "type": "quote",
+            "quote": {
+                "rich_text": [_make_text_segment("outer")],
+                "children": [child1, child2],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "first" in md
+        assert "second" in md
+
+
+class TestCalloutEmptyChildLineBranch:
+    """Callout children with multiple blocks produce internal empty lines (line 387)."""
+
+    def test_callout_two_children_hits_empty_line_branch(self):
+        """Two children create blank line, hitting '>'  empty branch in callout."""
+        r = NotionToMarkdownRenderer(make_config())
+        child1 = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [_make_text_segment("alpha")]},
+        }
+        child2 = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [_make_text_segment("beta")]},
+        }
+        block = {
+            "type": "callout",
+            "callout": {
+                "rich_text": [_make_text_segment("note")],
+                "icon": {"type": "emoji", "emoji": "💡"},
+                "children": [child1, child2],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "alpha" in md
+        assert "beta" in md
+
+
+class TestMarkdownEscapeCodeContext:
+    """markdown_escape with context='code' returns text unchanged (line 41)."""
+
+    def test_code_context_no_escaping(self):
+        from notionify.converter.inline_renderer import markdown_escape
+        text = "**bold** and `code` and [link](url)"
+        assert markdown_escape(text, context="code") == text
+
+    def test_url_context_encodes_parens(self):
+        from notionify.converter.inline_renderer import markdown_escape
+        assert markdown_escape("a(b)c", context="url") == "a%28b%29c"
+
+
+class TestEquationWithHref:
+    """Equation segment with href renders as linked equation (line 88)."""
+
+    def test_equation_with_link(self):
+        from notionify.converter.inline_renderer import render_rich_text
+        seg = {
+            "type": "equation",
+            "equation": {"expression": "E=mc^2"},
+            "href": "https://example.com",
+            "annotations": {},
+        }
+        result = render_rich_text([seg])
+        assert "$E=mc^2$" in result
+        assert "https://example.com" in result
+        assert result.startswith("[")
