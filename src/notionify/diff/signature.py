@@ -34,12 +34,19 @@ _ATTRS_EXTRACTORS: dict[str, list[str]] = {
 
 
 def _extract_plain_text(block: dict, block_type: str) -> str:
-    """Extract the concatenated plain_text from a block's rich_text array."""
+    """Extract the concatenated plain_text from a block's rich_text array.
+
+    Handles both Notion API responses (which have ``plain_text``) and
+    converter-produced blocks (which store content in ``text.content``).
+    """
     type_data = block.get(block_type, {})
     rich_text = type_data.get("rich_text", [])
     parts: list[str] = []
     for rt in rich_text:
-        parts.append(rt.get("plain_text", ""))
+        text = rt.get("plain_text", "")
+        if not text:
+            text = rt.get("text", {}).get("content", "")
+        parts.append(text)
     return "".join(parts)
 
 
