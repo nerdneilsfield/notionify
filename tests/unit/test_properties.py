@@ -21,6 +21,9 @@ from notionify.utils.hashing import md5_hash, hash_dict
 from notionify.converter.rich_text import split_rich_text
 from notionify.utils.redact import redact, _SENSITIVE_KEY_PATTERNS
 from notionify.converter.ast_normalizer import ASTNormalizer
+from notionify.config import NotionifyConfig
+from notionify.converter.md_to_notion import MarkdownToNotionConverter
+from notionify.diff.signature import compute_signature
 
 # ---------------------------------------------------------------------------
 # Reusable strategies
@@ -623,3 +626,56 @@ class TestMarkdownParseProperties:
         """Arbitrary Unicode text must be handled without errors."""
         result = self._normalizer.parse(text)
         assert isinstance(result, list)
+
+
+# ---------------------------------------------------------------------------
+# 7. TestConverterProperties (PRD section 20.8)
+# ---------------------------------------------------------------------------
+
+
+class TestConverterProperties:
+    """Property-based tests for the full conversion pipeline.
+
+    PRD section 20.8 requires: ``test_converter_never_crashes`` — the full
+    converter must never raise on any text input.
+    """
+
+    _config = NotionifyConfig(token="test-token")
+    _converter = MarkdownToNotionConverter(_config)
+
+    @given(text=st.text(min_size=0, max_size=5000))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_converter_never_crashes(self, text: str) -> None:
+        """The full pipeline must never raise, regardless of input."""
+        result = self._converter.convert(text)
+        assert isinstance(result.blocks, list)
+        assert isinstance(result.warnings, list)
+        assert isinstance(result.images, list)
+
+    @given(text=st.text(min_size=0, max_size=5000))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_all_blocks_have_type(self, text: str) -> None:
+        """Every block produced must have a 'type' key."""
+        result = self._converter.convert(text)
+        for block in result.blocks:
+            assert isinstance(block, dict)
+            assert "type" in block
+
+    @given(text=st.text(min_size=0, max_size=3000))
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_signature_computation_never_crashes(self, text: str) -> None:
+        """Signature computation must handle all converter-produced blocks."""
+        result = self._converter.convert(text)
+        for block in result.blocks:
+            sig = compute_signature(block)
+            assert sig.block_type == block["type"]
+
+    @given(text=st.text(min_size=0, max_size=3000))
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_convert_is_deterministic(self, text: str) -> None:
+        """Converting the same markdown twice produces identical block types."""
+        r1 = self._converter.convert(text)
+        r2 = self._converter.convert(text)
+        types1 = [b["type"] for b in r1.blocks]
+        types2 = [b["type"] for b in r2.blocks]
+        assert types1 == types2
