@@ -463,6 +463,13 @@ class TestRedactProperties:
         result = redact(payload, token=token)
         assert token not in result[key]
 
+    def test_token_suffix_overlap_uses_generic_placeholder(self) -> None:
+        """When the suffix-based placeholder would re-introduce the token, fall back."""
+        payload = {"api-key": "value contains .0000 here"}
+        result = redact(payload, token=".0000")
+        assert ".0000" not in result["api-key"]
+        assert "<redacted>" in result["api-key"]
+
     @given(
         payload=st.dictionaries(
             keys=st.text(

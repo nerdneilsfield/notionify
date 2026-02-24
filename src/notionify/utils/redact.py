@@ -51,7 +51,11 @@ def _mask_token(value: str, token: str | None) -> str:
     # If an explicit token is supplied, scrub it wherever it appears.
     if token and token in value:
         suffix = token[-4:] if len(token) >= 4 else "****"
-        value = value.replace(token, f"<redacted:...{suffix}>")
+        placeholder = f"<redacted:...{suffix}>"
+        # If the placeholder itself contains the token, fall back to generic.
+        if token in placeholder:
+            placeholder = "<redacted>"
+        value = value.replace(token, placeholder)
     # Also handle generic "Bearer <tok>" patterns that may remain.
     value = re.sub(
         r"(Bearer\s+)\S+",
