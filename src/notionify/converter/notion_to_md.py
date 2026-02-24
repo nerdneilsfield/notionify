@@ -277,7 +277,6 @@ class NotionToMarkdownRenderer:
         """
         block_data = block.get("table", {})
         col_count = block_data.get("table_width", 0)
-        has_header = block_data.get("has_column_header", False)
 
         # Rows are provided as children
         children = block_data.get("children") or block.get("children")
@@ -307,8 +306,8 @@ class NotionToMarkdownRenderer:
             line = "| " + " | ".join(rendered_cells) + " |"
             lines.append(line)
 
-            # Insert separator after first row if it is a header
-            if i == 0 and has_header:
+            # GFM requires a separator row after the first row for table recognition.
+            if i == 0:
                 separator = "|" + "|".join(["---"] * col_count) + "|"
                 lines.append(separator)
 

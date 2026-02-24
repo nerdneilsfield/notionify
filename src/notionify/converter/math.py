@@ -28,6 +28,7 @@ The Notion API equation limit is 1000 characters.
 from __future__ import annotations
 
 from notionify.config import NotionifyConfig
+from notionify.converter.rich_text import split_rich_text
 from notionify.models import ConversionWarning
 from notionify.utils.text_split import split_string
 
@@ -192,14 +193,13 @@ def _make_equation_block(expression: str) -> dict:
 
 
 def _make_code_block(code: str, *, language: str = "plain text") -> dict:
-    """Create a Notion code block."""
+    """Create a Notion code block, splitting rich_text if > 2000 chars."""
+    rich_text = [{"type": "text", "text": {"content": code}}]
     return {
         "object": "block",
         "type": "code",
         "code": {
-            "rich_text": [
-                {"type": "text", "text": {"content": code}},
-            ],
+            "rich_text": split_rich_text(rich_text),
             "language": language,
             "caption": [],
         },
@@ -207,14 +207,13 @@ def _make_code_block(code: str, *, language: str = "plain text") -> dict:
 
 
 def _make_paragraph_block(text: str) -> dict:
-    """Create a Notion paragraph block with plain text."""
+    """Create a Notion paragraph block, splitting rich_text if > 2000 chars."""
+    rich_text = [{"type": "text", "text": {"content": text}}]
     return {
         "object": "block",
         "type": "paragraph",
         "paragraph": {
-            "rich_text": [
-                {"type": "text", "text": {"content": text}},
-            ],
+            "rich_text": split_rich_text(rich_text),
             "color": "default",
         },
     }

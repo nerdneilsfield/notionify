@@ -115,8 +115,8 @@ def _classify_image_source(url: str) -> ImageSourceType:
     parsed = urlparse(url)
     if parsed.scheme in ("http", "https"):
         return ImageSourceType.EXTERNAL_URL
-    if parsed.scheme in ("file", "") and not parsed.netloc:
-        # Relative or absolute file paths
+    if parsed.scheme in ("file", "") and (not parsed.netloc or parsed.netloc == "localhost"):
+        # Relative or absolute file paths (including file://localhost/...)
         return ImageSourceType.LOCAL_FILE
     return ImageSourceType.UNKNOWN
 

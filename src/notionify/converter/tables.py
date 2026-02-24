@@ -197,15 +197,14 @@ def _apply_table_fallback(
     ))
 
     if fallback == "paragraph":
-        # Render the table as a plain-text paragraph
+        # Render the table as a plain-text paragraph, splitting for 2000-char limit.
         text = _table_to_plain_text(token, config)
+        rich_text = split_rich_text([{"type": "text", "text": {"content": text}}])
         block = {
             "object": "block",
             "type": "paragraph",
             "paragraph": {
-                "rich_text": [
-                    {"type": "text", "text": {"content": text}},
-                ],
+                "rich_text": rich_text,
                 "color": "default",
             },
         }

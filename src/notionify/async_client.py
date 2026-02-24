@@ -158,7 +158,7 @@ class AsyncNotionifyClient:
         batches = chunk_children(blocks)
 
         # 7. Create page with first batch
-        first_batch = batches[0] if batches else None
+        first_batch = batches[0] if batches else []
         page_response = await self._pages.create(
             parent=parent,
             properties=properties,
@@ -539,6 +539,7 @@ class AsyncNotionifyClient:
             return 0
 
         semaphore = asyncio.Semaphore(self._config.image_max_concurrent)
+        _SKIP_SENTINEL = {"_notionify_skip": True}
 
         async def _process_one(pending: PendingImage) -> int:
             async with semaphore:
@@ -548,12 +549,19 @@ class AsyncNotionifyClient:
                     )
                 except NotionifyImageError as exc:
                     self._handle_image_error(
-                        pending, conversion.blocks, conversion.warnings, exc
+                        pending, conversion.blocks, conversion.warnings, exc,
+                        skip_sentinel=_SKIP_SENTINEL,
                     )
                     return 0
 
         tasks = [_process_one(pending) for pending in conversion.images]
         results = await asyncio.gather(*tasks)
+
+        # Remove skip sentinels in a single pass (preserves indices during processing).
+        conversion.blocks[:] = [
+            b for b in conversion.blocks if b is not _SKIP_SENTINEL
+        ]
+
         return sum(results)
 
     async def _process_single_image(
@@ -664,6 +672,7 @@ class AsyncNotionifyClient:
         blocks: list[dict],
         warnings: list[ConversionWarning],
         exc: NotionifyImageError,
+        skip_sentinel: dict | None = None,
     ) -> None:
         """Apply the configured image_fallback policy on error."""
         fallback = self._config.image_fallback
@@ -694,9 +703,9 @@ class AsyncNotionifyClient:
                 )
             )
         else:
-            # "skip" -- remove the placeholder block entirely.
-            if 0 <= pending.block_index < len(blocks):
-                del blocks[pending.block_index]
+            # "skip" -- mark with sentinel (cleaned up after all images processed).
+            if skip_sentinel is not None and 0 <= pending.block_index < len(blocks):
+                blocks[pending.block_index] = skip_sentinel
 
             warnings.append(
                 ConversionWarning(
