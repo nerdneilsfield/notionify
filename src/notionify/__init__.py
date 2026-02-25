@@ -34,6 +34,9 @@ from notionify.config import (
     NotionifyConfig,
 )
 
+# ── Diff utilities ─────────────────────────────────────────────────────
+from notionify.diff.conflict import detect_conflict, take_snapshot
+
 # ── Errors ──────────────────────────────────────────────────────────────
 from notionify.errors import (
     ErrorCode,
@@ -134,4 +137,7 @@ __all__ = [
     "DiffOp",
     "BlockSignature",
     "PageSnapshot",
+    # Diff utilities
+    "detect_conflict",
+    "take_snapshot",
 ]

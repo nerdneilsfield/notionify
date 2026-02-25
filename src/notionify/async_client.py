@@ -30,9 +30,14 @@ from typing import Any
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
+from notionify.diff.conflict import detect_conflict, take_snapshot
 from notionify.diff.executor import AsyncDiffExecutor
 from notionify.diff.planner import DiffPlanner
-from notionify.errors import NotionifyImageError, NotionifyImageNotFoundError
+from notionify.errors import (
+    NotionifyDiffConflictError,
+    NotionifyImageError,
+    NotionifyImageNotFoundError,
+)
 from notionify.image import (
     async_upload_multi,
     async_upload_single,
@@ -309,8 +314,10 @@ class AsyncNotionifyClient:
         if strategy == "overwrite":
             return await self.overwrite_page_content(page_id, markdown)
 
-        # Diff strategy: fetch existing blocks, compute diff, apply.
+        # 1. Fetch existing page + blocks and take a snapshot.
+        page = await self._pages.retrieve(page_id)
         existing_blocks = await self._blocks.get_children(page_id)
+        snapshot = take_snapshot(page_id, page, existing_blocks)
 
         # 2. Convert new markdown
         conversion = self._converter.convert(markdown)
@@ -322,7 +329,39 @@ class AsyncNotionifyClient:
         # 3. Plan diff
         ops = self._diff_planner.plan(existing_blocks, new_blocks)
 
-        # 4. Execute diff ops
+        # Debug: dump diff plan
+        if self._config.debug_dump_diff:
+            import json
+            import sys
+
+            dump = [
+                {"op": op.op_type.value, "existing_id": op.existing_id, "depth": op.depth}
+                for op in ops
+            ]
+            print(
+                "[notionify] Diff plan:",
+                json.dumps(dump, indent=2, ensure_ascii=False),
+                file=sys.stderr,
+            )
+
+        # 4. Conflict detection: re-fetch page state and compare.
+        current_page = await self._pages.retrieve(page_id)
+        current_blocks = await self._blocks.get_children(page_id)
+        current_snapshot = take_snapshot(page_id, current_page, current_blocks)
+
+        if detect_conflict(snapshot, current_snapshot):
+            if on_conflict == "overwrite":
+                return await self.overwrite_page_content(page_id, markdown)
+            raise NotionifyDiffConflictError(
+                message=f"Page {page_id} was modified since snapshot",
+                context={
+                    "page_id": page_id,
+                    "snapshot_time": str(snapshot.last_edited),
+                    "detected_time": str(current_snapshot.last_edited),
+                },
+            )
+
+        # 5. Execute diff ops
         result = await self._diff_executor.execute(page_id, ops)
 
         # Merge warnings and image count

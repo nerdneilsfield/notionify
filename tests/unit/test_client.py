@@ -249,6 +249,8 @@ class TestUpdatePageFromMarkdown:
     def test_diff_strategy(self):
         client = _make_sync_client()
         existing = [_block_dict(block_id="b1", text="hello")]
+        page_obj = {"last_edited_time": "2024-01-15T10:00:00.000Z"}
+        client._pages.retrieve = MagicMock(return_value=page_obj)
         client._blocks.get_children = MagicMock(return_value=existing)
         client._blocks.delete = MagicMock(return_value={})
         client._blocks.append_children = MagicMock(
@@ -703,6 +705,8 @@ class TestAsyncUpdatePageFromMarkdown:
     @pytest.mark.asyncio
     async def test_diff_strategy(self):
         client = AsyncNotionifyClient(token="test-token")
+        page_obj = {"last_edited_time": "2024-01-15T10:00:00.000Z"}
+        client._pages.retrieve = AsyncMock(return_value=page_obj)
         client._blocks.get_children = AsyncMock(return_value=[
             _block_dict(block_id="b1", text="old"),
         ])
