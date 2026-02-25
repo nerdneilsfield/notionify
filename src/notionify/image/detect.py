@@ -65,3 +65,32 @@ def detect_image_source(src: str) -> ImageSourceType:
         return ImageSourceType.LOCAL_FILE
 
     return ImageSourceType.UNKNOWN
+
+
+# Mapping from common image MIME types to file extensions.
+_MIME_EXTENSIONS: dict[str, str] = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/svg+xml": ".svg",
+    "image/bmp": ".bmp",
+    "image/tiff": ".tiff",
+}
+
+
+def mime_to_extension(mime_type: str) -> str:
+    """Map a MIME type to a file extension.
+
+    Parameters
+    ----------
+    mime_type:
+        An image MIME type string, e.g. ``"image/png"``.
+
+    Returns
+    -------
+    str
+        The corresponding file extension (with leading dot), or
+        ``".bin"`` if the MIME type is unrecognised.
+    """
+    return _MIME_EXTENSIONS.get(mime_type, ".bin")

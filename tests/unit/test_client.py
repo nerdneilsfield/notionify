@@ -908,20 +908,20 @@ class TestAsyncFetchBlocksRecursive:
 # ===========================================================================
 
 
-class TestAsyncMimeToExtension:
+class TestMimeToExtension:
     def test_known_types(self):
-        from notionify.async_client import _mime_to_extension
-        assert _mime_to_extension("image/jpeg") == ".jpg"
-        assert _mime_to_extension("image/png") == ".png"
-        assert _mime_to_extension("image/gif") == ".gif"
-        assert _mime_to_extension("image/webp") == ".webp"
-        assert _mime_to_extension("image/svg+xml") == ".svg"
-        assert _mime_to_extension("image/bmp") == ".bmp"
-        assert _mime_to_extension("image/tiff") == ".tiff"
+        from notionify.image.detect import mime_to_extension
+        assert mime_to_extension("image/jpeg") == ".jpg"
+        assert mime_to_extension("image/png") == ".png"
+        assert mime_to_extension("image/gif") == ".gif"
+        assert mime_to_extension("image/webp") == ".webp"
+        assert mime_to_extension("image/svg+xml") == ".svg"
+        assert mime_to_extension("image/bmp") == ".bmp"
+        assert mime_to_extension("image/tiff") == ".tiff"
 
     def test_unknown_type_returns_bin(self):
-        from notionify.async_client import _mime_to_extension
-        assert _mime_to_extension("application/octet-stream") == ".bin"
+        from notionify.image.detect import mime_to_extension
+        assert mime_to_extension("application/octet-stream") == ".bin"
 
 
 class TestHandleImageError:

@@ -11,6 +11,7 @@ from typing import Any
 
 from notionify.config import NotionifyConfig
 from notionify.models import ConversionWarning, DiffOp, DiffOpType, UpdateResult
+from notionify.notion_api.blocks import extract_block_ids
 from notionify.utils.chunk import chunk_children
 
 
@@ -120,7 +121,7 @@ class DiffExecutor:
             response = self._api.append_children(
                 page_id, [op.new_block], after=state.last_block_id,
             )
-            new_ids = _extract_block_ids(response)
+            new_ids = extract_block_ids(response)
             if new_ids:
                 state.last_block_id = new_ids[-1]
             state.replaced += 1
@@ -142,7 +143,7 @@ class DiffExecutor:
                 response = self._api.append_children(
                     page_id, batch, after=state.last_block_id,
                 )
-                new_ids = _extract_block_ids(response)
+                new_ids = extract_block_ids(response)
                 if new_ids:
                     state.last_block_id = new_ids[-1]
             state.inserted += len(insert_blocks)
@@ -240,7 +241,7 @@ class AsyncDiffExecutor:
             response = await self._api.append_children(
                 page_id, [op.new_block], after=state.last_block_id,
             )
-            new_ids = _extract_block_ids(response)
+            new_ids = extract_block_ids(response)
             if new_ids:
                 state.last_block_id = new_ids[-1]
             state.replaced += 1
@@ -262,14 +263,8 @@ class AsyncDiffExecutor:
                 response = await self._api.append_children(
                     page_id, batch, after=state.last_block_id,
                 )
-                new_ids = _extract_block_ids(response)
+                new_ids = extract_block_ids(response)
                 if new_ids:
                     state.last_block_id = new_ids[-1]
             state.inserted += len(insert_blocks)
         return i
-
-
-def _extract_block_ids(response: dict) -> list[str]:
-    """Extract block IDs from an append_children API response."""
-    results = response.get("results", [])
-    return [r["id"] for r in results if "id" in r]

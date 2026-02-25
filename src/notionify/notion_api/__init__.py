@@ -12,7 +12,7 @@ This sub-package provides:
 
 from __future__ import annotations
 
-from .blocks import AsyncBlockAPI, BlockAPI
+from .blocks import AsyncBlockAPI, BlockAPI, extract_block_ids
 from .files import AsyncFileAPI, FileAPI
 from .pages import AsyncPageAPI, PageAPI
 from .rate_limit import AsyncTokenBucket, TokenBucket
@@ -31,5 +31,6 @@ __all__ = [
     "PageAPI",
     "TokenBucket",
     "compute_backoff",
+    "extract_block_ids",
     "should_retry",
 ]

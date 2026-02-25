@@ -35,6 +35,7 @@ from notionify.image import (
     upload_single,
     validate_image,
 )
+from notionify.image.detect import mime_to_extension
 from notionify.models import (
     AppendResult,
     BlockUpdateResult,
@@ -46,7 +47,7 @@ from notionify.models import (
     PendingImage,
     UpdateResult,
 )
-from notionify.notion_api.blocks import BlockAPI
+from notionify.notion_api.blocks import BlockAPI, extract_block_ids
 from notionify.notion_api.files import FileAPI
 from notionify.notion_api.pages import PageAPI
 from notionify.notion_api.transport import NotionTransport
@@ -427,7 +428,7 @@ class NotionifyClient:
             response = self._blocks.append_children(
                 parent_id, batch, after=after_id
             )
-            new_ids = _extract_block_ids(response)
+            new_ids = extract_block_ids(response)
             inserted_ids.extend(new_ids)
             if new_ids:
                 after_id = new_ids[-1]
@@ -639,7 +640,7 @@ class NotionifyClient:
             return 0
 
         # Generate a synthetic file name from the MIME type.
-        ext = _mime_to_extension(mime_type)
+        ext = mime_to_extension(mime_type)
         file_name = f"image{ext}"
 
         upload_id = self._do_upload(file_name, mime_type, decoded_data)
@@ -754,26 +755,3 @@ class NotionifyClient:
             )
 
 
-# ------------------------------------------------------------------
-# Module-level helpers
-# ------------------------------------------------------------------
-
-
-def _extract_block_ids(response: dict) -> list[str]:
-    """Extract block IDs from an append_children API response."""
-    results = response.get("results", [])
-    return [r["id"] for r in results if "id" in r]
-
-
-def _mime_to_extension(mime_type: str) -> str:
-    """Map a MIME type to a file extension."""
-    mapping = {
-        "image/jpeg": ".jpg",
-        "image/png": ".png",
-        "image/gif": ".gif",
-        "image/webp": ".webp",
-        "image/svg+xml": ".svg",
-        "image/bmp": ".bmp",
-        "image/tiff": ".tiff",
-    }
-    return mapping.get(mime_type, ".bin")

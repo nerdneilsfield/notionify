@@ -14,6 +14,24 @@ from typing import Any
 from .transport import AsyncNotionTransport, NotionTransport
 
 
+def extract_block_ids(response: dict) -> list[str]:
+    """Extract block IDs from an ``append_children`` API response.
+
+    Parameters
+    ----------
+    response:
+        The JSON dict returned by
+        ``PATCH /blocks/{id}/children``.
+
+    Returns
+    -------
+    list[str]
+        The ``id`` values of each block in the ``results`` array.
+    """
+    results = response.get("results", [])
+    return [r["id"] for r in results if "id" in r]
+
+
 class BlockAPI:
     """Synchronous wrapper for the Notion Blocks API.
 

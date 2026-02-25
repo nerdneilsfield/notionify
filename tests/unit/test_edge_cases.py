@@ -9,13 +9,14 @@ import pytest
 
 from notionify.config import NotionifyConfig
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
-from notionify.diff.executor import DiffExecutor, _extract_block_ids
+from notionify.diff.executor import DiffExecutor
 from notionify.errors import (
     NotionifyImageParseError,
     NotionifyImageTypeError,
 )
 from notionify.image.validate import validate_image
 from notionify.models import DiffOp, DiffOpType, ImageSourceType
+from notionify.notion_api.blocks import extract_block_ids
 
 # ── Config: base_url validation ───────────────────────────────────────
 
@@ -569,11 +570,11 @@ class TestDiffExecutorOperations:
         assert result.blocks_inserted == 2
 
     def test_extract_block_ids_empty(self):
-        assert _extract_block_ids({}) == []
-        assert _extract_block_ids({"results": []}) == []
+        assert extract_block_ids({}) == []
+        assert extract_block_ids({"results": []}) == []
 
     def test_extract_block_ids_skips_missing(self):
-        assert _extract_block_ids({"results": [{"type": "block"}, {"id": "a"}]}) == ["a"]
+        assert extract_block_ids({"results": [{"type": "block"}, {"id": "a"}]}) == ["a"]
 
 
 # ── Image validation edge cases ───────────────────────────────────────

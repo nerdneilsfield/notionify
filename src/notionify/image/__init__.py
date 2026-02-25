@@ -19,7 +19,7 @@ UploadStateMachine
 """
 
 from .attach import build_image_block_external, build_image_block_uploaded
-from .detect import detect_image_source
+from .detect import detect_image_source, mime_to_extension
 from .state import UploadStateMachine
 from .upload_multi import async_upload_multi, upload_multi
 from .upload_single import async_upload_single, upload_single
@@ -32,6 +32,7 @@ __all__ = [
     "build_image_block_external",
     "build_image_block_uploaded",
     "detect_image_source",
+    "mime_to_extension",
     "upload_multi",
     "upload_single",
     "validate_image",
