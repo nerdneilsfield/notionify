@@ -505,3 +505,71 @@ class TestDiffOpStructure:
         assert DiffOpType.REPLACE.value == "replace"
         assert DiffOpType.INSERT.value == "insert"
         assert DiffOpType.DELETE.value == "delete"
+
+
+# =========================================================================
+# Match ratio boundary tests
+# =========================================================================
+
+class TestMatchRatioBoundary:
+    """Tests for the _min_match_ratio=0.3 threshold."""
+
+    def test_ratio_below_threshold_triggers_full_overwrite(self):
+        """Match ratio 1/4 = 0.25 < 0.3 → full overwrite."""
+        planner = DiffPlanner(make_config())
+        # 1 matching block out of 4 total → ratio 0.25
+        existing = [
+            _make_paragraph_block("A", block_id="b1"),
+            _make_paragraph_block("B", block_id="b2"),
+            _make_paragraph_block("C", block_id="b3"),
+            _make_paragraph_block("D", block_id="b4"),
+        ]
+        new = [
+            _make_paragraph_block("A"),
+            _make_paragraph_block("X"),
+            _make_paragraph_block("Y"),
+            _make_paragraph_block("Z"),
+        ]
+        ops = planner.plan(existing, new)
+        # Full overwrite = no KEEP ops
+        keep_ops = [op for op in ops if op.op_type == DiffOpType.KEEP]
+        assert len(keep_ops) == 0
+
+    def test_ratio_at_threshold_uses_diff(self):
+        """Match ratio 3/10 = 0.3 → should NOT trigger full overwrite."""
+        planner = DiffPlanner(make_config())
+        # 3 matching blocks out of 10 total → ratio exactly 0.3
+        shared = [f"shared-{i}" for i in range(3)]
+        existing = [
+            _make_paragraph_block(t, block_id=f"b{i}")
+            for i, t in enumerate(shared + [f"old-{j}" for j in range(7)])
+        ]
+        new = [
+            _make_paragraph_block(t) for t in shared + [f"new-{j}" for j in range(7)]
+        ]
+        ops = planner.plan(existing, new)
+        # Ratio is exactly 0.3, which is NOT < 0.3, so diff is used
+        keep_ops = [op for op in ops if op.op_type == DiffOpType.KEEP]
+        assert len(keep_ops) == 3
+
+    def test_ratio_just_above_threshold_uses_diff(self):
+        """Match ratio > 0.3 → uses fine-grained diff."""
+        planner = DiffPlanner(make_config())
+        # 4 matching blocks out of 5 → ratio 0.8
+        existing = [
+            _make_paragraph_block("A", block_id="b1"),
+            _make_paragraph_block("B", block_id="b2"),
+            _make_paragraph_block("C", block_id="b3"),
+            _make_paragraph_block("D", block_id="b4"),
+            _make_paragraph_block("E", block_id="b5"),
+        ]
+        new = [
+            _make_paragraph_block("A"),
+            _make_paragraph_block("B"),
+            _make_paragraph_block("C"),
+            _make_paragraph_block("D"),
+            _make_paragraph_block("NEW"),
+        ]
+        ops = planner.plan(existing, new)
+        keep_ops = [op for op in ops if op.op_type == DiffOpType.KEEP]
+        assert len(keep_ops) == 4

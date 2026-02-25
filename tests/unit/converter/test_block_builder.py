@@ -204,6 +204,36 @@ class TestBuildCodeBlock:
         blocks, _, _ = build_blocks([token], _config())
         assert blocks[0]["code"]["language"] == "plain text"
 
+    def test_code_block_language_with_trailing_digits(self):
+        """python3 should normalize to python."""
+        token = {"type": "block_code", "raw": "x", "attrs": {"info": "python3"}}
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["code"]["language"] == "python"
+
+    def test_code_block_language_case_insensitive(self):
+        """Language matching should be case-insensitive."""
+        token = {"type": "block_code", "raw": "x", "attrs": {"info": "Python"}}
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["code"]["language"] == "python"
+
+    def test_code_block_language_with_extra_words(self):
+        """Extra words after language name should be stripped."""
+        token = {"type": "block_code", "raw": "x", "attrs": {"info": "python main.py"}}
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["code"]["language"] == "python"
+
+    def test_code_block_unknown_language(self):
+        """Unknown language should fall back to plain text."""
+        token = {"type": "block_code", "raw": "x", "attrs": {"info": "brainfuck"}}
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["code"]["language"] == "plain text"
+
+    def test_code_block_none_info(self):
+        """info=None should produce plain text language."""
+        token = {"type": "block_code", "raw": "x", "attrs": {"info": None}}
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["code"]["language"] == "plain text"
+
 
 # =========================================================================
 # Divider blocks
