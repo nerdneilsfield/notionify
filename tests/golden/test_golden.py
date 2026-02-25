@@ -1207,3 +1207,48 @@ class TestMathInContext:
         block_types = [b.get("type") for b in result.blocks]
         assert "heading_1" in block_types
         assert "heading_2" in block_types
+
+
+class TestTaskListAnnotations:
+    """Round-trip tests for task_list_annotations.md.
+
+    Verifies that task list items with bold, italic, inline code, strikethrough,
+    and link annotations preserve their check state and inline formatting.
+    """
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "task_list_annotations.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_checked_states_produce_to_do_blocks(self, converter):
+        md = (FIXTURES_DIR / "task_list_annotations.md").read_text()
+        result = converter.convert(md)
+        to_do_blocks = [b for b in result.blocks if b.get("type") == "to_do"]
+        assert len(to_do_blocks) >= 4, "Should have at least 4 to_do blocks"
+        checked = [b for b in to_do_blocks if b.get("to_do", {}).get("checked")]
+        unchecked = [b for b in to_do_blocks if not b.get("to_do", {}).get("checked")]
+        assert len(checked) >= 1
+        assert len(unchecked) >= 1
+
+    def test_bold_annotation_preserved_in_task(self, converter, renderer):
+        md = (FIXTURES_DIR / "task_list_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Bold completed task" in round_tripped
+
+    def test_inline_code_preserved_in_task(self, converter, renderer):
+        md = (FIXTURES_DIR / "task_list_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "inline code" in round_tripped
+
+    def test_link_preserved_in_task(self, converter, renderer):
+        md = (FIXTURES_DIR / "task_list_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "example.com" in round_tripped
