@@ -6699,3 +6699,105 @@ class TestRendererImageTableUnsupportedProperties:
         result = r._render_media(block, 0, media_type)
         assert result.startswith(f"[{label}](")
         assert result.endswith("\n\n")
+
+
+class TestRendererRemainingMethodsProperties:
+    """Property tests for _render_file, _render_link_preview, _render_paragraph,
+    _dispatch, and _make_heading_renderer."""
+
+    def _r(self) -> NotionToMarkdownRenderer:
+        return NotionToMarkdownRenderer(NotionifyConfig(token="test-token"))
+
+    def _rt(self, text: str) -> list[dict]:
+        return [{"type": "text", "text": {"content": text}, "plain_text": text}]
+
+    # --- _render_file ---
+
+    @given(url=st.text(min_size=5, max_size=50, alphabet=string.ascii_letters + ":/._-"))
+    @settings(max_examples=100)
+    def test_file_external_ends_with_double_newline(self, url: str) -> None:
+        """_render_file always ends with '\\n\\n'."""
+        r = self._r()
+        block = {"file": {"type": "external", "external": {"url": url}}}
+        assert r._render_file(block, 0).endswith("\n\n")
+
+    def test_file_name_field_used_as_display_text(self) -> None:
+        """_render_file uses the 'name' field as the link display text."""
+        r = self._r()
+        block = {
+            "file": {
+                "type": "external",
+                "external": {"url": "https://x.com/doc.pdf"},
+                "name": "My Report",
+            }
+        }
+        result = r._render_file(block, 0)
+        assert "My Report" in result
+
+    # --- _render_link_preview ---
+
+    @given(url=st.text(min_size=5, max_size=50, alphabet=string.ascii_letters + ":/._-"))
+    @settings(max_examples=100)
+    def test_link_preview_url_appears_in_output(self, url: str) -> None:
+        """_render_link_preview always includes the URL and ends with '\\n\\n'."""
+        r = self._r()
+        block = {"link_preview": {"url": url}}
+        result = r._render_link_preview(block, 0)
+        assert url in result
+        assert result.endswith("\n\n")
+
+    # --- _render_paragraph ---
+
+    @given(
+        text=st.text(min_size=1, max_size=50, alphabet=string.ascii_letters + " "),
+        depth=st.integers(min_value=0, max_value=3),
+    )
+    @settings(max_examples=200)
+    def test_paragraph_indent_matches_depth(self, text: str, depth: int) -> None:
+        """Paragraph starts with '  ' * depth and ends with '\\n\\n'."""
+        r = self._r()
+        block = {"paragraph": {"rich_text": self._rt(text)}}
+        result = r._render_paragraph(block, depth)
+        assert result.startswith("  " * depth)
+        assert result.endswith("\n\n")
+
+    # --- _dispatch ---
+
+    def test_dispatch_omitted_type_returns_empty_string(self) -> None:
+        """Omitted block types (breadcrumb, table_of_contents) → ''."""
+        r = self._r()
+        assert r._dispatch({"type": "breadcrumb", "breadcrumb": {}}, 0) == ""
+        assert r._dispatch({"type": "table_of_contents"}, 0) == ""
+
+    def test_dispatch_known_type_routes_correctly(self) -> None:
+        """Known block type is dispatched to the right renderer."""
+        r = self._r()
+        block = {"type": "divider", "divider": {}}
+        assert r._dispatch(block, 0) == "---\n\n"
+
+    # --- _make_heading_renderer ---
+
+    @given(level=st.integers(min_value=1, max_value=3))
+    @settings(max_examples=50)
+    def test_make_heading_renderer_returns_callable(self, level: int) -> None:
+        """_make_heading_renderer always returns a callable."""
+        from notionify.converter.notion_to_md import _make_heading_renderer
+
+        assert callable(_make_heading_renderer(level))
+
+    @given(
+        level=st.integers(min_value=1, max_value=3),
+        text=st.text(min_size=1, max_size=20, alphabet=string.ascii_letters + " "),
+    )
+    @settings(max_examples=100)
+    def test_make_heading_renderer_prefix_matches_level(
+        self, level: int, text: str
+    ) -> None:
+        """Factory-produced renderer generates the correct '#' prefix count."""
+        from notionify.converter.notion_to_md import _make_heading_renderer
+
+        r = self._r()
+        fn = _make_heading_renderer(level)
+        block = {f"heading_{level}": {"rich_text": self._rt(text)}}
+        result = fn(r, block, 0)
+        assert result.startswith("#" * level + " ")
