@@ -1502,3 +1502,52 @@ class TestConsecutiveCodeBlocks:
         round_tripped = renderer.render_blocks(blocks)
         assert '{"key": "value"}' in round_tripped
         assert "key: value" in round_tripped
+
+
+class TestTablesWithLinks:
+    """Round-trip tests for tables_with_links.md."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "tables_with_links.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+        assert not result.warnings
+
+    def test_produces_table_blocks(self, converter):
+        md = (FIXTURES_DIR / "tables_with_links.md").read_text()
+        result = converter.convert(md)
+        table_blocks = [b for b in result.blocks if b.get("type") == "table"]
+        assert len(table_blocks) >= 2
+
+    def test_link_text_preserved_in_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "tables_with_links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Python" in round_tripped
+        assert "Rust" in round_tripped
+
+    def test_link_urls_preserved_in_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "tables_with_links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "https://docs.python.org" in round_tripped
+        assert "https://doc.rust-lang.org" in round_tripped
+
+    def test_cell_annotations_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "tables_with_links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        # bold, code, italic, strikethrough in cells should survive
+        assert "deprecated" in round_tripped
+        assert "active" in round_tripped
+
+    def test_long_urls_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "tables_with_links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "https://www.example.com/long/path/to/page" in round_tripped
+        assert "https://api.example.com/v2/reference" in round_tripped
