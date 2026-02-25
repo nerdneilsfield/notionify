@@ -122,8 +122,8 @@ class ASTNormalizer:
         if raw_type == "raw":
             return {"type": "text", "raw": token.get("raw", "")}
 
-        # Unknown token: skip silently
-        return None
+        # Unknown token: pass through so block_builder can emit a warning.
+        return {"type": raw_type, "raw": token.get("raw", "")}
 
     def _normalize_block(self, token: dict, canonical_type: str) -> dict:
         """Normalize a block-level token."""

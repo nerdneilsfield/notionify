@@ -1030,7 +1030,22 @@ class TestASTNormalizerEdgeCases:
             {"type": "completely_unknown_type", "raw": "???"}
         ]):
             tokens = normalizer.parse("anything")
-        assert tokens == []
+        # Unknown tokens are passed through (not dropped) so block_builder
+        # can emit an UNKNOWN_TOKEN warning.
+        assert len(tokens) == 1
+        assert tokens[0]["type"] == "completely_unknown_type"
+
+    def test_unknown_token_produces_warning_in_converter(self):
+        """Unknown AST tokens produce UNKNOWN_TOKEN warnings via block_builder."""
+        from unittest.mock import patch
+
+        c = MarkdownToNotionConverter(make_config())
+        with patch.object(
+            c._normalizer, '_parser',
+            return_value=[{"type": "alien_type", "raw": "???"}],
+        ):
+            result = c.convert("anything")
+        assert any(w.code == "UNKNOWN_TOKEN" for w in result.warnings)
 
     def test_parser_returning_string_gives_empty(self):
         """If the parser returns a string instead of list, parse() returns []."""
