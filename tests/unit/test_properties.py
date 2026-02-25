@@ -36,6 +36,7 @@ from notionify.diff.planner import DiffPlanner
 from notionify.diff.signature import compute_signature
 from notionify.image.detect import detect_image_source, mime_to_extension
 from notionify.models import BlockSignature, DiffOp, DiffOpType, ImageSourceType
+from notionify.notion_api.blocks import extract_block_ids
 from notionify.notion_api.retries import compute_backoff, should_retry
 from notionify.utils.chunk import chunk_children
 from notionify.utils.hashing import hash_dict, md5_hash
@@ -3639,3 +3640,60 @@ class TestTableRendererProperties:
             # "| a | b | c |" → split by "|" → ["", " a ", " b ", " c ", ""]
             parts = [p for p in line.split("|") if p != ""]
             assert len(parts) == col_count
+
+
+# ---------------------------------------------------------------------------
+# Section 20 — extract_block_ids properties
+# ---------------------------------------------------------------------------
+
+_result_with_id_st = st.fixed_dictionaries({"id": st.text(min_size=1, max_size=36)})
+_result_without_id_st = st.fixed_dictionaries({
+    "type": st.text(min_size=1, max_size=20),
+})
+_result_st = st.one_of(_result_with_id_st, _result_without_id_st)
+
+
+class TestExtractBlockIdsProperties:
+    """Property-based tests for :func:`extract_block_ids`."""
+
+    @given(results=st.lists(_result_with_id_st, min_size=0, max_size=20))
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_length_equals_results_with_id(
+        self, results: list[dict]
+    ) -> None:
+        """Output length matches number of results that have an 'id' field."""
+        response = {"results": results}
+        ids = extract_block_ids(response)
+        assert len(ids) == len(results)
+
+    @given(results=st.lists(_result_st, min_size=0, max_size=20))
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_results_without_id_are_filtered(
+        self, results: list[dict]
+    ) -> None:
+        """Results without an 'id' key are excluded from output."""
+        response = {"results": results}
+        ids = extract_block_ids(response)
+        expected = [r["id"] for r in results if "id" in r]
+        assert ids == expected
+
+    @given(results=st.lists(_result_with_id_st, min_size=0, max_size=20))
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_all_output_values_are_strings(
+        self, results: list[dict]
+    ) -> None:
+        """Every extracted ID is a string."""
+        ids = extract_block_ids({"results": results})
+        assert all(isinstance(i, str) for i in ids)
+
+    def test_missing_results_key_returns_empty(self) -> None:
+        """A response dict with no 'results' key returns an empty list."""
+        assert extract_block_ids({}) == []
+
+    @given(results=st.lists(_result_with_id_st, min_size=1, max_size=20))
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_order_preserved(self, results: list[dict]) -> None:
+        """IDs appear in the same order as their source results."""
+        ids = extract_block_ids({"results": results})
+        for pos, r in enumerate(results):
+            assert ids[pos] == r["id"]
