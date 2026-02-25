@@ -110,11 +110,13 @@ from notionify.image.detect import detect_image_source, mime_to_extension
 from notionify.image.validate import validate_image
 from notionify.models import (
     BlockSignature,
+    BlockUpdateResult,
     ConversionResult,
     ConversionWarning,
     DiffOp,
     DiffOpType,
     ImageSourceType,
+    UpdateResult,
 )
 from notionify.notion_api.blocks import extract_block_ids
 from notionify.notion_api.retries import compute_backoff, should_retry
@@ -7179,3 +7181,129 @@ class TestExecStateProperties:
         state = _ExecState()
         state.last_block_id = "block-abc-123"
         assert state.last_block_id == "block-abc-123"
+
+
+# ---------------------------------------------------------------------------
+# UpdateResult / BlockUpdateResult models
+# ---------------------------------------------------------------------------
+
+class TestUpdateResultModelProperties:
+    """UpdateResult dataclass invariants."""
+
+    @given(
+        strategy=st.sampled_from(["diff", "overwrite"]),
+        kept=st.integers(min_value=0, max_value=1000),
+        inserted=st.integers(min_value=0, max_value=1000),
+        deleted=st.integers(min_value=0, max_value=1000),
+        replaced=st.integers(min_value=0, max_value=1000),
+        uploaded=st.integers(min_value=0, max_value=100),
+    )
+    @settings(max_examples=100)
+    def test_fields_stored_verbatim(
+        self,
+        strategy: str,
+        kept: int,
+        inserted: int,
+        deleted: int,
+        replaced: int,
+        uploaded: int,
+    ) -> None:
+        """All numeric fields and strategy_used are stored as provided."""
+        result = UpdateResult(
+            strategy_used=strategy,
+            blocks_kept=kept,
+            blocks_inserted=inserted,
+            blocks_deleted=deleted,
+            blocks_replaced=replaced,
+            images_uploaded=uploaded,
+        )
+        assert result.strategy_used == strategy
+        assert result.blocks_kept == kept
+        assert result.blocks_inserted == inserted
+        assert result.blocks_deleted == deleted
+        assert result.blocks_replaced == replaced
+        assert result.images_uploaded == uploaded
+
+    def test_default_warnings_is_empty(self) -> None:
+        """Default warnings list is empty."""
+        result = UpdateResult(
+            strategy_used="overwrite",
+            blocks_kept=0,
+            blocks_inserted=1,
+            blocks_deleted=0,
+            blocks_replaced=0,
+            images_uploaded=0,
+        )
+        assert result.warnings == []
+
+    def test_two_default_instances_do_not_share_warnings(self) -> None:
+        """Two UpdateResult instances have independent warning lists."""
+        r1 = UpdateResult(
+            strategy_used="diff",
+            blocks_kept=0,
+            blocks_inserted=0,
+            blocks_deleted=0,
+            blocks_replaced=0,
+            images_uploaded=0,
+        )
+        r2 = UpdateResult(
+            strategy_used="diff",
+            blocks_kept=0,
+            blocks_inserted=0,
+            blocks_deleted=0,
+            blocks_replaced=0,
+            images_uploaded=0,
+        )
+        r1.warnings.append(ConversionWarning(code="W001", message="test"))
+        assert r2.warnings == []
+
+    @given(
+        code=st.text(min_size=1, max_size=20, alphabet=string.ascii_uppercase + "_"),
+        message=st.text(min_size=1, max_size=60),
+    )
+    @settings(max_examples=50)
+    def test_warnings_list_is_mutable(self, code: str, message: str) -> None:
+        """Warnings can be appended to after construction."""
+        result = UpdateResult(
+            strategy_used="diff",
+            blocks_kept=0,
+            blocks_inserted=0,
+            blocks_deleted=0,
+            blocks_replaced=0,
+            images_uploaded=0,
+        )
+        w = ConversionWarning(code=code, message=message)
+        result.warnings.append(w)
+        assert result.warnings == [w]
+
+
+class TestBlockUpdateResultModelProperties:
+    """BlockUpdateResult dataclass invariants."""
+
+    @given(block_id=st.text(min_size=1, max_size=100))
+    @settings(max_examples=100)
+    def test_block_id_stored_verbatim(self, block_id: str) -> None:
+        """block_id is stored as provided."""
+        result = BlockUpdateResult(block_id=block_id)
+        assert result.block_id == block_id
+
+    def test_default_warnings_is_empty(self) -> None:
+        """Default warnings list is empty."""
+        result = BlockUpdateResult(block_id="block-uuid-123")
+        assert result.warnings == []
+
+    def test_two_instances_do_not_share_warnings(self) -> None:
+        """Two BlockUpdateResult instances have independent warning lists."""
+        r1 = BlockUpdateResult(block_id="block-1")
+        r2 = BlockUpdateResult(block_id="block-2")
+        r1.warnings.append(ConversionWarning(code="X001", message="warn"))
+        assert r2.warnings == []
+
+    @given(block_id=st.text(min_size=1, max_size=100))
+    @settings(max_examples=50)
+    def test_block_id_in_repr(self, block_id: str) -> None:
+        """block_id appears in the dataclass repr for printable strings."""
+        # Non-printable chars get escaped in repr; restrict to printable.
+        assume(block_id.isprintable())
+        result = BlockUpdateResult(block_id=block_id)
+        assert block_id in repr(result)

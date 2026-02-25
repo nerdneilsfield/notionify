@@ -1353,3 +1353,53 @@ class TestMathInTable:
         round_tripped = renderer.render_blocks(blocks)
         assert "Parabola shape" in round_tripped
         assert "Positive domain only" in round_tripped
+
+
+class TestHeadingInlineFormatting:
+    """Round-trip tests for heading_inline_formatting.md.
+
+    Verifies that inline annotations (bold, italic, code, strikethrough) inside
+    heading text survive conversion. headings_all_levels.md only has plain text;
+    links.md covers links in headings; math_in_context.md covers math in headings.
+    """
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "heading_inline_formatting.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_produces_heading_blocks(self, converter):
+        md = (FIXTURES_DIR / "heading_inline_formatting.md").read_text()
+        result = converter.convert(md)
+        block_types = {b.get("type") for b in result.blocks}
+        assert "heading_2" in block_types
+
+    def test_bold_in_heading_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "heading_inline_formatting.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Bold" in round_tripped
+
+    def test_italic_in_heading_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "heading_inline_formatting.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Italic" in round_tripped
+
+    def test_code_in_heading_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "heading_inline_formatting.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Inline Code" in round_tripped
+
+    def test_paragraph_content_after_heading_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "heading_inline_formatting.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Content after bold heading" in round_tripped
+        assert "Content after italic heading" in round_tripped
