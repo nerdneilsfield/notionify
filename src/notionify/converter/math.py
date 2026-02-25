@@ -114,7 +114,7 @@ def build_block_math(
 def build_inline_math(
     expression: str,
     config: NotionifyConfig,
-) -> tuple[dict | list[dict], list[ConversionWarning]]:
+) -> tuple[list[dict], list[ConversionWarning]]:
     """Build rich_text segment(s) for inline math.
 
     Parameters
@@ -126,9 +126,8 @@ def build_inline_math(
 
     Returns
     -------
-    tuple[dict | list[dict], list[ConversionWarning]]
-        A single rich_text segment dict, or a list of them when splitting.
-        Plus any warnings.
+    tuple[list[dict], list[ConversionWarning]]
+        A list of rich_text segment dicts, plus any warnings.
     """
     strategy = config.math_strategy
     warnings: list[ConversionWarning] = []
@@ -136,7 +135,7 @@ def build_inline_math(
     if strategy == "equation":
         if len(expression) <= EQUATION_CHAR_LIMIT:
             seg = _make_equation_rich_text(expression)
-            return seg, warnings
+            return [seg], warnings
 
         # Overflow
         warnings.append(ConversionWarning(
@@ -162,19 +161,19 @@ def build_inline_math(
 
         if overflow == "code":
             seg = _make_code_rich_text(expression)
-            return seg, warnings
+            return [seg], warnings
 
         # Overflow: render as plain text with delimiters.
         seg = _make_plain_text_rich_text(f"${expression}$")
-        return seg, warnings
+        return [seg], warnings
 
     if strategy == "code":
         seg = _make_code_rich_text(expression)
-        return seg, warnings
+        return [seg], warnings
 
     # Fallback: latex_text strategy.
     seg = _make_plain_text_rich_text(f"${expression}$")
-    return seg, warnings
+    return [seg], warnings
 
 
 # ---------------------------------------------------------------------------

@@ -219,12 +219,10 @@ def _handle_inline_math(
 ) -> list[dict]:
     from notionify.converter.math import build_inline_math
     expression = token.get("raw", "")
-    math_seg, math_warnings = build_inline_math(expression, config)
+    math_segs, math_warnings = build_inline_math(expression, config)
     if warnings is not None:
         warnings.extend(math_warnings)
-    if isinstance(math_seg, list):
-        return math_seg
-    return [math_seg]
+    return math_segs
 
 
 def _handle_softbreak(

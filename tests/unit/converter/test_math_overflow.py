@@ -99,9 +99,10 @@ class TestInlineMathOverflow:
         )
         expr = self._long_expr()
         result, warnings = build_inline_math(expr, config)
-        assert isinstance(result, dict)
-        assert result["type"] == "text"
-        assert result["annotations"]["code"] is True
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["type"] == "text"
+        assert result[0]["annotations"]["code"] is True
         assert any(w.code == "MATH_OVERFLOW" for w in warnings)
 
     def test_overflow_text_produces_plain_text(self):
@@ -110,18 +111,20 @@ class TestInlineMathOverflow:
         )
         expr = self._long_expr()
         result, warnings = build_inline_math(expr, config)
-        assert isinstance(result, dict)
-        assert result["type"] == "text"
-        assert result["text"]["content"].startswith("$")
-        assert result["text"]["content"].endswith("$")
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["type"] == "text"
+        assert result[0]["text"]["content"].startswith("$")
+        assert result[0]["text"]["content"].endswith("$")
         assert any(w.code == "MATH_OVERFLOW" for w in warnings)
 
     def test_within_limit_no_overflow(self):
         config = NotionifyConfig(token="test", math_strategy="equation")
         expr = "E = mc^2"
         result, warnings = build_inline_math(expr, config)
-        assert isinstance(result, dict)
-        assert result["type"] == "equation"
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["type"] == "equation"
         assert len(warnings) == 0
 
 
