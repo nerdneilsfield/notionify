@@ -10,12 +10,6 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
-import pytest
-
-from notionify.config import NotionifyConfig
-from notionify.converter.md_to_notion import MarkdownToNotionConverter
-from notionify.converter.notion_to_md import NotionToMarkdownRenderer
-
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
@@ -72,18 +66,6 @@ def _patch_block(block: dict) -> None:
         for child in children:
             _patch_block(child)
 
-
-@pytest.fixture
-def config():
-    return NotionifyConfig(token="test_token_1234")
-
-@pytest.fixture
-def converter(config):
-    return MarkdownToNotionConverter(config)
-
-@pytest.fixture
-def renderer(config):
-    return NotionToMarkdownRenderer(config)
 
 
 class TestBasicRoundTrip:
