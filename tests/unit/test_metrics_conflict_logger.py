@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.diff.conflict import detect_conflict, take_snapshot
-from notionify.diff.executor import DiffExecutor, _emit_diff_metrics
+from notionify.diff.executor import AsyncDiffExecutor, DiffExecutor, _emit_diff_metrics
 from notionify.models import (
     ConversionResult,
     ConversionWarning,
@@ -496,3 +496,132 @@ class TestLoggerEdgeCases:
         data = json.loads(output)
         ts = data["ts"]
         assert "+00:00" in ts or ts.endswith("Z")
+
+
+# =========================================================================
+# 5. TestAsyncMetricsEmission
+# =========================================================================
+
+
+class TestAsyncMetricsEmission:
+    """Test async client and async executor emit metrics correctly."""
+
+    def _make_async_client_with_recorder(self):
+        from notionify.async_client import AsyncNotionifyClient
+
+        hook = _RecordingHook()
+        client = AsyncNotionifyClient(token="test", metrics=hook)
+        return client, hook
+
+    def test_async_client_emit_conversion_metrics(self):
+        """Async client's _emit_conversion_metrics mirrors sync client."""
+        client, hook = self._make_async_client_with_recorder()
+        conversion = ConversionResult(
+            blocks=[
+                {"type": "paragraph", "paragraph": {}},
+                {"type": "heading_2", "heading_2": {}},
+                {"type": "paragraph", "paragraph": {}},
+            ],
+            warnings=[
+                ConversionWarning(code="UNSUPPORTED_BLOCK", message="x"),
+            ],
+            images=[],
+        )
+        client._emit_conversion_metrics(conversion)
+
+        block_metrics = [
+            m for m in hook.increments
+            if m["name"] == "notionify.blocks_created_total"
+        ]
+        counts = {m["tags"]["block_type"]: m["value"] for m in block_metrics}
+        assert counts["paragraph"] == 2
+        assert counts["heading_2"] == 1
+
+        warn_metrics = [
+            m for m in hook.increments
+            if m["name"] == "notionify.conversion_warnings_total"
+        ]
+        assert len(warn_metrics) == 1
+        assert warn_metrics[0]["tags"]["code"] == "UNSUPPORTED_BLOCK"
+
+    async def test_async_executor_emits_diff_metrics(self):
+        """AsyncDiffExecutor.execute() calls _emit_diff_metrics."""
+        from unittest.mock import AsyncMock
+
+        hook = _RecordingHook()
+        config = NotionifyConfig(token="test", metrics=hook)
+        mock_api = AsyncMock()
+        mock_api.update.return_value = {"id": "u", "type": "paragraph"}
+        executor = AsyncDiffExecutor(mock_api, config)
+
+        ops = [
+            DiffOp(op_type=DiffOpType.KEEP, existing_id="b1"),
+            DiffOp(op_type=DiffOpType.KEEP, existing_id="b2"),
+            DiffOp(
+                op_type=DiffOpType.UPDATE,
+                existing_id="b3",
+                new_block={
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": [], "color": "default"},
+                },
+            ),
+        ]
+        result = await executor.execute("page-1", ops)
+        assert result.blocks_kept == 2
+
+        diff_metrics = [
+            m for m in hook.increments
+            if m["name"] == "notionify.diff_ops_total"
+        ]
+        counts = {m["tags"]["op_type"]: m["value"] for m in diff_metrics}
+        assert counts["keep"] == 2
+        assert counts["update"] == 1
+
+
+# =========================================================================
+# 6. TestConcurrentLoggerSafety
+# =========================================================================
+
+
+class TestConcurrentLoggerSafety:
+    """Verify logger handles concurrent writes without crashing."""
+
+    def test_concurrent_logging_no_crash(self):
+        """Multiple threads writing to the logger simultaneously."""
+        import threading
+
+        stream = StringIO()
+        logger = get_logger("notionify.test_concurrent", stream=stream)
+        errors: list[Exception] = []
+
+        def log_messages(thread_id: int) -> None:
+            try:
+                for i in range(50):
+                    logger.info(
+                        f"thread {thread_id} msg {i}",
+                        extra={
+                            "extra_fields": {
+                                "thread_id": thread_id,
+                                "msg_num": i,
+                            },
+                        },
+                    )
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [
+            threading.Thread(target=log_messages, args=(t,))
+            for t in range(5)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert len(errors) == 0, f"Logger crashed: {errors}"
+        # All 250 messages should have been written
+        output = stream.getvalue()
+        line_count = len(
+            [ln for ln in output.strip().split("\n") if ln]
+        )
+        assert line_count == 250
