@@ -1642,3 +1642,397 @@ class TestAsyncMetricsEmission:
         ]
         assert len(warning_calls) > 0
         await client.close()
+
+
+# =========================================================================
+# Sync client branch coverage tests
+# =========================================================================
+
+class TestSyncClientBranchCoverage:
+    """Branch coverage for client.py (148->158, 150->155, 265->263, 488->482,
+    560->563, 681->688, 709->712, 737->740, 786->789)."""
+
+    def test_title_from_h1_first_block_not_heading(self):
+        """title_from_h1=True but first block is not heading_1 (branch 148->158)."""
+        client = _make_sync_client()
+        client._pages.create = MagicMock(return_value=_page_create_response())
+        client._blocks.append_children = MagicMock(return_value=_append_response("b1"))
+
+        result = client.create_page_with_markdown(
+            parent_id="parent-1",
+            title="Fallback",
+            markdown="A paragraph first.\n\n# Heading later",
+            title_from_h1=True,
+        )
+        call_args = client._pages.create.call_args
+        properties = call_args.kwargs.get("properties") or call_args[0][1]
+        title_content = properties["title"][0]["text"]["content"]
+        assert title_content == "Fallback"
+        assert isinstance(result, PageCreateResult)
+        client.close()
+
+    def test_title_from_h1_heading_with_empty_rich_text(self):
+        """heading_1 block with empty rich_text leaves title unchanged (branch 150->155)."""
+        from notionify.models import ConversionResult as CR
+        client = _make_sync_client()
+        client._pages.create = MagicMock(return_value=_page_create_response())
+        client._blocks.append_children = MagicMock(return_value=_append_response("b1"))
+
+        empty_heading = {
+            "object": "block", "type": "heading_1",
+            "heading_1": {"rich_text": [], "color": "default", "is_toggleable": False},
+        }
+        client._converter.convert = MagicMock(
+            return_value=CR(blocks=[empty_heading], images=[], warnings=[]),
+        )
+        client.create_page_with_markdown(
+            parent_id="parent-1", title="Original", markdown="# \n",
+            title_from_h1=True,
+        )
+        call_args = client._pages.create.call_args
+        properties = call_args.kwargs.get("properties") or call_args[0][1]
+        title_content = properties["title"][0]["text"]["content"]
+        assert title_content == "Original"
+        client.close()
+
+    def test_overwrite_block_without_id_skipped(self):
+        """Block without 'id' skipped in overwrite delete (branch 265->263)."""
+        client = _make_sync_client()
+        client._blocks.get_children = MagicMock(return_value=[
+            {"type": "paragraph", "paragraph": {}},  # no 'id'
+        ])
+        client._blocks.delete = MagicMock()
+        client._blocks.append_children = MagicMock(return_value=_append_response("b1"))
+
+        client.overwrite_page_content(page_id="page-1", markdown="New content")
+        client._blocks.delete.assert_not_called()
+        client.close()
+
+    def test_insert_after_empty_new_ids_after_id_unchanged(self):
+        """append_children returns no new_ids, after_id stays unchanged (branch 488->482)."""
+        client = _make_sync_client()
+        client._blocks.retrieve = MagicMock(return_value={
+            "id": "block-1", "parent": {"page_id": "page-1"},
+        })
+        client._blocks.append_children = MagicMock(return_value={"results": []})
+
+        result = client.insert_after(block_id="block-1", markdown_fragment="Hello")
+        assert isinstance(result, InsertResult)
+        client.close()
+
+    def test_block_to_markdown_recursive_false(self):
+        """block_to_markdown with recursive=False skips fetch (branch 560->563)."""
+        client = _make_sync_client()
+        parent_block = _block_dict(block_type="paragraph", block_id="p1", text="Parent")
+        parent_block["has_children"] = True
+        parent_block["paragraph"]["color"] = "default"
+        client._blocks.get_children = MagicMock(return_value=[parent_block])
+
+        md = client.block_to_markdown(block_id="p1", recursive=False)
+        assert "Parent" in md
+        # get_children called only once (no recursive fetch)
+        client._blocks.get_children.assert_called_once()
+        client.close()
+
+    def test_upload_local_file_within_base_dir(self, tmp_path):
+        """File within image_base_dir proceeds to upload (branch 681->688)."""
+        img_file = tmp_path / "photo.png"
+        img_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+
+        client = NotionifyClient(token="test-token", image_base_dir=str(tmp_path))
+        client._files.create_upload = MagicMock(return_value={
+            "id": "upload-1", "upload_url": "https://upload.example.com/1",
+        })
+        client._files.send_part = MagicMock(return_value=None)
+
+        pending = PendingImage(
+            src="photo.png",
+            source_type=ImageSourceType.LOCAL_FILE,
+            block_index=0,
+        )
+        blocks = [{"type": "image"}]
+        result = client._upload_local_file(pending, blocks, [])
+        assert result == 1
+        client.close()
+
+    def test_upload_local_file_block_index_out_of_range(self, tmp_path):
+        """block_index OOB skips block update in _upload_local_file (branch 709->712)."""
+        img_file = tmp_path / "photo.png"
+        img_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+
+        client = _make_sync_client()
+        client._files.create_upload = MagicMock(return_value={
+            "id": "upload-1", "upload_url": "https://upload.example.com/1",
+        })
+        client._files.send_part = MagicMock(return_value=None)
+
+        pending = PendingImage(
+            src=str(img_file),
+            source_type=ImageSourceType.LOCAL_FILE,
+            block_index=99,  # out of range
+        )
+        blocks = [{"type": "image"}]
+        result = client._upload_local_file(pending, blocks, [])
+        assert result == 1
+        assert blocks[0]["type"] == "image"  # not replaced
+        client.close()
+
+    def test_upload_data_uri_block_index_out_of_range(self):
+        """block_index OOB skips block update in _upload_data_uri (branch 737->740)."""
+        import base64
+        png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 50
+        data_uri = "data:image/png;base64," + base64.b64encode(png_bytes).decode()
+
+        client = _make_sync_client()
+        client._files.create_upload = MagicMock(return_value={
+            "id": "upload-1", "upload_url": "https://upload.example.com/1",
+        })
+        client._files.send_part = MagicMock(return_value=None)
+
+        pending = PendingImage(
+            src=data_uri,
+            source_type=ImageSourceType.DATA_URI,
+            block_index=99,  # out of range
+        )
+        blocks = [{"type": "image"}]
+        result = client._upload_data_uri(pending, blocks, [])
+        assert result == 1
+        assert blocks[0]["type"] == "image"  # not replaced
+        client.close()
+
+    def test_handle_image_error_placeholder_block_index_oob(self):
+        """block_index OOB in placeholder fallback skips block update (branch 786->789)."""
+        from notionify.errors import NotionifyImageNotFoundError
+
+        client = NotionifyClient(token="test-token", image_fallback="placeholder")
+        pending = PendingImage(
+            src="img.png", source_type=ImageSourceType.LOCAL_FILE, block_index=99,
+        )
+        blocks = [{"type": "image"}]
+        warnings_list: list = []
+        exc = NotionifyImageNotFoundError(message="not found", context={})
+
+        client._handle_image_error(pending, blocks, warnings_list, exc)
+        assert blocks[0]["type"] == "image"  # not replaced
+        assert any(w.code == "IMAGE_UPLOAD_FAILED" for w in warnings_list)
+        client.close()
+
+
+# =========================================================================
+# Async client branch coverage tests
+# =========================================================================
+
+class TestAsyncClientBranchCoverage:
+    """Branch coverage for async_client.py (152->162, 154->159, 168->170,
+    269->267, 486->480, 560->565, 687->694, 718->721, 745->748, 794->797,
+    806->809)."""
+
+    @pytest.mark.asyncio
+    async def test_title_from_h1_first_block_not_heading(self):
+        """title_from_h1=True but first block is not heading_1 (branch 152->162)."""
+        client = AsyncNotionifyClient(token="test-token")
+        client._pages.create = AsyncMock(return_value={"id": "pg-1", "url": ""})
+        client._blocks.append_children = AsyncMock(return_value={"results": []})
+
+        await client.create_page_with_markdown(
+            parent_id="parent-1",
+            title="Fallback",
+            markdown="A paragraph first.\n\n# Heading later",
+            title_from_h1=True,
+        )
+        call_args = client._pages.create.call_args
+        properties = call_args.kwargs.get("properties") or call_args[0][1]
+        title_content = properties["title"][0]["text"]["content"]
+        assert title_content == "Fallback"
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_title_from_h1_heading_with_empty_rich_text(self):
+        """heading_1 block with empty rich_text leaves title unchanged (branch 154->159)."""
+        from notionify.models import ConversionResult as CR
+        client = AsyncNotionifyClient(token="test-token")
+        client._pages.create = AsyncMock(return_value={"id": "pg-1", "url": ""})
+        client._blocks.append_children = AsyncMock(return_value={"results": []})
+
+        empty_heading = {
+            "object": "block", "type": "heading_1",
+            "heading_1": {"rich_text": [], "color": "default", "is_toggleable": False},
+        }
+        client._converter.convert = MagicMock(
+            return_value=CR(blocks=[empty_heading], images=[], warnings=[]),
+        )
+        await client.create_page_with_markdown(
+            parent_id="parent-1", title="Original", markdown="# \n",
+            title_from_h1=True,
+        )
+        call_args = client._pages.create.call_args
+        properties = call_args.kwargs.get("properties") or call_args[0][1]
+        title_content = properties["title"][0]["text"]["content"]
+        assert title_content == "Original"
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_create_page_with_explicit_properties_dict(self):
+        """properties is not None skips assignment at line 169 (branch 168->170)."""
+        client = AsyncNotionifyClient(token="test-token")
+        client._pages.create = AsyncMock(return_value={"id": "pg-1", "url": ""})
+        client._blocks.append_children = AsyncMock(return_value={"results": []})
+
+        result = await client.create_page_with_markdown(
+            parent_id="parent-1",
+            title="Title",
+            markdown="Hello",
+            properties={"custom_prop": [{"text": {"content": "val"}}]},
+        )
+        assert result.page_id == "pg-1"
+        call_args = client._pages.create.call_args
+        properties = call_args.kwargs.get("properties") or call_args[0][1]
+        assert "custom_prop" in properties
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_overwrite_block_without_id_skipped(self):
+        """Block without 'id' skipped in async overwrite delete (branch 269->267)."""
+        client = AsyncNotionifyClient(token="test-token")
+        client._blocks.get_children = AsyncMock(return_value=[
+            {"type": "paragraph", "paragraph": {}},  # no 'id'
+        ])
+        client._blocks.delete = AsyncMock()
+        client._blocks.append_children = AsyncMock(return_value={"results": []})
+
+        await client.overwrite_page_content(page_id="page-1", markdown="New")
+        client._blocks.delete.assert_not_awaited()
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_insert_after_empty_new_ids(self):
+        """append_children returns no new_ids, after_id stays (branch 486->480)."""
+        client = AsyncNotionifyClient(token="test-token")
+        client._blocks.retrieve = AsyncMock(return_value={
+            "id": "block-1", "parent": {"page_id": "page-1"},
+        })
+        client._blocks.append_children = AsyncMock(return_value={"results": []})
+
+        result = await client.insert_after(block_id="block-1", markdown_fragment="Hello")
+        assert isinstance(result, InsertResult)
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_block_to_markdown_recursive_true(self):
+        """async block_to_markdown with recursive=False skips fetch (branch 560->565)."""
+        client = AsyncNotionifyClient(token="test-token")
+        parent_block = _block_dict(block_type="paragraph", block_id="p1", text="Parent")
+        parent_block["has_children"] = True
+        parent_block["paragraph"]["color"] = "default"
+        client._blocks.get_children = AsyncMock(return_value=[parent_block])
+
+        md = await client.block_to_markdown(block_id="p1", recursive=False)
+        assert "Parent" in md
+        # get_children called only once (no recursive fetch)
+        client._blocks.get_children.assert_awaited_once()
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_upload_local_file_within_base_dir(self, tmp_path):
+        """File within image_base_dir proceeds to upload (branch 687->694)."""
+        img_file = tmp_path / "photo.png"
+        img_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+
+        client = AsyncNotionifyClient(token="test-token", image_base_dir=str(tmp_path))
+        _upload_mock = AsyncMock(return_value="uid-1")
+        with (
+            patch("notionify.async_client.validate_image",
+                  return_value=("image/png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)),
+            patch("notionify.async_client.async_upload_single", new=_upload_mock),
+        ):
+            pending = PendingImage(
+                src="photo.png",
+                source_type=ImageSourceType.LOCAL_FILE,
+                block_index=0,
+            )
+            blocks = [{"type": "image"}]
+            result = await client._upload_local_file(pending, blocks, [])
+        assert result == 1
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_upload_local_file_block_index_oob(self, tmp_path):
+        """block_index OOB skips block update in async _upload_local_file (718->721)."""
+        img_file = tmp_path / "photo.png"
+        img_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+
+        client = AsyncNotionifyClient(token="test-token")
+        _upload_mock2 = AsyncMock(return_value="uid-1")
+        with (
+            patch("notionify.async_client.validate_image",
+                  return_value=("image/png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)),
+            patch("notionify.async_client.async_upload_single", new=_upload_mock2),
+        ):
+            pending = PendingImage(
+                src=str(img_file),
+                source_type=ImageSourceType.LOCAL_FILE,
+                block_index=99,  # OOB
+            )
+            blocks = [{"type": "image"}]
+            result = await client._upload_local_file(pending, blocks, [])
+        assert result == 1
+        assert blocks[0]["type"] == "image"  # not replaced
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_upload_data_uri_block_index_oob(self):
+        """block_index OOB skips block update in async _upload_data_uri (745->748)."""
+        import base64
+        png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 50
+        data_uri = "data:image/png;base64," + base64.b64encode(png_bytes).decode()
+
+        client = AsyncNotionifyClient(token="test-token")
+        _up = AsyncMock(return_value="uid-1")
+        with patch("notionify.async_client.async_upload_single", new=_up):
+            pending = PendingImage(
+                src=data_uri,
+                source_type=ImageSourceType.DATA_URI,
+                block_index=99,  # OOB
+            )
+            blocks = [{"type": "image"}]
+            result = await client._upload_data_uri(pending, blocks, [])
+        assert result == 1
+        assert blocks[0]["type"] == "image"  # not replaced
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_handle_image_error_placeholder_block_index_oob(self):
+        """block_index OOB in async placeholder fallback (branch 794->797)."""
+        from notionify.errors import NotionifyImageNotFoundError
+
+        client = AsyncNotionifyClient(token="test-token", image_fallback="placeholder")
+        pending = PendingImage(
+            src="img.png", source_type=ImageSourceType.LOCAL_FILE, block_index=99,
+        )
+        blocks = [{"type": "image"}]
+        warnings_list: list = []
+        exc = NotionifyImageNotFoundError(message="not found", context={})
+
+        client._handle_image_error(pending, blocks, warnings_list, exc)
+        assert blocks[0]["type"] == "image"  # not replaced
+        assert any(w.code == "IMAGE_UPLOAD_FAILED" for w in warnings_list)
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_handle_image_error_skip_with_none_sentinel(self):
+        """skip_sentinel=None skips block update in skip fallback (branch 806->809)."""
+        from notionify.errors import NotionifyImageNotFoundError
+
+        client = AsyncNotionifyClient(token="test-token", image_fallback="skip")
+        pending = PendingImage(
+            src="img.png", source_type=ImageSourceType.LOCAL_FILE, block_index=0,
+        )
+        blocks = [{"type": "image"}]
+        warnings_list: list = []
+        exc = NotionifyImageNotFoundError(message="not found", context={})
+
+        # skip_sentinel=None → False branch of `if skip_sentinel is not None and ...`
+        client._handle_image_error(pending, blocks, warnings_list, exc, skip_sentinel=None)
+        assert blocks[0]["type"] == "image"  # not replaced
+        assert any(w.code == "IMAGE_SKIPPED" for w in warnings_list)
+        await client.close()

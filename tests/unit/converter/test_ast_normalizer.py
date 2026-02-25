@@ -365,3 +365,32 @@ class TestAttrsPreservation:
     def test_code_block_info_attr(self, normalizer):
         tokens = normalizer.parse("```javascript\nconsole.log('hi')\n```")
         assert tokens[0]["attrs"]["info"] == "javascript"
+
+
+# =========================================================================
+# Branch coverage tests
+# =========================================================================
+
+class TestASTNormalizerBranchCoverage:
+    """Branch coverage for ast_normalizer.py (164->167, 201->204, 215->218)."""
+
+    def test_block_token_empty_children_skips_assignment(self, normalizer):
+        """Block token with empty children list hits False branch (164->167)."""
+        result = normalizer._normalize_token({"type": "paragraph", "children": []})
+        assert result is not None
+        assert result["type"] == "paragraph"
+        assert "children" not in result
+
+    def test_inline_token_empty_children_skips_assignment(self, normalizer):
+        """Inline token (strong) with empty children list hits False branch (201->204)."""
+        result = normalizer._normalize_token({"type": "strong", "children": []})
+        assert result is not None
+        assert result["type"] == "strong"
+        assert "children" not in result
+
+    def test_table_part_empty_children_skips_assignment(self, normalizer):
+        """Table cell with empty children list hits False branch (215->218)."""
+        result = normalizer._normalize_token({"type": "table_cell", "children": []})
+        assert result is not None
+        assert result["type"] == "table_cell"
+        assert "children" not in result

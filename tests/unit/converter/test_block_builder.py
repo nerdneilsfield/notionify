@@ -530,3 +530,60 @@ class TestNestingDepthGuard:
         blocks, _, warnings = build_blocks([token], _config())
         depth_warnings = [w for w in warnings if w.code == "NESTING_DEPTH_EXCEEDED"]
         assert len(depth_warnings) >= 1
+
+
+# =========================================================================
+# Branch coverage tests
+# =========================================================================
+
+class TestBlockBuilderBranchCoverage:
+    """Branch coverage for block_builder.py (lines 261->260, 382->376, 580->584)."""
+
+    def test_heading_overflow_paragraph_with_equation_segment(self):
+        """heading_overflow='paragraph' with a non-text segment skips bold (261->260)."""
+        token = {
+            "type": "heading",
+            "attrs": {"level": 4},
+            "children": [{"type": "inline_math", "raw": "E=mc^2"}],
+        }
+        blocks, _, _ = build_blocks([token], _config(heading_overflow="paragraph"))
+        assert blocks[0]["type"] == "paragraph"
+        rt = blocks[0]["paragraph"]["rich_text"]
+        assert len(rt) == 1
+        # Equation segment: bold annotation is NOT set (non-text branch skipped)
+        assert rt[0]["type"] == "equation"
+        assert "annotations" not in rt[0] or not rt[0].get("annotations", {}).get("bold")
+
+    def test_list_unknown_item_type_silently_skipped(self):
+        """Unknown list item type is silently skipped (382->376)."""
+        token = {
+            "type": "list",
+            "attrs": {"ordered": False},
+            "children": [
+                {"type": "unknown_item_type", "children": []},
+                {
+                    "type": "list_item",
+                    "children": [
+                        {"type": "paragraph", "children": [{"type": "text", "raw": "Item"}]},
+                    ],
+                },
+            ],
+        }
+        blocks, _, _ = build_blocks([token], _config())
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "bulleted_list_item"
+
+    def test_external_image_no_alt_text_no_caption(self):
+        """External image with empty children produces no caption (580->584)."""
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "https://example.com/photo.jpg"},
+                "children": [],
+            }],
+        }
+        blocks, _, _ = build_blocks([token], _config())
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "image"
+        assert "caption" not in blocks[0]["image"]

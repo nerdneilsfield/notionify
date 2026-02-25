@@ -1209,3 +1209,63 @@ class TestChildPageAndDatabaseRendering:
         }
         md = r.render_blocks([block])
         assert "Untitled" in md
+
+
+# =========================================================================
+# Branch coverage tests
+# =========================================================================
+
+class TestNotionToMdBranchCoverage:
+    """Branch coverage for notion_to_md.py (313->317, 326->342, 355->358, 464->467, 576->584)."""
+
+    def test_image_unknown_type_renders_empty_url(self):
+        """Image block with unknown type leaves url empty (branch 313->317)."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "image",
+            "image": {"type": "unknown", "caption": []},
+        }
+        md = r.render_blocks([block])
+        assert "![]()" in md
+
+    def test_notion_hosted_image_no_expiry_time_no_warning(self):
+        """Notion-hosted image without expiry_time skips warning (branch 326->342)."""
+        r = NotionToMarkdownRenderer(make_config(image_expiry_warnings=True))
+        block = {
+            "type": "image",
+            "image": {
+                "type": "file",
+                "file": {"url": "https://prod-files.notion.so/image.png"},
+                "caption": [],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "notion-image-expiry" not in md
+        assert len(r.warnings) == 0
+
+    def test_callout_icon_unknown_type_produces_no_icon_str(self):
+        """Callout with icon of unknown type skips icon prefix (branch 355->358)."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "callout",
+            "callout": {
+                "rich_text": [_make_text_segment("Note")],
+                "icon": {"type": "unknown_type"},
+            },
+        }
+        md = r.render_blocks([block])
+        assert "Note" in md
+
+    def test_media_unknown_type_renders_empty_url(self):
+        """Media block with unknown type leaves url empty (branch 464->467)."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {"type": "video", "video": {"type": "unknown"}}
+        md = r.render_blocks([block])
+        assert "[Video]" in md
+        assert "()" in md
+
+    def test_extract_plain_text_non_dict_block_data(self):
+        """block_data is not a dict returns empty string (branch 576->584)."""
+        from notionify.converter.notion_to_md import _extract_plain_text
+        block = {"type": "paragraph", "paragraph": None}
+        assert _extract_plain_text(block) == ""

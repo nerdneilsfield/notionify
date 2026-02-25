@@ -856,3 +856,28 @@ class TestAsyncExecutorBranchCoverage:
         fake_op = DiffOp(op_type=_FakeOpType(), existing_id="blk-x")  # type: ignore[arg-type]
         await executor.execute("page-1", [fake_op])
         assert len(mock_api.deletes) == 0
+
+
+class TestUpgradeToUpdatesBlockWithNoId:
+    """Branch coverage for _upgrade_to_updates (planner.py 223->220).
+
+    Covers the False branch of ``if bid and btype:`` when an existing block
+    lacks an ``id`` field so it is silently skipped in the id_to_type map.
+    """
+
+    def test_existing_block_without_id_skipped_in_id_map(self):
+        """Existing block without 'id' triggers False branch at 223->220."""
+        # existing[0] has no 'id'; existing[1] is the LCS anchor.
+        existing = [
+            _para("changed"),           # no id → triggers 223->220 False branch
+            _para("anchor", "e2"),       # has id, matches new[1]
+        ]
+        new = [
+            _heading("changed"),        # different type → DELETE+INSERT → REPLACE
+            _para("anchor"),            # matches existing[1] → KEEP
+        ]
+        planner = DiffPlanner(NotionifyConfig(token="test"))
+        ops = planner.plan(existing, new)
+        # Should produce a REPLACE for the changed block and KEEP for the anchor
+        op_types = {o.op_type for o in ops}
+        assert DiffOpType.REPLACE in op_types or DiffOpType.DELETE in op_types
