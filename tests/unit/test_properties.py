@@ -96,7 +96,12 @@ from notionify.diff.signature import (
     _normalize_rich_text,
     compute_signature,
 )
-from notionify.errors import NotionifyError, NotionifyValidationError, _reconstruct_error
+from notionify.errors import (
+    NotionifyError,
+    NotionifyUnsupportedBlockError,
+    NotionifyValidationError,
+    _reconstruct_error,
+)
 from notionify.image.detect import detect_image_source, mime_to_extension
 from notionify.models import BlockSignature, DiffOp, DiffOpType, ImageSourceType
 from notionify.notion_api.blocks import extract_block_ids
@@ -6584,3 +6589,113 @@ class TestRendererUrlAndCalloutProperties:
         # Counter resets: both items should be numbered "1."
         assert "1. first" in result
         assert "1. second" in result
+
+
+class TestRendererImageTableUnsupportedProperties:
+    """Property tests for _render_image, _render_table, _render_passthrough,
+    _render_unsupported, _render_quote, _render_media."""
+
+    def _r(self, **kwargs) -> NotionToMarkdownRenderer:
+        return NotionToMarkdownRenderer(NotionifyConfig(token="test-token", **kwargs))
+
+    def _rt(self, text: str) -> list[dict]:
+        return [{"type": "text", "text": {"content": text}, "plain_text": text}]
+
+    # --- _render_image ---
+
+    @given(url=st.text(min_size=5, max_size=60, alphabet=string.ascii_letters + ":/._-"))
+    @settings(max_examples=100)
+    def test_image_external_url_in_output(self, url: str) -> None:
+        """External image URL appears in Markdown image syntax."""
+        r = self._r()
+        block = {"image": {"type": "external", "external": {"url": url}}}
+        result = r._render_image(block, 0)
+        assert result.startswith("![")
+        assert result.endswith("\n\n")
+
+    # --- _render_table ---
+
+    def test_table_empty_children_returns_empty(self) -> None:
+        """Table with no children → empty string."""
+        r = self._r()
+        assert r._render_table({"table": {}}, 0) == ""
+
+    def test_table_separator_row_present(self) -> None:
+        """GFM separator row (|---|...) appears after the first data row."""
+        r = self._r()
+        row = {"type": "table_row", "table_row": {"cells": [self._rt("A"), self._rt("B")]}}
+        block = {"table": {"table_width": 2, "children": [row, row]}}
+        result = r._render_table(block, 0)
+        assert "|---|" in result or "|---" in result
+
+    def test_table_has_row_header_bolds_first_cell(self) -> None:
+        """has_row_header=True → first cell of each row is bold."""
+        r = self._r()
+        row = {"type": "table_row", "table_row": {"cells": [self._rt("Header"), self._rt("Val")]}}
+        block = {"table": {"table_width": 2, "has_row_header": True, "children": [row]}}
+        result = r._render_table(block, 0)
+        assert "**Header**" in result
+
+    # --- _render_passthrough ---
+
+    def test_passthrough_no_children_returns_empty(self) -> None:
+        """Column block with no children → empty string."""
+        r = self._r()
+        assert r._render_passthrough({"type": "column", "column": {}}, 0) == ""
+
+    def test_passthrough_with_children_renders_them(self) -> None:
+        """Passthrough block renders its children."""
+        r = self._r()
+        divider = {"type": "divider", "divider": {}}
+        block = {"type": "column", "column": {}, "children": [divider]}
+        result = r._render_passthrough(block, 0)
+        assert "---" in result
+
+    # --- _render_unsupported ---
+
+    def test_unsupported_skip_policy_returns_empty(self) -> None:
+        """unsupported_block_policy='skip' → empty string."""
+        r = self._r(unsupported_block_policy="skip")
+        block = {"type": "unknown_block", "id": "x"}
+        assert r._render_unsupported(block) == ""
+
+    def test_unsupported_raise_policy_raises(self) -> None:
+        """unsupported_block_policy='raise' → NotionifyUnsupportedBlockError."""
+        r = self._r(unsupported_block_policy="raise")
+        block = {"type": "unknown_block", "id": "x"}
+        with pytest.raises(NotionifyUnsupportedBlockError):
+            r._render_unsupported(block)
+
+    def test_unsupported_comment_policy_emits_html_comment(self) -> None:
+        """Default policy 'comment' → HTML comment with block type."""
+        r = self._r(unsupported_block_policy="comment")
+        block = {"type": "my_block", "id": "x"}
+        result = r._render_unsupported(block)
+        assert "<!-- notion:my_block -->" in result
+
+    # --- _render_quote ---
+
+    @given(text=st.text(min_size=1, max_size=50, alphabet=string.ascii_letters + " "))
+    @settings(max_examples=100)
+    def test_quote_output_starts_with_blockquote_marker(self, text: str) -> None:
+        """_render_quote always starts with '> '."""
+        r = self._r()
+        block = {"quote": {"rich_text": self._rt(text)}}
+        result = r._render_quote(block, 0)
+        assert result.startswith("> ")
+
+    # --- _render_media ---
+
+    @given(
+        media_type=st.sampled_from(["video", "audio", "pdf"]),
+        url=st.text(min_size=5, max_size=50, alphabet=string.ascii_letters + ":/._-"),
+    )
+    @settings(max_examples=100)
+    def test_media_label_matches_type(self, media_type: str, url: str) -> None:
+        """Video/audio/pdf use their capitalized label in output."""
+        r = self._r()
+        label = {"video": "Video", "audio": "Audio", "pdf": "PDF"}[media_type]
+        block = {media_type: {"type": "external", "external": {"url": url}}}
+        result = r._render_media(block, 0, media_type)
+        assert result.startswith(f"[{label}](")
+        assert result.endswith("\n\n")
