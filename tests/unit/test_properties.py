@@ -2616,3 +2616,126 @@ class TestAdditionalBlockTypeRendererProperties:
         }
         result = renderer.render_block(block)
         assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# TestRoundTripProperties (PRD section 1.2 - round-trip fidelity)
+# ---------------------------------------------------------------------------
+
+
+class TestRoundTripProperties:
+    """Property-based round-trip tests for the full conversion pipeline.
+
+    PRD section 1.2 requires ≥95% round-trip fidelity for supported block
+    types.  These tests verify that common block types (headings, bullets,
+    code blocks, paragraphs) survive MD→Notion→MD→Notion with stable
+    block types and preserved content.
+    """
+
+    _config = NotionifyConfig(token="test-token")
+
+    def _roundtrip(self, md: str) -> tuple[list[dict], str]:
+        """Convert MD → Notion blocks, render back to MD.
+
+        Returns (blocks_from_first_pass, rendered_markdown).
+        """
+        converter = MarkdownToNotionConverter(self._config)
+        renderer = NotionToMarkdownRenderer(self._config)
+        result = converter.convert(md)
+        md_out = renderer.render_blocks(result.blocks)
+        return result.blocks, md_out
+
+    @given(text=st.text(min_size=0, max_size=2000))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_full_roundtrip_pipeline_never_raises(self, text: str) -> None:
+        """The combined MD→Notion→MD pipeline must never raise on any input."""
+        converter = MarkdownToNotionConverter(self._config)
+        renderer = NotionToMarkdownRenderer(self._config)
+        result = converter.convert(text)
+        md_out = renderer.render_blocks(result.blocks)
+        assert isinstance(md_out, str)
+
+    @given(
+        heading_level=st.integers(min_value=1, max_value=3),
+        heading_text=st.text(
+            alphabet=string.ascii_letters + string.digits + " ",
+            min_size=1,
+            max_size=80,
+        ),
+    )
+    @settings(max_examples=100)
+    def test_heading_type_survives_roundtrip(
+        self, heading_level: int, heading_text: str
+    ) -> None:
+        """H1-H3 headings must round-trip as the same heading type."""
+        text = heading_text.strip()
+        assume(text)
+        md = "#" * heading_level + " " + text
+        blocks, md_out = self._roundtrip(md)
+        expected = f"heading_{heading_level}"
+        assert any(b["type"] == expected for b in blocks)
+        # Second pass must preserve the heading type
+        converter = MarkdownToNotionConverter(self._config)
+        result2 = converter.convert(md_out)
+        assert any(b["type"] == expected for b in result2.blocks)
+
+    @given(
+        items=st.lists(
+            st.text(
+                alphabet=string.ascii_letters + string.digits + " ",
+                min_size=1,
+                max_size=60,
+            ),
+            min_size=1,
+            max_size=8,
+        ),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_bullet_list_survives_roundtrip(self, items: list[str]) -> None:
+        """Bullet list items must round-trip as bulleted_list_item blocks."""
+        cleaned = [i.strip() for i in items if i.strip()]
+        assume(cleaned)
+        md = "\n".join(f"- {item}" for item in cleaned)
+        blocks, md_out = self._roundtrip(md)
+        assert any(b["type"] == "bulleted_list_item" for b in blocks)
+        # After round-trip the bullet items must still be present
+        converter = MarkdownToNotionConverter(self._config)
+        result2 = converter.convert(md_out)
+        assert any(b["type"] == "bulleted_list_item" for b in result2.blocks)
+
+    @given(
+        lang=st.sampled_from([
+            "python", "javascript", "typescript", "go", "rust",
+            "java", "c", "bash", "sql", "",
+        ]),
+        code=st.text(
+            alphabet=string.ascii_letters + string.digits + " \n",
+            min_size=1,
+            max_size=150,
+        ),
+    )
+    @settings(max_examples=80, suppress_health_check=[HealthCheck.too_slow])
+    def test_code_block_survives_roundtrip(self, lang: str, code: str) -> None:
+        """Fenced code blocks must round-trip as code blocks."""
+        md = f"```{lang}\n{code}\n```"
+        blocks, md_out = self._roundtrip(md)
+        assert any(b["type"] == "code" for b in blocks)
+        converter = MarkdownToNotionConverter(self._config)
+        result2 = converter.convert(md_out)
+        assert any(b["type"] == "code" for b in result2.blocks)
+
+    @given(
+        content=st.text(
+            alphabet=string.ascii_letters + string.digits + " ",
+            min_size=1,
+            max_size=200,
+        ),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_plain_paragraph_content_survives_roundtrip(self, content: str) -> None:
+        """Plain text paragraphs must preserve their content through the round-trip."""
+        text = content.strip()
+        assume(text)
+        blocks, md_out = self._roundtrip(text)
+        assert any(b["type"] == "paragraph" for b in blocks)
+        assert text in md_out
