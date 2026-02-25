@@ -46,8 +46,12 @@ from notionify.converter.notion_to_md import (
     _notion_url,
     _sanitize_comment,
 )
+from notionify.converter.notion_to_md import (
+    _extract_plain_text as _extract_plain_text_from_block,
+)
 from notionify.converter.rich_text import (
     _clone_text_segment,
+    _default_annotations,
     _has_non_default_annotations,
     _make_text_segment,
     _merge_annotations,
@@ -5001,3 +5005,97 @@ class TestMathBlockFactoryProperties:
         """_make_plain_text_rich_text stores the text content verbatim."""
         seg = _make_plain_text_rich_text(text)
         assert seg["text"]["content"] == text
+
+
+class TestDefaultAnnotationsProperties:
+    """Property tests for _default_annotations from rich_text.py."""
+
+    def test_returns_dict_with_expected_keys(self) -> None:
+        """_default_annotations returns a dict with all six expected keys."""
+        ann = _default_annotations()
+        assert set(ann.keys()) == {"bold", "italic", "strikethrough", "underline", "code", "color"}
+
+    def test_all_boolean_fields_are_false(self) -> None:
+        """All boolean annotation flags default to False."""
+        ann = _default_annotations()
+        for key in ("bold", "italic", "strikethrough", "underline", "code"):
+            assert ann[key] is False, f"{key} should be False"
+
+    def test_color_is_default(self) -> None:
+        """The color field defaults to the string 'default'."""
+        assert _default_annotations()["color"] == "default"
+
+    def test_returns_fresh_dict_each_call(self) -> None:
+        """Each call returns a new dict, not a shared singleton."""
+        a, b = _default_annotations(), _default_annotations()
+        assert a is not b
+        assert a == b
+
+    @given(key=st.sampled_from(["bold", "italic", "strikethrough", "underline", "code"]))
+    @settings(max_examples=50)
+    def test_mutating_one_call_does_not_affect_another(self, key: str) -> None:
+        """Mutation of one returned dict must not affect a separately obtained dict."""
+        a = _default_annotations()
+        b = _default_annotations()
+        a[key] = True
+        assert b[key] is False
+
+
+class TestExtractPlainTextFromBlockProperties:
+    """Property tests for _extract_plain_text (notion_to_md version) on block dicts."""
+
+    @given(block=st.fixed_dictionaries({}))
+    @settings(max_examples=50)
+    def test_empty_block_returns_empty_string(self, block: dict) -> None:
+        """An empty block dict always produces an empty string."""
+        assert _extract_plain_text_from_block({}) == ""
+
+    @given(
+        block_type=st.text(
+            min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L",))
+        )
+    )
+    @settings(max_examples=200)
+    def test_block_without_rich_text_returns_empty(self, block_type: str) -> None:
+        """A block whose type-data has no rich_text returns empty string."""
+        block: dict = {"type": block_type, block_type: {"some_key": "some_value"}}
+        result = _extract_plain_text_from_block(block)
+        assert result == ""
+
+    _BLOCK_TYPE_ST = st.text(
+        min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L",))
+    )
+
+    @given(
+        block_type=_BLOCK_TYPE_ST,
+        texts=st.lists(st.text(min_size=0, max_size=50), min_size=1, max_size=5),
+    )
+    @settings(max_examples=200)
+    def test_plain_text_field_is_concatenated(self, block_type: str, texts: list[str]) -> None:
+        """If segments have plain_text, they are concatenated in order."""
+        segments = [{"plain_text": t} for t in texts]
+        block: dict = {"type": block_type, block_type: {"rich_text": segments}}
+        result = _extract_plain_text_from_block(block)
+        assert result == "".join(texts)
+
+    @given(
+        block_type=_BLOCK_TYPE_ST,
+        texts=st.lists(st.text(min_size=0, max_size=50), min_size=1, max_size=5),
+    )
+    @settings(max_examples=200)
+    def test_text_content_fallback_when_no_plain_text(
+        self, block_type: str, texts: list[str]
+    ) -> None:
+        """When plain_text is absent, falls back to text.content."""
+        segments = [{"text": {"content": t}} for t in texts]
+        block: dict = {"type": block_type, block_type: {"rich_text": segments}}
+        result = _extract_plain_text_from_block(block)
+        assert result == "".join(texts)
+
+    @given(text=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_always_returns_a_string(self, text: str) -> None:
+        """_extract_plain_text always returns a string, never None or other types."""
+        block: dict = {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": text}]}}
+        result = _extract_plain_text_from_block(block)
+        assert isinstance(result, str)
