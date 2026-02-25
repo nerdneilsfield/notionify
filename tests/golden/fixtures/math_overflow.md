@@ -1,0 +1,5 @@
+$$\int_{0}^{\infty} \frac{x^{100} \cdot e^{-x} \cdot \sin(x) \cdot \cos(x) \cdot \tan(x) \cdot \sec(x) \cdot \csc(x) \cdot \cot(x) \cdot \sinh(x) \cdot \cosh(x) \cdot \tanh(x) \cdot \mathrm{sech}(x) \cdot \mathrm{csch}(x) \cdot \mathrm{coth}(x) \cdot \ln(x) \cdot \log_{10}(x) \cdot \log_{2}(x) \cdot \sqrt{x} \cdot \sqrt[3]{x} \cdot \sqrt[4]{x} \cdot x^{\frac{1}{5}} \cdot x^{\frac{1}{6}} \cdot x^{\frac{1}{7}} \cdot x^{\frac{1}{8}} \cdot x^{\frac{1}{9}} \cdot x^{\frac{1}{10}} \cdot \Gamma(x) \cdot \beta(x, x) \cdot \zeta(x) \cdot \eta(x) \cdot \theta(x) \cdot \phi(x) \cdot \psi(x) \cdot \omega(x) \cdot \alpha(x) \cdot \delta(x) \cdot \epsilon(x) \cdot \lambda(x) \cdot \mu(x) \cdot \nu(x) \cdot \xi(x) \cdot \pi(x) \cdot \rho(x) \cdot \sigma(x) \cdot \tau(x) \cdot \upsilon(x) \cdot \chi(x) \cdot J_{0}(x) \cdot Y_{0}(x) \cdot I_{0}(x) \cdot K_{0}(x) \cdot \mathrm{erf}(x) \cdot \mathrm{erfc}(x) \cdot \mathrm{Ei}(x) \cdot \mathrm{li}(x) \cdot \mathrm{Si}(x) \cdot \mathrm{Ci}(x) \cdot \mathrm{Shi}(x) \cdot \mathrm{Chi}(x)}{(1 + x^2)^{50}} \, dx$$
+
+Normal paragraph after the long equation.
+
+Here is a short equation: $E = mc^2$

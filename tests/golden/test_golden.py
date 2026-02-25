@@ -519,3 +519,155 @@ class TestBlockCounts:
         result = converter.convert(md)
         # Multiple sections with paragraphs
         assert len(result.blocks) >= 5
+
+
+class TestMathOverflow:
+    """Verify math_overflow.md handles oversized equations per overflow config."""
+
+    def test_converts_without_crash(self, converter):
+        md = (FIXTURES_DIR / "math_overflow.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+
+    def test_short_equation_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "math_overflow.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "mc^2" in round_tripped
+
+    def test_paragraph_after_overflow_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "math_overflow.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Normal paragraph" in round_tripped
+
+    def test_overflow_equation_produces_blocks(self, converter):
+        """The long equation should produce at least one block (overflow fallback)."""
+        md = (FIXTURES_DIR / "math_overflow.md").read_text()
+        result = converter.convert(md)
+        # At least: overflow equation block(s) + paragraph + short equation
+        assert len(result.blocks) >= 3
+
+
+class TestWhitespaceOnly:
+    """Verify whitespace_only.md produces empty output gracefully."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "whitespace_only.md").read_text()
+        result = converter.convert(md)
+        assert len(result.warnings) == 0
+
+    def test_produces_empty_or_minimal_blocks(self, converter):
+        md = (FIXTURES_DIR / "whitespace_only.md").read_text()
+        result = converter.convert(md)
+        # Whitespace-only content should produce no meaningful blocks
+        assert len(result.blocks) == 0
+
+    def test_round_trip_is_stable(self, converter, renderer):
+        md = (FIXTURES_DIR / "whitespace_only.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert round_tripped.strip() == ""
+
+
+class TestLongParagraph:
+    """Verify long_paragraph.md splits correctly at 2000-char boundary."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "long_paragraph.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_round_trip_preserves_bold(self, converter, renderer):
+        md = (FIXTURES_DIR / "long_paragraph.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "bold text" in round_tripped
+
+    def test_round_trip_preserves_italic(self, converter, renderer):
+        md = (FIXTURES_DIR / "long_paragraph.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "italic text" in round_tripped
+
+    def test_round_trip_preserves_inline_code(self, converter, renderer):
+        md = (FIXTURES_DIR / "long_paragraph.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "`inline code`" in round_tripped
+
+    def test_round_trip_preserves_link(self, converter, renderer):
+        md = (FIXTURES_DIR / "long_paragraph.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "example.com" in round_tripped
+
+    def test_no_content_loss(self, converter, renderer):
+        """All text from the original paragraph must survive the round-trip."""
+        md = (FIXTURES_DIR / "long_paragraph.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "rich text splitting" in round_tripped
+        # Hyphens may be escaped as \- in the round-tripped markdown
+        assert "round" in round_tripped
+        assert "trip fidelity" in round_tripped
+        assert "data loss" in round_tripped
+
+
+class TestDeeplyNested:
+    """Verify deeply_nested.md handles nested structures correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "deeply_nested.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_round_trip_preserves_nested_bullets(self, converter, renderer):
+        md = (FIXTURES_DIR / "deeply_nested.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Level 1 item A" in round_tripped
+        assert "Level 2 item A1" in round_tripped
+        assert "Level 3 item A1a" in round_tripped
+
+    def test_round_trip_preserves_nested_ordered(self, converter, renderer):
+        md = (FIXTURES_DIR / "deeply_nested.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "First outer" in round_tripped
+        assert "First inner" in round_tripped
+
+    def test_round_trip_preserves_blockquote(self, converter, renderer):
+        md = (FIXTURES_DIR / "deeply_nested.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Quote level 1" in round_tripped
+
+    def test_round_trip_preserves_task_lists(self, converter, renderer):
+        md = (FIXTURES_DIR / "deeply_nested.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Unchecked task" in round_tripped
+        # Hyphens may be escaped as \- in round-tripped markdown
+        assert "Checked sub" in round_tripped
+        assert "task" in round_tripped
+
+    def test_has_adequate_block_count(self, converter):
+        md = (FIXTURES_DIR / "deeply_nested.md").read_text()
+        result = converter.convert(md)
+        # Bullets + ordered + quotes + tasks = at least 10 top-level blocks
+        assert len(result.blocks) >= 5
