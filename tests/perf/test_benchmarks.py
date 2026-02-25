@@ -272,6 +272,55 @@ class TestPRDBenchmarks:
         assert elapsed_ms < 200, f"500-block diff plan too slow: {elapsed_ms:.2f}ms"
 
 
+class TestNFRRequirements:
+    """Verify non-functional requirements from PRD Section 7."""
+
+    def test_nfr3_deterministic_output(self):
+        """NFR-3: Same input + config must produce identical output."""
+        config = NotionifyConfig(token="test")
+        converter = MarkdownToNotionConverter(config)
+        md = (
+            "# Title\n\n"
+            "Paragraph with **bold**, *italic*, `code`, and [link](https://x.com).\n\n"
+            "- item 1\n- item 2\n  - nested\n\n"
+            "```python\nprint('hello')\n```\n\n"
+            "> blockquote\n\n"
+            "---\n"
+        )
+
+        results = [converter.convert(md) for _ in range(5)]
+        # All runs must produce identical block structures
+        baseline = results[0].blocks
+        for i, r in enumerate(results[1:], 1):
+            assert r.blocks == baseline, f"Run {i} produced different output"
+
+    def test_nfr3_renderer_deterministic(self):
+        """NFR-3: Same blocks → same Markdown on every run."""
+        config = NotionifyConfig(token="test")
+        converter = MarkdownToNotionConverter(config)
+        renderer = NotionToMarkdownRenderer(config)
+
+        md = "# Hello\n\nWorld with **bold** and *italic*.\n\n- a\n- b\n"
+        result = converter.convert(md)
+        blocks = _simulate_notion_blocks(result.blocks)
+
+        outputs = [renderer.render_blocks(blocks) for _ in range(5)]
+        for i, output in enumerate(outputs[1:], 1):
+            assert output == outputs[0], f"Render run {i} produced different output"
+
+    def test_nfr8_package_size_under_5mb(self):
+        """NFR-8: Installed package size must be < 5 MB."""
+        import pathlib
+
+        pkg_dir = pathlib.Path(__file__).resolve().parents[2] / "src" / "notionify"
+        total_size = sum(
+            f.stat().st_size for f in pkg_dir.rglob("*") if f.is_file()
+        )
+        total_mb = total_size / (1024 * 1024)
+        print(f"\n  Package size: {total_mb:.2f} MiB")
+        assert total_mb < 5, f"Package too large: {total_mb:.2f} MiB (limit: 5 MiB)"
+
+
 class TestMemoryUsage:
     """Memory profiling benchmarks using tracemalloc.
 
