@@ -3167,6 +3167,48 @@ class TestRoundTripProperties:
         assert any(b["type"] == "paragraph" for b in blocks)
         assert text in md_out
 
+    @given(
+        code=st.text(
+            alphabet=string.ascii_letters + string.digits + " =+^",
+            min_size=1,
+            max_size=100,
+        ),
+    )
+    @settings(max_examples=50)
+    def test_latex_fence_with_detect_disabled_roundtrips_as_code(self, code: str) -> None:
+        """With detect_latex_code=False, latex fence round-trips as code block."""
+        cfg = NotionifyConfig(token="test-token", detect_latex_code=False)
+        converter = MarkdownToNotionConverter(cfg)
+        renderer = NotionToMarkdownRenderer(cfg)
+        md = f"```latex\n{code}\n```"
+        result = converter.convert(md)
+        assert any(b["type"] == "code" for b in result.blocks)
+        md_out = renderer.render_blocks(result.blocks)
+        # Must render as ```latex fence when detect_latex_code=False
+        assert "```latex" in md_out
+
+    @given(
+        code=st.text(
+            alphabet=string.ascii_letters + string.digits + " =+^",
+            min_size=1,
+            max_size=100,
+        ),
+    )
+    @settings(max_examples=50)
+    def test_latex_fence_with_detect_enabled_renders_as_display_math(self, code: str) -> None:
+        """With detect_latex_code=True, latex fence renders to $$...$$ display math."""
+        cfg = NotionifyConfig(token="test-token", detect_latex_code=True)
+        converter = MarkdownToNotionConverter(cfg)
+        renderer = NotionToMarkdownRenderer(cfg)
+        md = f"```latex\n{code}\n```"
+        result = converter.convert(md)
+        # First pass: still stored as code block in Notion
+        assert any(b["type"] == "code" for b in result.blocks)
+        md_out = renderer.render_blocks(result.blocks)
+        # Renders as $$...$$ display math
+        assert "$$" in md_out
+        assert "```" not in md_out
+
 
 # ---------------------------------------------------------------------------
 # TestCalloutRenderingNeverRaiseProperties (iteration 19)
@@ -6531,6 +6573,25 @@ class TestRendererUrlAndCalloutProperties:
         block = {"callout": {"rich_text": self._rt(text)}}
         result = r._render_callout(block, 0)
         assert result.startswith("> ")
+
+    @given(
+        icon_url=st.text(min_size=5, max_size=60, alphabet=string.ascii_letters + ":/._-"),
+        text=st.text(min_size=1, max_size=40, alphabet=string.ascii_letters + " "),
+    )
+    @settings(max_examples=50)
+    def test_callout_external_icon_url_appears_in_output(
+        self, icon_url: str, text: str
+    ) -> None:
+        """Callout with external icon URL → URL string prepended before text."""
+        r = self._r()
+        block = {
+            "callout": {
+                "icon": {"type": "external", "external": {"url": icon_url}},
+                "rich_text": self._rt(text),
+            }
+        }
+        result = r._render_callout(block, 0)
+        assert icon_url in result
 
     # --- _render_child_page / _render_child_database ---
 
