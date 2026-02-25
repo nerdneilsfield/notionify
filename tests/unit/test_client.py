@@ -1468,3 +1468,177 @@ class TestFetchBlocksRecursiveNoId:
         await client._fetch_blocks_recursive([block], current_depth=0, max_depth=5)
         client._blocks.get_children.assert_not_awaited()
         await client.close()
+
+
+# ---- Metrics emission tests ------------------------------------------------
+
+
+class TestMetricsEmission:
+    """Verify that metrics are emitted via the MetricsHook protocol."""
+
+    def _make_client_with_mock_metrics(self):
+        client = NotionifyClient(token="test-token")
+        metrics = MagicMock()
+        client._metrics = metrics
+        return client, metrics
+
+    def test_blocks_created_total_emitted(self):
+        client, metrics = self._make_client_with_mock_metrics()
+        client._pages.create = MagicMock(return_value={"id": "page-1", "url": ""})
+        client._blocks.append_children = MagicMock(return_value={"results": []})
+
+        client.create_page_with_markdown("parent-1", "Title", "# Hello")
+
+        # Check that blocks_created_total was called
+        increment_calls = [
+            c for c in metrics.increment.call_args_list
+            if c[0][0] == "notionify.blocks_created_total"
+        ]
+        assert len(increment_calls) > 0
+
+    def test_conversion_warnings_total_emitted(self):
+        """Emit conversion_warnings_total when conversion produces warnings."""
+        client, metrics = self._make_client_with_mock_metrics()
+        client._pages.create = MagicMock(return_value={"id": "page-1", "url": ""})
+        client._blocks.append_children = MagicMock(return_value={"results": []})
+
+        # HTML blocks produce an HTML_BLOCK_SKIPPED warning
+        client.create_page_with_markdown(
+            "parent-1", "Title", "<div>html content</div>",
+        )
+
+        warning_calls = [
+            c for c in metrics.increment.call_args_list
+            if c[0][0] == "notionify.conversion_warnings_total"
+        ]
+        assert len(warning_calls) > 0
+
+    def test_page_export_duration_ms_emitted(self):
+        client, metrics = self._make_client_with_mock_metrics()
+        client._blocks.get_children = MagicMock(return_value=[])
+
+        client.page_to_markdown("page-1")
+
+        timing_calls = [
+            c for c in metrics.timing.call_args_list
+            if c[0][0] == "notionify.page_export_duration_ms"
+        ]
+        assert len(timing_calls) == 1
+        assert timing_calls[0][1]["tags"]["recursive"] == "false"
+
+    def test_page_export_duration_ms_recursive(self):
+        client, metrics = self._make_client_with_mock_metrics()
+        client._blocks.get_children = MagicMock(return_value=[])
+
+        client.page_to_markdown("page-1", recursive=True)
+
+        timing_calls = [
+            c for c in metrics.timing.call_args_list
+            if c[0][0] == "notionify.page_export_duration_ms"
+        ]
+        assert len(timing_calls) == 1
+        assert timing_calls[0][1]["tags"]["recursive"] == "true"
+
+    def test_block_to_markdown_emits_timing(self):
+        client, metrics = self._make_client_with_mock_metrics()
+        client._blocks.get_children = MagicMock(return_value=[])
+
+        client.block_to_markdown("block-1")
+
+        timing_calls = [
+            c for c in metrics.timing.call_args_list
+            if c[0][0] == "notionify.page_export_duration_ms"
+        ]
+        assert len(timing_calls) == 1
+
+    def test_upload_success_total_emitted(self):
+        client, metrics = self._make_client_with_mock_metrics()
+
+        with patch("notionify.client.upload_single", return_value="upload-id"):
+            result = client._do_upload("img.png", "image/png", b"data")
+
+        assert result == "upload-id"
+        success_calls = [
+            c for c in metrics.increment.call_args_list
+            if c[0][0] == "notionify.upload_success_total"
+        ]
+        assert len(success_calls) == 1
+        assert success_calls[0][1]["tags"]["mode"] == "single"
+
+    def test_upload_failure_total_emitted(self):
+        from notionify.errors import NotionifyImageError
+        from notionify.models import ConversionWarning, PendingImage
+
+        client, metrics = self._make_client_with_mock_metrics()
+        pending = PendingImage(
+            src="test.png", source_type=ImageSourceType.LOCAL_FILE,
+            block_index=0,
+        )
+        exc = NotionifyImageError(message="fail", context={})
+        blocks: list[dict] = [{"type": "image"}]
+        warnings: list[ConversionWarning] = []
+
+        client._handle_image_error(pending, blocks, warnings, exc)
+
+        failure_calls = [
+            c for c in metrics.increment.call_args_list
+            if c[0][0] == "notionify.upload_failure_total"
+        ]
+        assert len(failure_calls) == 1
+
+
+class TestAsyncMetricsEmission:
+    """Verify async client metrics emission."""
+
+    @pytest.mark.asyncio
+    async def test_page_export_duration_ms_emitted(self):
+        client = AsyncNotionifyClient(token="test-token")
+        metrics = MagicMock()
+        client._metrics = metrics
+        client._blocks.get_children = AsyncMock(return_value=[])
+
+        await client.page_to_markdown("page-1")
+
+        timing_calls = [
+            c for c in metrics.timing.call_args_list
+            if c[0][0] == "notionify.page_export_duration_ms"
+        ]
+        assert len(timing_calls) == 1
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_blocks_created_total_emitted(self):
+        client = AsyncNotionifyClient(token="test-token")
+        metrics = MagicMock()
+        client._metrics = metrics
+        client._pages.create = AsyncMock(return_value={"id": "page-1", "url": ""})
+        client._blocks.append_children = AsyncMock(return_value={"results": []})
+
+        await client.create_page_with_markdown("parent-1", "Title", "# Hello")
+
+        increment_calls = [
+            c for c in metrics.increment.call_args_list
+            if c[0][0] == "notionify.blocks_created_total"
+        ]
+        assert len(increment_calls) > 0
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_conversion_warnings_total_emitted(self):
+        client = AsyncNotionifyClient(token="test-token")
+        metrics = MagicMock()
+        client._metrics = metrics
+        client._pages.create = AsyncMock(return_value={"id": "page-1", "url": ""})
+        client._blocks.append_children = AsyncMock(return_value={"results": []})
+
+        # HTML blocks produce an HTML_BLOCK_SKIPPED warning
+        await client.create_page_with_markdown(
+            "parent-1", "Title", "<div>html content</div>",
+        )
+
+        warning_calls = [
+            c for c in metrics.increment.call_args_list
+            if c[0][0] == "notionify.conversion_warnings_total"
+        ]
+        assert len(warning_calls) > 0
+        await client.close()

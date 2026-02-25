@@ -345,3 +345,108 @@ class TestMultipleBlocks:
         assert len(blocks) == 4
         types = [b["type"] for b in blocks]
         assert types == ["heading_2", "paragraph", "code", "divider"]
+
+
+class TestNestingDepthGuard:
+    """Tests for the nesting depth guard (PRD 5.1, ~8 levels)."""
+
+    def _make_nested_list(self, depth: int) -> dict:
+        """Build a list AST nested to *depth* levels."""
+        inner = {
+            "type": "list_item",
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [{"type": "text", "raw": f"level-{depth}"}],
+                }
+            ],
+        }
+        for i in range(depth - 1, 0, -1):
+            inner = {
+                "type": "list_item",
+                "children": [
+                    {
+                        "type": "paragraph",
+                        "children": [{"type": "text", "raw": f"level-{i}"}],
+                    },
+                    {
+                        "type": "list",
+                        "attrs": {"ordered": False},
+                        "children": [inner],
+                    },
+                ],
+            }
+        return {
+            "type": "list",
+            "attrs": {"ordered": False},
+            "children": [inner],
+        }
+
+    def test_nesting_within_limit_no_warning(self):
+        token = self._make_nested_list(4)
+        blocks, _, warnings = build_blocks([token], _config())
+        assert len(blocks) >= 1
+        depth_warnings = [w for w in warnings if w.code == "NESTING_DEPTH_EXCEEDED"]
+        assert depth_warnings == []
+
+    def test_nesting_at_limit_emits_warning(self):
+        token = self._make_nested_list(9)
+        blocks, _, warnings = build_blocks([token], _config())
+        assert len(blocks) >= 1
+        depth_warnings = [w for w in warnings if w.code == "NESTING_DEPTH_EXCEEDED"]
+        assert len(depth_warnings) >= 1
+        assert "8" in depth_warnings[0].message
+
+    def test_nesting_at_limit_flattens(self):
+        """Items beyond the depth limit should NOT appear as nested children."""
+        token = self._make_nested_list(9)
+        blocks, _, _ = build_blocks([token], _config())
+
+        # Walk block tree to find maximum nesting depth
+        def _max_depth(block: dict, depth: int = 0) -> int:
+            bt = block.get("type", "")
+            children = block.get(bt, {}).get("children", [])
+            if not children:
+                return depth
+            return max(_max_depth(c, depth + 1) for c in children)
+
+        max_d = _max_depth(blocks[0])
+        assert max_d < 9
+
+    def test_task_list_nesting_at_limit_emits_warning(self):
+        """Task list items also respect the depth guard."""
+        # Build a simple task list 9 levels deep
+        inner: dict = {
+            "type": "task_list_item",
+            "attrs": {"checked": False},
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [{"type": "text", "raw": "deep task"}],
+                }
+            ],
+        }
+        for _ in range(8):
+            inner = {
+                "type": "task_list_item",
+                "attrs": {"checked": False},
+                "children": [
+                    {
+                        "type": "paragraph",
+                        "children": [{"type": "text", "raw": "task"}],
+                    },
+                    {
+                        "type": "list",
+                        "attrs": {"ordered": False},
+                        "children": [inner],
+                    },
+                ],
+            }
+        token = {
+            "type": "list",
+            "attrs": {"ordered": False},
+            "children": [inner],
+        }
+        blocks, _, warnings = build_blocks([token], _config())
+        depth_warnings = [w for w in warnings if w.code == "NESTING_DEPTH_EXCEEDED"]
+        assert len(depth_warnings) >= 1

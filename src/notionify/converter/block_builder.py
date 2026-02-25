@@ -18,6 +18,7 @@ This module handles ALL block types from PRD section 10.1:
 from __future__ import annotations
 
 import re
+from collections.abc import Callable as _Callable
 from urllib.parse import urlparse
 
 from notionify.config import NotionifyConfig
@@ -344,7 +345,11 @@ def _build_block_quote(token: dict, ctx: _BuildContext) -> list[dict]:
     return [block]
 
 
-def _build_list(token: dict, ctx: _BuildContext) -> list[dict]:
+_MAX_NESTING_DEPTH = 8
+"""Practical nesting limit for Notion blocks (PRD 5.1)."""
+
+
+def _build_list(token: dict, ctx: _BuildContext, depth: int = 0) -> list[dict]:
     """Build list item blocks from a list token.
 
     In Notion, there are no "list" wrapper blocks.  Each item is a
@@ -359,10 +364,10 @@ def _build_list(token: dict, ctx: _BuildContext) -> list[dict]:
         item_type = item.get("type", "")
 
         if item_type == "task_list_item":
-            block = _build_task_list_item(item, ctx)
+            block = _build_task_list_item(item, ctx, depth)
             blocks.append(block)
         elif item_type == "list_item":
-            block = _build_list_item(item, ordered, ctx)
+            block = _build_list_item(item, ordered, ctx, depth)
             blocks.append(block)
 
     return blocks
@@ -372,6 +377,7 @@ def _build_list_item(
     token: dict,
     ordered: bool,
     ctx: _BuildContext,
+    depth: int = 0,
 ) -> dict:
     """Build a single bulleted/numbered list item block."""
     children = token.get("children", [])
@@ -389,13 +395,21 @@ def _build_list_item(
             rt = build_rich_text(child.get("children", []), ctx.config, warnings=ctx.warnings)
             rich_text.extend(rt)
         elif child_type == "list":
-            # Nested list: build child items in a separate context so they
-            # are not appended to the parent's flat block list
-            nested_ctx = _BuildContext(ctx.config)
-            nested = _build_list(child, nested_ctx)
-            nested_blocks.extend(nested)
-            ctx.images.extend(nested_ctx.images)
-            ctx.warnings.extend(nested_ctx.warnings)
+            if depth + 1 >= _MAX_NESTING_DEPTH:
+                ctx.add_warning(
+                    "NESTING_DEPTH_EXCEEDED",
+                    f"Nesting depth exceeds {_MAX_NESTING_DEPTH} levels; "
+                    "nested items flattened.",
+                    depth=depth + 1,
+                )
+            else:
+                # Nested list: build child items in a separate context so
+                # they are not appended to the parent's flat block list
+                nested_ctx = _BuildContext(ctx.config)
+                nested = _build_list(child, nested_ctx, depth + 1)
+                nested_blocks.extend(nested)
+                ctx.images.extend(nested_ctx.images)
+                ctx.warnings.extend(nested_ctx.warnings)
         else:
             # Other nested block
             nested_ctx = _BuildContext(ctx.config)
@@ -422,7 +436,9 @@ def _build_list_item(
     return block
 
 
-def _build_task_list_item(token: dict, ctx: _BuildContext) -> dict:
+def _build_task_list_item(
+    token: dict, ctx: _BuildContext, depth: int = 0,
+) -> dict:
     """Build a Notion to_do block from a task list item."""
     children = token.get("children", [])
     checked = token.get("attrs", {}).get("checked", False)
@@ -436,11 +452,19 @@ def _build_task_list_item(token: dict, ctx: _BuildContext) -> dict:
             rt = build_rich_text(child.get("children", []), ctx.config, warnings=ctx.warnings)
             rich_text.extend(rt)
         elif child_type == "list":
-            nested_ctx = _BuildContext(ctx.config)
-            nested = _build_list(child, nested_ctx)
-            nested_blocks.extend(nested)
-            ctx.images.extend(nested_ctx.images)
-            ctx.warnings.extend(nested_ctx.warnings)
+            if depth + 1 >= _MAX_NESTING_DEPTH:
+                ctx.add_warning(
+                    "NESTING_DEPTH_EXCEEDED",
+                    f"Nesting depth exceeds {_MAX_NESTING_DEPTH} levels; "
+                    "nested items flattened.",
+                    depth=depth + 1,
+                )
+            else:
+                nested_ctx = _BuildContext(ctx.config)
+                nested = _build_list(child, nested_ctx, depth + 1)
+                nested_blocks.extend(nested)
+                ctx.images.extend(nested_ctx.images)
+                ctx.warnings.extend(nested_ctx.warnings)
         else:
             nested_ctx = _BuildContext(ctx.config)
             child_blocks = _process_token(child, nested_ctx)
@@ -645,11 +669,13 @@ def _handle_html_block(token: dict, ctx: _BuildContext) -> list[dict]:
     return []
 
 
-_BLOCK_HANDLERS = {
+_BlockHandler = _Callable[[dict, _BuildContext], list[dict]]
+
+_BLOCK_HANDLERS: dict[str, _BlockHandler] = {
     "heading": _build_heading,
     "paragraph": _build_paragraph,
     "block_quote": _build_block_quote,
-    "list": _build_list,
+    "list": _build_list,  # type: ignore[dict-item]
     "block_code": _build_code_block,
     "thematic_break": _build_divider,
     "table": _build_table,

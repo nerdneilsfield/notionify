@@ -7,11 +7,13 @@ or :class:`AsyncBlockAPI` (async).
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 
 from notionify.config import NotionifyConfig
 from notionify.models import ConversionWarning, DiffOp, DiffOpType, UpdateResult
 from notionify.notion_api.blocks import extract_block_ids
+from notionify.observability import NoopMetricsHook
 from notionify.utils.chunk import chunk_children
 
 
@@ -42,6 +44,7 @@ class DiffExecutor:
     def __init__(self, block_api: Any, config: NotionifyConfig) -> None:
         self._api = block_api
         self._config = config
+        self._metrics = config.metrics if config.metrics is not None else NoopMetricsHook()
 
     def execute(self, page_id: str, ops: list[DiffOp]) -> UpdateResult:
         """Execute diff operations via the Notion API.
@@ -99,6 +102,8 @@ class DiffExecutor:
 
             else:
                 i += 1
+
+        _emit_diff_metrics(self._metrics, ops)
 
         return UpdateResult(
             strategy_used="diff",
@@ -166,6 +171,7 @@ class AsyncDiffExecutor:
     def __init__(self, block_api: Any, config: NotionifyConfig) -> None:
         self._api = block_api
         self._config = config
+        self._metrics = config.metrics if config.metrics is not None else NoopMetricsHook()
 
     async def execute(self, page_id: str, ops: list[DiffOp]) -> UpdateResult:
         """Execute diff operations via the Notion API (async).
@@ -220,6 +226,8 @@ class AsyncDiffExecutor:
             else:
                 i += 1
 
+        _emit_diff_metrics(self._metrics, ops)
+
         return UpdateResult(
             strategy_used="diff",
             blocks_kept=state.kept,
@@ -268,3 +276,15 @@ class AsyncDiffExecutor:
                     state.last_block_id = new_ids[-1]
             state.inserted += len(insert_blocks)
         return i
+
+
+def _emit_diff_metrics(metrics: Any, ops: list[DiffOp]) -> None:
+    """Emit ``diff_ops_total`` counters grouped by operation type."""
+    op_counts: Counter[str] = Counter()
+    for op in ops:
+        op_type = op.op_type
+        op_counts[getattr(op_type, "value", str(op_type))] += 1
+    for op_type_val, count in op_counts.items():
+        metrics.increment(
+            "notionify.diff_ops_total", count, tags={"op_type": op_type_val},
+        )

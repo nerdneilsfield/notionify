@@ -213,6 +213,69 @@ class TestAsyncDiffExecutorUnknownOpType:
 
 
 # ===========================================================================
+# diff/executor.py -- diff_ops_total metrics emission
+# ===========================================================================
+
+
+class TestDiffExecutorMetrics:
+    """Verify diff_ops_total metrics are emitted per op type."""
+
+    def test_diff_ops_total_emitted(self):
+        mock_api = MagicMock()
+        mock_api.append_children.return_value = {"results": []}
+        mock_api.delete.return_value = None
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        metrics = MagicMock()
+        executor._metrics = metrics
+
+        ops = [
+            DiffOp(op_type=DiffOpType.KEEP, existing_id="blk-1"),
+            DiffOp(op_type=DiffOpType.DELETE, existing_id="blk-2"),
+        ]
+        executor.execute("page-1", ops)
+
+        increment_calls = [
+            c for c in metrics.increment.call_args_list
+            if c[0][0] == "notionify.diff_ops_total"
+        ]
+        assert len(increment_calls) == 2  # one for KEEP, one for DELETE
+        tags = {c[1]["tags"]["op_type"] for c in increment_calls}
+        assert tags == {"keep", "delete"}
+
+
+class TestAsyncDiffExecutorMetrics:
+    """Verify async diff_ops_total metrics are emitted per op type."""
+
+    @pytest.mark.asyncio
+    async def test_diff_ops_total_emitted(self):
+        mock_api = MagicMock()
+        mock_api.append_children = AsyncMock(return_value={"results": []})
+        mock_api.delete = AsyncMock(return_value=None)
+        config = NotionifyConfig(token="test")
+        executor = AsyncDiffExecutor(mock_api, config)
+        metrics = MagicMock()
+        executor._metrics = metrics
+
+        ops = [
+            DiffOp(op_type=DiffOpType.KEEP, existing_id="blk-1"),
+            DiffOp(
+                op_type=DiffOpType.INSERT,
+                new_block={"type": "paragraph", "paragraph": {"rich_text": []}},
+            ),
+        ]
+        await executor.execute("page-1", ops)
+
+        increment_calls = [
+            c for c in metrics.increment.call_args_list
+            if c[0][0] == "notionify.diff_ops_total"
+        ]
+        assert len(increment_calls) == 2
+        tags = {c[1]["tags"]["op_type"] for c in increment_calls}
+        assert tags == {"keep", "insert"}
+
+
+# ===========================================================================
 # client.py -- line 412: insert_after returns early when markdown is empty
 # ===========================================================================
 

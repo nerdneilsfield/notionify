@@ -20,6 +20,8 @@ Usage::
 
 from __future__ import annotations
 
+import time
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +58,7 @@ from notionify.notion_api.blocks import BlockAPI, extract_block_ids
 from notionify.notion_api.files import FileAPI
 from notionify.notion_api.pages import PageAPI
 from notionify.notion_api.transport import NotionTransport
+from notionify.observability import NoopMetricsHook
 from notionify.utils.chunk import chunk_children
 
 
@@ -82,6 +85,8 @@ class NotionifyClient:
         self._renderer = NotionToMarkdownRenderer(self._config)
         self._diff_planner = DiffPlanner(self._config)
         self._diff_executor = DiffExecutor(self._blocks, self._config)
+        metrics = self._config.metrics
+        self._metrics = metrics if metrics is not None else NoopMetricsHook()
 
     # ------------------------------------------------------------------
     # Page creation
@@ -134,6 +139,7 @@ class NotionifyClient:
         warnings.extend(
             w for w in conversion.warnings if w not in warnings
         )
+        self._emit_conversion_metrics(conversion)
 
         # 3. Extract title from H1 if requested
         effective_title = title
@@ -214,6 +220,7 @@ class NotionifyClient:
         conversion = self._converter.convert(markdown)
         warnings = list(conversion.warnings)
         images_uploaded = self._process_images(conversion)
+        self._emit_conversion_metrics(conversion)
 
         blocks = conversion.blocks
         batches = chunk_children(blocks)
@@ -513,12 +520,19 @@ class NotionifyClient:
         str
             The rendered Markdown text.
         """
+        t0 = time.monotonic()
         blocks = self._blocks.get_children(page_id)
 
         if recursive:
             self._fetch_blocks_recursive(blocks, current_depth=0, max_depth=max_depth)
 
-        return self._renderer.render_blocks(blocks)
+        result = self._renderer.render_blocks(blocks)
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        self._metrics.timing(
+            "notionify.page_export_duration_ms", elapsed_ms,
+            tags={"recursive": str(recursive).lower()},
+        )
+        return result
 
     def block_to_markdown(
         self,
@@ -542,12 +556,19 @@ class NotionifyClient:
         str
             The rendered Markdown text.
         """
+        t0 = time.monotonic()
         blocks = self._blocks.get_children(block_id)
 
         if recursive:
             self._fetch_blocks_recursive(blocks, current_depth=0, max_depth=max_depth)
 
-        return self._renderer.render_blocks(blocks)
+        result = self._renderer.render_blocks(blocks)
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        self._metrics.timing(
+            "notionify.page_export_duration_ms", elapsed_ms,
+            tags={"recursive": str(recursive).lower()},
+        )
+        return result
 
     # ------------------------------------------------------------------
     # Resource management
@@ -566,6 +587,25 @@ class NotionifyClient:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _emit_conversion_metrics(self, conversion: ConversionResult) -> None:
+        """Emit blocks_created_total and conversion_warnings_total metrics."""
+        block_counts: Counter[str] = Counter()
+        for block in conversion.blocks:
+            block_counts[block.get("type", "unknown")] += 1
+        for block_type, count in block_counts.items():
+            self._metrics.increment(
+                "notionify.blocks_created_total", count,
+                tags={"block_type": block_type},
+            )
+        warning_counts: Counter[str] = Counter()
+        for w in conversion.warnings:
+            warning_counts[w.code] += 1
+        for code, count in warning_counts.items():
+            self._metrics.increment(
+                "notionify.conversion_warnings_total", count,
+                tags={"code": code},
+            )
 
     def _process_images(self, conversion: ConversionResult) -> int:
         """Process pending images: upload local/data-URI images, replace
@@ -704,8 +744,16 @@ class NotionifyClient:
     def _do_upload(self, name: str, mime_type: str, data: bytes) -> str:
         """Choose single or multi-part upload based on data size."""
         if len(data) <= self._config.image_max_size_bytes:
-            return upload_single(self._files, name, mime_type, data)
-        return upload_multi(self._files, name, mime_type, data)
+            upload_id = upload_single(self._files, name, mime_type, data)
+            self._metrics.increment(
+                "notionify.upload_success_total", tags={"mode": "single"},
+            )
+            return upload_id
+        upload_id = upload_multi(self._files, name, mime_type, data)
+        self._metrics.increment(
+            "notionify.upload_success_total", tags={"mode": "multi"},
+        )
+        return upload_id
 
     def _handle_image_error(
         self,
@@ -716,6 +764,10 @@ class NotionifyClient:
         skip_sentinel: dict | None = None,
     ) -> None:
         """Apply the configured image_fallback policy on error."""
+        self._metrics.increment(
+            "notionify.upload_failure_total",
+            tags={"reason": type(exc).__name__},
+        )
         fallback = self._config.image_fallback
 
         if fallback == "raise":
