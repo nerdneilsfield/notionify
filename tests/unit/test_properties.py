@@ -52,6 +52,11 @@ from notionify.converter.notion_to_md import (
 from notionify.converter.rich_text import (
     _clone_text_segment,
     _default_annotations,
+    _handle_codespan,
+    _handle_html_inline,
+    _handle_linebreak,
+    _handle_softbreak,
+    _handle_text,
     _has_non_default_annotations,
     _make_text_segment,
     _merge_annotations,
@@ -77,7 +82,7 @@ from notionify.diff.signature import (
     _normalize_rich_text,
     compute_signature,
 )
-from notionify.errors import NotionifyError, NotionifyValidationError
+from notionify.errors import NotionifyError, NotionifyValidationError, _reconstruct_error
 from notionify.image.detect import detect_image_source, mime_to_extension
 from notionify.models import BlockSignature, DiffOp, DiffOpType, ImageSourceType
 from notionify.notion_api.blocks import extract_block_ids
@@ -5414,3 +5419,143 @@ class TestApplyTableFallbackProperties:
         block, _ = _apply_table_fallback({}, self._CONFIG_PARAGRAPH, warnings)
         assert block is not None
         assert block["type"] == "paragraph"
+
+
+class TestReconstructErrorProperties:
+    """Property tests for _reconstruct_error from errors.py."""
+
+    @given(code=st.text(min_size=1, max_size=50), message=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_returns_instance_of_cls(self, code: str, message: str) -> None:
+        """_reconstruct_error always returns an instance of the specified class."""
+        err = _reconstruct_error(NotionifyError, code, message, None, None)
+        assert isinstance(err, NotionifyError)
+
+    @given(code=st.text(min_size=1, max_size=50), message=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_code_attribute_matches(self, code: str, message: str) -> None:
+        """The code attribute is set to the passed code value."""
+        err = _reconstruct_error(NotionifyError, code, message, None, None)
+        assert err.code == code
+
+    @given(code=st.text(min_size=1, max_size=50), message=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_message_attribute_matches(self, code: str, message: str) -> None:
+        """The message attribute is set to the passed message value."""
+        err = _reconstruct_error(NotionifyError, code, message, None, None)
+        assert err.message == message
+
+    @given(code=st.text(min_size=1, max_size=30), message=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_context_defaults_to_empty_dict_when_none(self, code: str, message: str) -> None:
+        """When context=None, the context attribute is an empty dict."""
+        err = _reconstruct_error(NotionifyError, code, message, None, None)
+        assert err.context == {}
+
+    @given(
+        code=st.text(min_size=1, max_size=30),
+        message=st.text(min_size=0, max_size=50),
+        context=st.dictionaries(
+            st.text(min_size=1, max_size=10), st.integers(), max_size=3
+        ),
+    )
+    @settings(max_examples=200)
+    def test_context_is_set_when_provided(
+        self, code: str, message: str, context: dict
+    ) -> None:
+        """When a context dict is provided, it is stored verbatim."""
+        err = _reconstruct_error(NotionifyError, code, message, context, None)
+        assert err.context == context
+
+    def test_cause_is_stored_and_chained(self) -> None:
+        """When cause is set, both err.cause and err.__cause__ are the cause."""
+        cause = ValueError("root cause")
+        err = _reconstruct_error(NotionifyError, "CODE", "msg", None, cause)
+        assert err.cause is cause
+        assert err.__cause__ is cause
+
+
+class TestInlineHandlerProperties:
+    """Property tests for the simpler rich_text inline handler functions."""
+
+    _CONFIG = NotionifyConfig(token="test-token")
+
+    @staticmethod
+    def _anns() -> dict:
+        return {"bold": False, "italic": False, "strikethrough": False,
+                "underline": False, "code": False, "color": "default"}
+
+    # --- _handle_text ---
+
+    @given(raw=st.text(min_size=1, max_size=200))
+    @settings(max_examples=200)
+    def test_handle_text_non_empty_returns_one_segment(self, raw: str) -> None:
+        """_handle_text with non-empty raw returns a list of exactly one segment."""
+        result = _handle_text({"raw": raw}, self._CONFIG, self._anns(), None, None)
+        assert len(result) == 1
+
+    def test_handle_text_empty_raw_returns_empty_list(self) -> None:
+        """_handle_text with empty raw returns an empty list."""
+        result = _handle_text({"raw": ""}, self._CONFIG, self._anns(), None, None)
+        assert result == []
+
+    @given(raw=st.text(min_size=1, max_size=200))
+    @settings(max_examples=200)
+    def test_handle_text_segment_type_is_text(self, raw: str) -> None:
+        """Each segment produced by _handle_text has type 'text'."""
+        result = _handle_text({"raw": raw}, self._CONFIG, self._anns(), None, None)
+        assert result[0]["type"] == "text"
+
+    @given(raw=st.text(min_size=1, max_size=200))
+    @settings(max_examples=200)
+    def test_handle_text_content_equals_raw(self, raw: str) -> None:
+        """The text content of the segment matches the raw token value."""
+        result = _handle_text({"raw": raw}, self._CONFIG, self._anns(), None, None)
+        assert result[0]["text"]["content"] == raw
+
+    # --- _handle_softbreak ---
+
+    def test_handle_softbreak_returns_space_segment(self) -> None:
+        """_handle_softbreak always returns a single segment with content ' '."""
+        result = _handle_softbreak({}, self._CONFIG, self._anns(), None, None)
+        assert len(result) == 1
+        assert result[0]["text"]["content"] == " "
+
+    # --- _handle_linebreak ---
+
+    def test_handle_linebreak_returns_newline_segment(self) -> None:
+        """_handle_linebreak always returns a single segment with content '\\n'."""
+        result = _handle_linebreak({}, self._CONFIG, self._anns(), None, None)
+        assert len(result) == 1
+        assert result[0]["text"]["content"] == "\n"
+
+    # --- _handle_codespan ---
+
+    @given(raw=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_handle_codespan_sets_code_annotation(self, raw: str) -> None:
+        """_handle_codespan always sets annotations.code == True."""
+        result = _handle_codespan({"raw": raw}, self._CONFIG, self._anns(), None, None)
+        assert len(result) == 1
+        assert result[0]["annotations"]["code"] is True
+
+    @given(raw=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_handle_codespan_content_equals_raw(self, raw: str) -> None:
+        """The text content of the codespan segment matches the raw value."""
+        result = _handle_codespan({"raw": raw}, self._CONFIG, self._anns(), None, None)
+        assert result[0]["text"]["content"] == raw
+
+    # --- _handle_html_inline ---
+
+    @given(raw=st.text(min_size=1, max_size=200))
+    @settings(max_examples=200)
+    def test_handle_html_inline_non_empty_returns_segment(self, raw: str) -> None:
+        """_handle_html_inline with non-empty raw returns one segment."""
+        result = _handle_html_inline({"raw": raw}, self._CONFIG, self._anns(), None, None)
+        assert len(result) == 1
+
+    def test_handle_html_inline_empty_raw_returns_empty(self) -> None:
+        """_handle_html_inline with empty raw returns an empty list."""
+        result = _handle_html_inline({"raw": ""}, self._CONFIG, self._anns(), None, None)
+        assert result == []
