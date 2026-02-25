@@ -104,7 +104,7 @@ client = NotionifyClient(
 )
 ```
 
-See [`src/notionify/config.py`](src/notionify/config.py) for the full list of options.
+See the [API Reference](docs/api_reference.md) for the full list of options.
 
 ## Error Handling
 
@@ -125,6 +125,15 @@ with NotionifyClient(token="ntn_xxxxx") as client:
     except NotionifyError as e:
         print(f"[{e.code}] {e.message}")
 ```
+
+## Documentation
+
+- [Quickstart](docs/quickstart.md) — Installation, first page, async usage
+- [API Reference](docs/api_reference.md) — Full method signatures, config, result types
+- [Conversion Matrix](docs/conversion_matrix.md) — Markdown/Notion compatibility table
+- [Error Cookbook](docs/error_cookbook.md) — Handling rate limits, images, conflicts
+- [Migration Guide](docs/migration_guide.md) — Upgrading from v1.x/v2.x
+- [FAQ](docs/faq.md) — Common questions and answers
 
 ## Development
 

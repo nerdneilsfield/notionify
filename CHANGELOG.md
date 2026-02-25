@@ -34,8 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Markdown strategies, image settings, retry parameters, debug flags.
 - **Security** — token redaction in all log paths, directory traversal
   prevention for local image paths, MIME allowlist enforcement.
-- **Test suite** — 1100+ unit tests, golden fixture tests, property/fuzz
-  tests, performance benchmarks, 100% line coverage.
+- **Test suite** — 1400+ unit tests, golden fixture tests, property/fuzz
+  tests, performance benchmarks, 100% line coverage, 99% branch coverage.
 - **CI pipeline** — GitHub Actions with lint (ruff), type-check (mypy),
   tests with coverage gate (>=90%), security audit (pip-audit), and
   performance benchmarks.
