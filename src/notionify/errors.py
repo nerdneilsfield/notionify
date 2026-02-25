@@ -14,6 +14,28 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
+
+def _reconstruct_error(
+    cls: type[NotionifyError],
+    code: str,
+    message: str,
+    context: dict[str, Any] | None,
+    cause: Exception | None,
+) -> NotionifyError:
+    """Reconstruct a :class:`NotionifyError` from pickled state.
+
+    Uses ``Exception.__new__`` to bypass ``__init__`` signatures that
+    differ between the base class and leaf subclasses.
+    """
+    err = Exception.__new__(cls, message)
+    err.code = code
+    err.message = message
+    err.context = context or {}
+    err.cause = cause
+    if cause is not None:
+        err.__cause__ = cause
+    return err
+
 # ---------------------------------------------------------------------------
 # Error code enum
 # ---------------------------------------------------------------------------
@@ -78,6 +100,12 @@ class NotionifyError(Exception):
         super().__init__(message)
         if cause is not None:
             self.__cause__ = cause
+
+    def __reduce__(self) -> tuple[Any, tuple[Any, ...]]:
+        return (
+            _reconstruct_error,
+            (type(self), self.code, self.message, self.context or None, self.cause),
+        )
 
     def __repr__(self) -> str:
         ctx = f", context={self.context!r}" if self.context else ""

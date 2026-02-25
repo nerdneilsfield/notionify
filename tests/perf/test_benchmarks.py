@@ -55,7 +55,8 @@ class TestImportPerformance:
     def test_import_time_under_500ms(self):
         """Import 'notionify' in a fresh subprocess and check it takes < 500ms.
 
-        Takes the best of 3 runs to reduce flakiness from system load spikes.
+        Takes the best of 5 runs to reduce flakiness from system load spikes
+        when running the full test suite concurrently.
         """
         code = (
             "import time; "
@@ -65,7 +66,7 @@ class TestImportPerformance:
             "print(f'{elapsed:.2f}')"
         )
         times = []
-        for _ in range(3):
+        for _ in range(5):
             result = subprocess.run(
                 [sys.executable, "-c", code],
                 capture_output=True,
