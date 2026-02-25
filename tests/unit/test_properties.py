@@ -5815,3 +5815,89 @@ class TestBlockBuilderHelperProperties:
         token: dict = {"attrs": {"level": level}, "children": []}
         _build_heading(token, ctx)
         assert len(ctx.blocks) == 1
+
+
+class TestBlockBuilderCodeAndQuoteProperties:
+    """Property tests for _build_code_block and _build_block_quote."""
+
+    _CONFIG = NotionifyConfig(token="test-token")
+
+    def _ctx(self) -> _BuildContext:
+        return _BuildContext(self._CONFIG)
+
+    # --- _build_code_block ---
+
+    @given(raw=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_build_code_block_type_is_code(self, raw: str) -> None:
+        """_build_code_block always produces a block of type 'code'."""
+        from notionify.converter.block_builder import _build_code_block
+
+        ctx = self._ctx()
+        result = _build_code_block({"raw": raw}, ctx)
+        assert len(result) == 1
+        assert result[0]["type"] == "code"
+
+    @given(raw=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_build_code_block_default_language_is_plain_text(self, raw: str) -> None:
+        """Without an info/language token attr, language defaults to 'plain text'."""
+        from notionify.converter.block_builder import _build_code_block
+
+        ctx = self._ctx()
+        result = _build_code_block({"raw": raw, "attrs": {}}, ctx)
+        assert result[0]["code"]["language"] == "plain text"
+
+    @given(raw=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_build_code_block_adds_to_context(self, raw: str) -> None:
+        """_build_code_block registers the block in ctx.blocks."""
+        from notionify.converter.block_builder import _build_code_block
+
+        ctx = self._ctx()
+        _build_code_block({"raw": raw}, ctx)
+        assert len(ctx.blocks) == 1
+        assert ctx.blocks[0]["type"] == "code"
+
+    # --- _build_block_quote ---
+
+    def test_build_block_quote_type_is_quote(self) -> None:
+        """_build_block_quote always produces a block of type 'quote'."""
+        from notionify.converter.block_builder import _build_block_quote
+
+        ctx = self._ctx()
+        result = _build_block_quote({"children": []}, ctx)
+        assert len(result) == 1
+        assert result[0]["type"] == "quote"
+
+    def test_build_block_quote_empty_children_has_empty_rich_text(self) -> None:
+        """No children → empty rich_text list."""
+        from notionify.converter.block_builder import _build_block_quote
+
+        ctx = self._ctx()
+        result = _build_block_quote({"children": []}, ctx)
+        assert result[0]["quote"]["rich_text"] == []
+
+    def test_build_block_quote_adds_to_context(self) -> None:
+        """_build_block_quote registers the block in ctx.blocks."""
+        from notionify.converter.block_builder import _build_block_quote
+
+        ctx = self._ctx()
+        _build_block_quote({"children": []}, ctx)
+        assert len(ctx.blocks) == 1
+
+    def test_build_block_quote_with_paragraph_child_fills_rich_text(self) -> None:
+        """A paragraph child contributes its inline content to rich_text."""
+        from notionify.converter.block_builder import _build_block_quote
+
+        ctx = self._ctx()
+        token = {
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [{"type": "text", "raw": "Hello"}],
+                }
+            ]
+        }
+        result = _build_block_quote(token, ctx)
+        assert len(result[0]["quote"]["rich_text"]) >= 1
