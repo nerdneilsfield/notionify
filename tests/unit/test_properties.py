@@ -5106,6 +5106,8 @@ class TestExtractPlainTextFromBlockProperties:
     @settings(max_examples=200)
     def test_block_without_rich_text_returns_empty(self, block_type: str) -> None:
         """A block whose type-data has no rich_text returns empty string."""
+        # Avoid block_type="type" which creates colliding dict keys
+        assume(block_type != "type")
         block: dict = {"type": block_type, block_type: {"some_key": "some_value"}}
         result = _extract_plain_text_from_block(block)
         assert result == ""
@@ -7509,3 +7511,135 @@ class TestHandleHtmlBlockProperties:
         _handle_html_block({"raw": long_raw}, ctx)
         # The warning extra contains the raw content (truncated to 200 chars)
         assert len(ctx.warnings) == 1
+
+
+# ---------------------------------------------------------------------------
+# _BuildContext methods
+# ---------------------------------------------------------------------------
+
+class TestBuildContextMethodsProperties:
+    """Property tests for _BuildContext.add_block, add_warning, add_image."""
+
+    def _ctx(self) -> _BuildContext:
+        return _BuildContext(NotionifyConfig(token="test-token"))
+
+    def test_add_block_returns_zero_for_first_block(self) -> None:
+        """First add_block returns index 0."""
+        ctx = self._ctx()
+        idx = ctx.add_block({"type": "paragraph"})
+        assert idx == 0
+
+    @given(n=st.integers(min_value=1, max_value=20))
+    @settings(max_examples=50)
+    def test_add_block_returns_sequential_indices(self, n: int) -> None:
+        """add_block returns indices 0, 1, 2, ... in order."""
+        ctx = self._ctx()
+        for i in range(n):
+            idx = ctx.add_block({"type": "paragraph"})
+            assert idx == i
+
+    def test_add_block_appends_to_blocks_list(self) -> None:
+        """Blocks added via add_block appear in ctx.blocks in order."""
+        ctx = self._ctx()
+        b1 = {"type": "paragraph"}
+        b2 = {"type": "divider"}
+        ctx.add_block(b1)
+        ctx.add_block(b2)
+        assert ctx.blocks == [b1, b2]
+
+    @given(
+        code=st.text(min_size=1, max_size=20, alphabet=string.ascii_uppercase + "_"),
+        message=st.text(min_size=1, max_size=60),
+    )
+    @settings(max_examples=100)
+    def test_add_warning_creates_conversion_warning(self, code: str, message: str) -> None:
+        """add_warning creates a ConversionWarning with the given code and message."""
+        ctx = self._ctx()
+        ctx.add_warning(code, message)
+        assert len(ctx.warnings) == 1
+        assert ctx.warnings[0].code == code
+        assert ctx.warnings[0].message == message
+
+    def test_add_warning_with_context_kwargs(self) -> None:
+        """add_warning stores extra kwargs as context on the warning."""
+        ctx = self._ctx()
+        ctx.add_warning("TEST_CODE", "test message", src="example.com", size=42)
+        w = ctx.warnings[0]
+        assert w.context.get("src") == "example.com"
+        assert w.context.get("size") == 42
+
+    def test_add_image_registers_pending_image(self) -> None:
+        """add_image appends a PendingImage to ctx.images."""
+        ctx = self._ctx()
+        ctx.add_image("/path/img.jpg", ImageSourceType.LOCAL_FILE, 0)
+        assert len(ctx.images) == 1
+        assert ctx.images[0].src == "/path/img.jpg"
+        assert ctx.images[0].source_type == ImageSourceType.LOCAL_FILE
+        assert ctx.images[0].block_index == 0
+
+    def test_multiple_instances_are_independent(self) -> None:
+        """Two _BuildContext instances do not share their lists."""
+        c1 = self._ctx()
+        c2 = self._ctx()
+        c1.add_block({"type": "divider"})
+        c1.add_warning("X", "msg")
+        assert c2.blocks == []
+        assert c2.warnings == []
+
+
+# ---------------------------------------------------------------------------
+# ASTNormalizer._normalize_table_part
+# ---------------------------------------------------------------------------
+
+class TestNormalizeTablePartProperties:
+    """_normalize_table_part preserves type, copies attrs, normalizes children."""
+
+    def _n(self) -> ASTNormalizer:
+        return ASTNormalizer()
+
+    def test_type_always_preserved(self) -> None:
+        """Result always has the same type as the input."""
+        n = self._n()
+        for t in ("table_head", "table_body", "table_row", "table_cell"):
+            result = n._normalize_table_part({"type": t})
+            assert result["type"] == t
+
+    def test_no_attrs_no_attrs_in_result(self) -> None:
+        """If input has no 'attrs', result has no 'attrs' key."""
+        n = self._n()
+        result = n._normalize_table_part({"type": "table_row"})
+        assert "attrs" not in result
+
+    def test_attrs_are_copied_not_same_reference(self) -> None:
+        """Attrs dict in result is a copy, not the same object."""
+        n = self._n()
+        attrs = {"align": "left", "head": True}
+        result = n._normalize_table_part({"type": "table_cell", "attrs": attrs})
+        assert result["attrs"] == attrs
+        assert result["attrs"] is not attrs
+
+    def test_no_children_no_children_in_result(self) -> None:
+        """If input has no 'children', result has no 'children' key."""
+        n = self._n()
+        result = n._normalize_table_part({"type": "table_row"})
+        assert "children" not in result
+
+    @given(
+        t=st.sampled_from(["table_head", "table_body", "table_row", "table_cell"]),
+    )
+    @settings(max_examples=50)
+    def test_empty_children_not_included(self, t: str) -> None:
+        """Empty children list results in no children key."""
+        n = self._n()
+        result = n._normalize_table_part({"type": t, "children": []})
+        # Empty children list is falsy, so it won't be included
+        assert "children" not in result
+
+    def test_nonempty_children_recursively_normalized(self) -> None:
+        """Nonempty children are recursively normalized."""
+        n = self._n()
+        child = {"type": "text", "raw": "hello"}
+        result = n._normalize_table_part({"type": "table_cell", "children": [child]})
+        assert "children" in result
+        assert isinstance(result["children"], list)
+        assert len(result["children"]) >= 1
