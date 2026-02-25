@@ -27,11 +27,14 @@ from notionify.converter.block_builder import (
     _NOTION_LANGUAGES,
     _build_divider,
     _build_heading,
+    _build_list,
     _build_list_item,
     _build_task_list_item,
     _BuildContext,
     _classify_image_source,
     _normalize_language,
+    _process_token,
+    _process_tokens,
 )
 from notionify.converter.inline_renderer import markdown_escape, render_rich_text
 from notionify.converter.math import (
@@ -6046,3 +6049,85 @@ class TestBuildListItemProperties:
         ctx = self._ctx()
         _build_task_list_item({"children": [], "attrs": {}}, ctx)
         assert len(ctx.blocks) == 1
+
+
+class TestBuildListAndDispatchProperties:
+    """Property tests for _build_list, _process_token, and _process_tokens."""
+
+    _CONFIG = NotionifyConfig(token="test-token")
+
+    def _ctx(self) -> _BuildContext:
+        return _BuildContext(self._CONFIG)
+
+    # --- _build_list ---
+
+    def test_build_list_empty_children_returns_empty(self) -> None:
+        """A list token with no children produces no blocks."""
+        ctx = self._ctx()
+        result = _build_list({"attrs": {}, "children": []}, ctx)
+        assert result == []
+
+    @given(n=st.integers(min_value=1, max_value=5))
+    @settings(max_examples=100)
+    def test_build_list_n_items_produces_n_blocks(self, n: int) -> None:
+        """N list_item children produce N blocks."""
+        ctx = self._ctx()
+        items = [{"type": "list_item", "children": []} for _ in range(n)]
+        token: dict = {"attrs": {"ordered": False}, "children": items}
+        result = _build_list(token, ctx)
+        assert len(result) == n
+
+    @given(ordered=st.booleans(), n=st.integers(min_value=1, max_value=4))
+    @settings(max_examples=100)
+    def test_build_list_ordered_flag_propagates(self, ordered: bool, n: int) -> None:
+        """The ordered flag determines item block types."""
+        ctx = self._ctx()
+        items = [{"type": "list_item", "children": []} for _ in range(n)]
+        token: dict = {"attrs": {"ordered": ordered}, "children": items}
+        result = _build_list(token, ctx)
+        expected_type = "numbered_list_item" if ordered else "bulleted_list_item"
+        assert all(b["type"] == expected_type for b in result)
+
+    # --- _process_token ---
+
+    @given(
+        token_type=st.text(
+            min_size=3, max_size=20,
+            alphabet=st.characters(whitelist_categories=("L",)),
+        )
+    )
+    @settings(max_examples=200)
+    def test_process_token_unknown_type_returns_empty(self, token_type: str) -> None:
+        """An unknown token type produces no blocks."""
+        ctx = self._ctx()
+        result = _process_token({"type": token_type}, ctx)
+        assert result == []
+
+    def test_process_token_thematic_break_produces_divider(self) -> None:
+        """'thematic_break' is mapped to _build_divider → returns a divider block."""
+        ctx = self._ctx()
+        result = _process_token({"type": "thematic_break"}, ctx)
+        assert len(result) == 1
+        assert result[0]["type"] == "divider"
+
+    def test_process_token_no_type_returns_empty(self) -> None:
+        """A token with no 'type' key returns [] without raising."""
+        ctx = self._ctx()
+        result = _process_token({}, ctx)
+        assert result == []
+
+    # --- _process_tokens ---
+
+    def test_process_tokens_empty_list_returns_empty(self) -> None:
+        """No tokens → no blocks."""
+        ctx = self._ctx()
+        result = _process_tokens([], ctx)
+        assert result == []
+
+    def test_process_tokens_accumulates_blocks(self) -> None:
+        """Multiple tokens accumulate into ctx.blocks."""
+        ctx = self._ctx()
+        tokens = [{"type": "thematic_break"}, {"type": "thematic_break"}]
+        result = _process_tokens(tokens, ctx)
+        assert len(result) == 2
+        assert len(ctx.blocks) == 2
