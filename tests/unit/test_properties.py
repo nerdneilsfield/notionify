@@ -2485,3 +2485,130 @@ class TestUploadStateMachineProperties:
         sm = UploadStateMachine(upload_id)
         assert sm.state == UploadState.PENDING
         assert sm.upload_id == upload_id
+
+
+# ---------------------------------------------------------------------------
+# TestAdditionalBlockTypeRendererProperties
+# ---------------------------------------------------------------------------
+
+
+class TestAdditionalBlockTypeRendererProperties:
+    """Property-based tests for renderer on block types added in iteration 7.
+
+    Covers: toggle, file, embed, link_preview, child_page, child_database.
+    Key invariant: render_block must never raise on these types with arbitrary
+    field values, and must always return a string.
+    """
+
+    _config = NotionifyConfig(token="test-token")
+
+    @given(
+        text=st.text(max_size=200),
+        depth=st.integers(min_value=0, max_value=4),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_toggle_block_never_raises(self, text: str, depth: int) -> None:
+        """Toggle blocks with arbitrary rich_text always render."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        rt_seg = {"type": "text", "plain_text": text, "text": {"content": text}}
+        block = {
+            "type": "toggle",
+            "toggle": {"rich_text": [rt_seg]},
+        }
+        result = renderer.render_block(block, depth=depth)
+        assert isinstance(result, str)
+
+    @given(
+        url=st.text(max_size=200),
+        file_type=st.sampled_from(["external", "file", ""]),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_file_block_never_raises(self, url: str, file_type: str) -> None:
+        """File blocks with arbitrary URL and type fields always render."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        block: dict = {
+            "type": "file",
+            "file": {
+                "type": file_type,
+                "name": "",
+                "caption": [],
+            },
+        }
+        if file_type == "external":
+            block["file"]["external"] = {"url": url}
+        elif file_type == "file":
+            block["file"]["file"] = {"url": url}
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+
+    @given(url=st.text(max_size=300))
+    @settings(max_examples=200)
+    def test_embed_block_never_raises(self, url: str) -> None:
+        """Embed blocks with arbitrary URLs always render."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        block = {"type": "embed", "embed": {"url": url}}
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+        assert "Embed" in result
+
+    @given(url=st.text(max_size=300))
+    @settings(max_examples=200)
+    def test_link_preview_block_never_raises(self, url: str) -> None:
+        """link_preview blocks with arbitrary URLs always render."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        block = {"type": "link_preview", "link_preview": {"url": url}}
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+
+    @given(
+        title=st.text(max_size=200),
+        block_id=st.text(max_size=36, alphabet=string.ascii_letters + string.digits + "-"),
+    )
+    @settings(max_examples=200)
+    def test_child_page_block_never_raises(self, title: str, block_id: str) -> None:
+        """child_page blocks with arbitrary titles always render."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        block = {
+            "type": "child_page",
+            "id": block_id,
+            "child_page": {"title": title},
+        }
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+        assert "Page:" in result
+
+    @given(
+        title=st.text(max_size=200),
+        block_id=st.text(max_size=36, alphabet=string.ascii_letters + string.digits + "-"),
+    )
+    @settings(max_examples=200)
+    def test_child_database_block_never_raises(self, title: str, block_id: str) -> None:
+        """child_database blocks with arbitrary titles always render."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        block = {
+            "type": "child_database",
+            "id": block_id,
+            "child_database": {"title": title},
+        }
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+        assert "Database:" in result
+
+    @given(
+        url=st.text(max_size=300),
+        caption=st.text(max_size=200),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_bookmark_block_never_raises(self, url: str, caption: str) -> None:
+        """Bookmark blocks with arbitrary URL and caption always render."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        block = {
+            "type": "bookmark",
+            "bookmark": {
+                "url": url,
+                "caption": [{"type": "text", "plain_text": caption, "text": {"content": caption}}]
+                if caption else [],
+            },
+        }
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
