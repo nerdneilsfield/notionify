@@ -4043,3 +4043,41 @@ class TestNotionifyErrorProperties:
         r = repr(err)
         assert code in r
         assert message in r
+
+    @given(
+        message=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_all_subclasses_are_instances_of_notionify_error(
+        self, message: str
+    ) -> None:
+        """Every concrete error subclass must be isinstance of NotionifyError."""
+        from notionify.errors import (
+            NotionifyAuthError,
+            NotionifyConversionError,
+            NotionifyNetworkError,
+            NotionifyRateLimitError,
+        )
+        for cls in (
+            NotionifyValidationError,
+            NotionifyAuthError,
+            NotionifyRateLimitError,
+            NotionifyNetworkError,
+            NotionifyConversionError,
+        ):
+            err = cls(message)
+            assert isinstance(err, NotionifyError)
+
+    @given(
+        code=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+        message=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_error_with_cause_has_cause_attr(
+        self, code: str, message: str
+    ) -> None:
+        """NotionifyError with a cause always has __cause__ set."""
+        cause = ValueError("original")
+        err = NotionifyError(code, message, cause=cause)
+        assert err.cause is cause
+        assert err.__cause__ is cause
