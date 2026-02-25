@@ -7643,3 +7643,105 @@ class TestNormalizeTablePartProperties:
         assert "children" in result
         assert isinstance(result["children"], list)
         assert len(result["children"]) >= 1
+
+
+# ---------------------------------------------------------------------------
+# _render_image with file type and expiry warnings
+# ---------------------------------------------------------------------------
+
+class TestRenderImageFileTypeProperties:
+    """_render_image with Notion-hosted (file type) images and expiry warnings."""
+
+    def _r(self, expiry_warnings: bool = True) -> NotionToMarkdownRenderer:
+        cfg = NotionifyConfig(token="test-token", image_expiry_warnings=expiry_warnings)
+        return NotionToMarkdownRenderer(cfg)
+
+    def test_file_image_url_in_output(self) -> None:
+        """_render_image with type='file' uses file.url."""
+        r = self._r()
+        url = "https://s3.amazonaws.com/notion/image.jpg"
+        block = {
+            "image": {
+                "type": "file",
+                "file": {"url": url, "expiry_time": ""},
+            }
+        }
+        result = r._render_image(block, 0)
+        assert url in result
+        assert result.startswith("![")
+
+    def test_file_image_with_expiry_adds_comment(self) -> None:
+        """File image with expiry_time → appends HTML comment with expiry."""
+        r = self._r(expiry_warnings=True)
+        block = {
+            "image": {
+                "type": "file",
+                "file": {
+                    "url": "https://s3.amazonaws.com/notion/img.jpg",
+                    "expiry_time": "2026-03-01T00:00:00.000Z",
+                },
+            }
+        }
+        result = r._render_image(block, 0)
+        assert "notion-image-expiry" in result
+
+    def test_file_image_with_expiry_adds_warning_to_renderer(self) -> None:
+        """File image with expiry_time adds an IMAGE_EXPIRY ConversionWarning."""
+        r = self._r(expiry_warnings=True)
+        block = {
+            "image": {
+                "type": "file",
+                "file": {
+                    "url": "https://s3.amazonaws.com/notion/img.jpg",
+                    "expiry_time": "2026-03-01T00:00:00.000Z",
+                },
+            }
+        }
+        r._render_image(block, 0)
+        assert any(w.code == "IMAGE_EXPIRY" for w in r.warnings)
+
+    def test_file_image_no_expiry_no_comment(self) -> None:
+        """File image without expiry_time → no HTML comment in output."""
+        r = self._r(expiry_warnings=True)
+        block = {
+            "image": {
+                "type": "file",
+                "file": {"url": "https://s3.amazonaws.com/notion/img.jpg", "expiry_time": ""},
+            }
+        }
+        result = r._render_image(block, 0)
+        assert "notion-image-expiry" not in result
+        assert r.warnings == []
+
+    def test_expiry_warnings_disabled_no_comment(self) -> None:
+        """With image_expiry_warnings=False, no expiry comment even with expiry_time."""
+        r = self._r(expiry_warnings=False)
+        block = {
+            "image": {
+                "type": "file",
+                "file": {
+                    "url": "https://s3.amazonaws.com/notion/img.jpg",
+                    "expiry_time": "2026-03-01T00:00:00.000Z",
+                },
+            }
+        }
+        result = r._render_image(block, 0)
+        assert "notion-image-expiry" not in result
+        assert r.warnings == []
+
+    @given(
+        url=st.text(min_size=5, max_size=80, alphabet=string.ascii_letters + ":/._-"),
+        expiry=st.text(min_size=0, max_size=40, alphabet=string.printable),
+    )
+    @settings(max_examples=100)
+    def test_file_image_never_raises(self, url: str, expiry: str) -> None:
+        """_render_image with file type never raises for arbitrary url/expiry."""
+        r = self._r(expiry_warnings=True)
+        block = {
+            "image": {
+                "type": "file",
+                "file": {"url": url, "expiry_time": expiry},
+            }
+        }
+        result = r._render_image(block, 0)
+        assert isinstance(result, str)
