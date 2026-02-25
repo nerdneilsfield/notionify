@@ -18,6 +18,7 @@ from hypothesis import strategies as st
 from notionify.config import NotionifyConfig
 from notionify.converter.ast_normalizer import ASTNormalizer
 from notionify.converter.inline_renderer import markdown_escape, render_rich_text
+from notionify.converter.math import EQUATION_CHAR_LIMIT, build_block_math, build_inline_math
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.converter.rich_text import split_rich_text
@@ -1300,3 +1301,122 @@ class TestImageDetectProperties:
         result = mime_to_extension(mime)
         assert result != ".bin"
         assert result.startswith(".")
+
+
+# ---------------------------------------------------------------------------
+# 14. TestMathBuilderProperties
+# ---------------------------------------------------------------------------
+
+_MATH_STRATEGIES = ["equation", "code", "latex_text"]
+_MATH_OVERFLOW_BLOCK = ["split", "code", "text"]
+_MATH_OVERFLOW_INLINE = ["split", "code", "text"]
+
+
+class TestMathBuilderProperties:
+    """Property-based tests for :func:`build_block_math` and :func:`build_inline_math`."""
+
+    _BASE_URL = "https://api.notion.com/v1"
+
+    def _config(
+        self,
+        strategy: str = "equation",
+        overflow_block: str = "split",
+        overflow_inline: str = "split",
+    ) -> NotionifyConfig:
+        return NotionifyConfig(
+            token="test",
+            base_url=self._BASE_URL,
+            math_strategy=strategy,
+            math_overflow_block=overflow_block,
+            math_overflow_inline=overflow_inline,
+        )
+
+    @given(
+        expression=st.text(max_size=2000),
+        strategy=st.sampled_from(_MATH_STRATEGIES),
+        overflow_block=st.sampled_from(_MATH_OVERFLOW_BLOCK),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_build_block_math_never_raises(
+        self, expression: str, strategy: str, overflow_block: str
+    ) -> None:
+        """build_block_math must never raise on any expression or strategy."""
+        cfg = self._config(strategy=strategy, overflow_block=overflow_block)
+        blocks, warnings = build_block_math(expression, cfg)
+        assert isinstance(blocks, list)
+        assert isinstance(warnings, list)
+
+    @given(
+        expression=st.text(max_size=2000),
+        strategy=st.sampled_from(_MATH_STRATEGIES),
+        overflow_inline=st.sampled_from(_MATH_OVERFLOW_INLINE),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_build_inline_math_never_raises(
+        self, expression: str, strategy: str, overflow_inline: str
+    ) -> None:
+        """build_inline_math must never raise on any expression or strategy."""
+        cfg = self._config(strategy=strategy, overflow_inline=overflow_inline)
+        segments, warnings = build_inline_math(expression, cfg)
+        assert isinstance(segments, list)
+        assert isinstance(warnings, list)
+
+    @given(
+        expression=st.text(min_size=0, max_size=EQUATION_CHAR_LIMIT),
+    )
+    @settings(max_examples=200)
+    def test_equation_strategy_within_limit_no_warnings(
+        self, expression: str
+    ) -> None:
+        """Equation strategy with expression <= limit produces no warnings."""
+        cfg = self._config(strategy="equation")
+        blocks, warnings = build_block_math(expression, cfg)
+        assert warnings == []
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "equation"
+
+    @given(
+        expression=st.text(
+            min_size=EQUATION_CHAR_LIMIT + 1, max_size=EQUATION_CHAR_LIMIT + 500
+        ),
+        overflow=st.sampled_from(_MATH_OVERFLOW_BLOCK),
+    )
+    @settings(max_examples=100)
+    def test_equation_strategy_overflow_emits_warning(
+        self, expression: str, overflow: str
+    ) -> None:
+        """Equation strategy with expression > limit always emits MATH_OVERFLOW warning."""
+        cfg = self._config(strategy="equation", overflow_block=overflow)
+        _, warnings = build_block_math(expression, cfg)
+        assert len(warnings) >= 1
+        assert warnings[0].code == "MATH_OVERFLOW"
+
+    @given(expression=st.text(max_size=2000))
+    @settings(max_examples=200)
+    def test_code_strategy_always_one_block(self, expression: str) -> None:
+        """Code strategy always returns exactly one code block."""
+        cfg = self._config(strategy="code")
+        blocks, warnings = build_block_math(expression, cfg)
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "code"
+        assert warnings == []
+
+    @given(expression=st.text(max_size=2000))
+    @settings(max_examples=200)
+    def test_latex_text_strategy_always_one_paragraph(self, expression: str) -> None:
+        """latex_text strategy always returns exactly one paragraph block."""
+        cfg = self._config(strategy="latex_text")
+        blocks, warnings = build_block_math(expression, cfg)
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "paragraph"
+        assert warnings == []
+
+    @given(expression=st.text(min_size=1, max_size=500))
+    @settings(max_examples=200)
+    def test_block_math_all_blocks_have_type(self, expression: str) -> None:
+        """Every block returned by build_block_math must have a 'type' key."""
+        for strategy in _MATH_STRATEGIES:
+            cfg = self._config(strategy=strategy, overflow_block="split")
+            blocks, _ = build_block_math(expression, cfg)
+            for block in blocks:
+                assert "type" in block
