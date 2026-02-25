@@ -659,3 +659,98 @@ class TestImageValidationEdgeCases:
         webp_data = b"RIFF\x00\x00\x00\x00WEBP" + b"\x00" * 100
         mime, _ = validate_image("file.bin", ImageSourceType.LOCAL_FILE, webp_data, config)
         assert mime == "image/webp"
+
+
+# ── Branch coverage: OR/AND condition gaps ───────────────────────────
+
+
+class TestDiffExecutorBranchCoverage:
+    """Cover conditional branches in diff/executor.py."""
+
+    def _para_block(self, text: str) -> dict:
+        return {
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": text}}],
+                "color": "default",
+            },
+        }
+
+    def test_replace_without_new_block_deletes_only(self):
+        """REPLACE with existing_id but no new_block: delete only, no insert."""
+        api = MockBlockAPI()
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(api, config)
+        ops = [
+            DiffOp(
+                op_type=DiffOpType.REPLACE,
+                existing_id="blk-old",
+                new_block=None,
+            )
+        ]
+        result = executor.execute("page-1", ops)
+        assert "blk-old" in api.deletes
+        assert len(api.appends) == 0
+        assert result.blocks_deleted == 1
+
+    def test_update_without_existing_id_skips_api_call(self):
+        """UPDATE with no existing_id: no API update call."""
+        api = MockBlockAPI()
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(api, config)
+        ops = [
+            DiffOp(
+                op_type=DiffOpType.UPDATE,
+                existing_id=None,
+                new_block=self._para_block("new"),
+            )
+        ]
+        result = executor.execute("page-1", ops)
+        assert len(api.updates) == 0
+        assert result.blocks_inserted == 1  # still counted
+
+
+class TestInsertAfterBranchCoverage:
+    """Cover the block_id parent fallback in client.insert_after."""
+
+    def test_insert_after_with_block_parent(self):
+        """When block parent has block_id instead of page_id."""
+        from unittest.mock import MagicMock
+
+        from notionify.client import NotionifyClient
+        from notionify.models import InsertResult
+
+        client = NotionifyClient(token="test-token")
+        client._blocks.retrieve = MagicMock(return_value={
+            "id": "child-block",
+            "parent": {"block_id": "parent-block"},
+        })
+        client._blocks.append_children = MagicMock(
+            return_value={"results": [{"id": "new-1"}]},
+        )
+        result = client.insert_after(
+            block_id="child-block",
+            markdown_fragment="Hello",
+        )
+        assert isinstance(result, InsertResult)
+        # Verify the parent_id used was the block_id, not page_id
+        call_args = client._blocks.append_children.call_args
+        assert call_args[0][0] == "parent-block"
+        client.close()
+
+
+class TestLocalFileSniffFallsBackToExtension:
+    """Cover the branch where MIME sniffing returns None for local files."""
+
+    def test_local_file_no_magic_bytes_uses_extension(self):
+        """When file bytes don't match any magic signature, fall back to ext."""
+        config = NotionifyConfig(token="test")
+        # Random bytes that don't match any magic signature
+        random_data = b"\x00\x01\x02\x03" * 25
+        mime, _ = validate_image(
+            "photo.jpeg",
+            ImageSourceType.LOCAL_FILE,
+            random_data,
+            config,
+        )
+        assert mime == "image/jpeg"
