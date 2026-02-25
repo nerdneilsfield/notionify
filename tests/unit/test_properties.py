@@ -46,6 +46,7 @@ from notionify.diff.planner import DiffPlanner
 from notionify.diff.signature import (
     _extract_children_info,
     _extract_plain_text,
+    _normalize_rich_text,
     compute_signature,
 )
 from notionify.errors import NotionifyError, NotionifyValidationError
@@ -4382,3 +4383,67 @@ class TestTruncateSrcProperties:
         long_src = "a" * 201 + extra
         result = _truncate_src(long_src)
         assert result.endswith("...")
+
+
+# ---------------------------------------------------------------------------
+# _normalize_rich_text properties
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeRichTextProperties:
+    """_normalize_rich_text structural invariants."""
+
+    @given(
+        block_type=st.sampled_from(["paragraph", "heading_1", "bulleted_list_item"]),
+        texts=st.lists(
+            st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20), min_size=0, max_size=5
+        ),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_output_length_equals_rich_text_input_length(
+        self, block_type: str, texts: list[str]
+    ) -> None:
+        """Output segments count == input rich_text count."""
+        rich_text = [{"plain_text": t} for t in texts]
+        block = {block_type: {"rich_text": rich_text}}
+        result = _normalize_rich_text(block, block_type)
+        assert len(result) == len(texts)
+
+    @given(
+        block_type=st.sampled_from(["paragraph", "heading_1"]),
+        texts=st.lists(
+            st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20), min_size=1, max_size=5
+        ),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_every_segment_has_text_key(
+        self, block_type: str, texts: list[str]
+    ) -> None:
+        """Every output segment must have a 'text' key."""
+        rich_text = [{"plain_text": t} for t in texts]
+        block = {block_type: {"rich_text": rich_text}}
+        result = _normalize_rich_text(block, block_type)
+        for seg in result:
+            assert "text" in seg
+
+    @given(
+        block_type=st.sampled_from(["paragraph", "heading_1"]),
+        text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+        bold=st.booleans(),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_annotations_preserved_when_present(
+        self, block_type: str, text: str, bold: bool
+    ) -> None:
+        """Annotations in rich_text segments are preserved in output."""
+        annotations = {"bold": bold, "italic": False}
+        rich_text = [{"plain_text": text, "annotations": annotations}]
+        block = {block_type: {"rich_text": rich_text}}
+        result = _normalize_rich_text(block, block_type)
+        assert result[0]["annotations"] == annotations
+
+    def test_missing_block_type_data_returns_empty_list(self) -> None:
+        """If the block type data is absent, returns an empty list."""
+        block: dict = {}
+        result = _normalize_rich_text(block, "paragraph")
+        assert result == []
