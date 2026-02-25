@@ -748,6 +748,30 @@ class TestConverterProperties:
         assert "heading_5" not in types
         assert "heading_6" not in types
 
+    @given(
+        col_count=st.integers(min_value=2, max_value=4),
+        row_count=st.integers(min_value=1, max_value=4),
+        content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_enable_tables_false_produces_no_table_blocks(
+        self, col_count: int, row_count: int, content: str
+    ) -> None:
+        """With enable_tables=False, no 'table' blocks are produced."""
+        cfg = NotionifyConfig(
+            token="test", enable_tables=False, table_fallback="skip"
+        )
+        converter = MarkdownToNotionConverter(cfg)
+        # Build a simple GFM table
+        header = " | ".join([content] * col_count)
+        separator = " | ".join(["---"] * col_count)
+        row_line = " | ".join([content] * col_count)
+        rows = "\n".join([row_line] * row_count)
+        md = f"| {header} |\n| {separator} |\n| {rows} |"
+        result = converter.convert(md)
+        types = [b["type"] for b in result.blocks]
+        assert "table" not in types
+
 
 # ---------------------------------------------------------------------------
 # 8. TestNotionToMarkdownRendererProperties
