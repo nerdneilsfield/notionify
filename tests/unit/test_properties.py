@@ -4874,7 +4874,15 @@ class TestMaskTokenProperties:
     def test_token_not_present_in_result(
         self, prefix: str, suffix: str, token: str
     ) -> None:
-        """After masking, the original token never appears in the result."""
+        """After masking, the original token never appears in the result.
+
+        Excludes tokens that are themselves substrings of the '<redacted>'
+        fallback placeholder (e.g. 'redac'), since those tokens cannot be
+        masked without reintroducing themselves via the placeholder.
+        """
+        # The fallback placeholder '<redacted>' contains substrings like 'redac'.
+        # Exclude such tokens from this property to keep the assertion valid.
+        assume(token not in "<redacted>")
         value = f"{prefix}{token}{suffix}"
         result = _mask_token(value, token)
         assert token not in result
