@@ -56,7 +56,9 @@ from notionify.converter.rich_text import (
     _handle_emphasis,
     _handle_html_inline,
     _handle_image,
+    _handle_inline_math,
     _handle_linebreak,
+    _handle_link,
     _handle_softbreak,
     _handle_strikethrough,
     _handle_strong,
@@ -5666,3 +5668,70 @@ class TestAnnotationHandlerProperties:
         result = _handle_image(token, self._CONFIG, self._base_anns(), None, None)
         assert len(result) == 1
         assert result[0]["text"]["content"] == url
+
+
+class TestLinkAndMathHandlerProperties:
+    """Property tests for _handle_link and _handle_inline_math."""
+
+    _CONFIG = NotionifyConfig(token="test-token")
+
+    @staticmethod
+    def _base_anns() -> dict:
+        return {"bold": False, "italic": False, "strikethrough": False,
+                "underline": False, "code": False, "color": "default"}
+
+    @staticmethod
+    def _text_child(raw: str) -> dict:
+        return {"type": "text", "raw": raw}
+
+    # --- _handle_link ---
+
+    def test_handle_link_empty_children_returns_empty(self) -> None:
+        """_handle_link with no children returns an empty list."""
+        token: dict = {"attrs": {"url": "https://example.com"}, "children": []}
+        result = _handle_link(token, self._CONFIG, self._base_anns(), None, None)
+        assert result == []
+
+    @given(
+        raw=st.text(min_size=1, max_size=80),
+        url=st.text(min_size=1, max_size=100),
+    )
+    @settings(max_examples=200)
+    def test_handle_link_segment_href_equals_url(self, raw: str, url: str) -> None:
+        """_handle_link passes the token's URL as href to child segments."""
+        token = {"attrs": {"url": url}, "children": [self._text_child(raw)]}
+        result = _handle_link(token, self._CONFIG, self._base_anns(), None, None)
+        assert len(result) >= 1
+        assert result[0].get("href") == url
+
+    @given(raw=st.text(min_size=1, max_size=80))
+    @settings(max_examples=200)
+    def test_handle_link_no_url_uses_empty_href(self, raw: str) -> None:
+        """Without a url attribute, the href on segments is empty string or None."""
+        token = {"attrs": {}, "children": [self._text_child(raw)]}
+        result = _handle_link(token, self._CONFIG, self._base_anns(), None, None)
+        assert len(result) >= 1
+        # href will be "" (empty string from url extraction)
+        assert result[0].get("href") in ("", None)
+
+    # --- _handle_inline_math ---
+
+    @given(expression=st.text(min_size=1, max_size=100))
+    @settings(max_examples=200)
+    def test_handle_inline_math_always_returns_list(self, expression: str) -> None:
+        """_handle_inline_math always returns a list (never raises)."""
+        result = _handle_inline_math(
+            {"raw": expression}, self._CONFIG, self._base_anns(), None, []
+        )
+        assert isinstance(result, list)
+
+    @given(expression=st.text(min_size=1, max_size=50))
+    @settings(max_examples=200)
+    def test_handle_inline_math_short_expression_produces_segment(
+        self, expression: str
+    ) -> None:
+        """A non-empty math expression produces at least one segment."""
+        result = _handle_inline_math(
+            {"raw": expression}, self._CONFIG, self._base_anns(), None, []
+        )
+        assert len(result) >= 1
