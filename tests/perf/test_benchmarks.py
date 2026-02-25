@@ -5,6 +5,7 @@ Run with: pytest tests/perf/ -v -s
 import subprocess
 import sys
 import time
+import tracemalloc
 
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
@@ -263,3 +264,90 @@ class TestPRDBenchmarks:
 
         print(f"\n  Diff plan {len(blocks)} identical blocks: {elapsed_ms:.2f}ms")
         assert elapsed_ms < 200, f"500-block diff plan too slow: {elapsed_ms:.2f}ms"
+
+
+class TestMemoryUsage:
+    """Memory profiling benchmarks using tracemalloc.
+
+    Verifies that peak heap growth stays within acceptable bounds for
+    typical workloads.  Limits are deliberately generous to avoid
+    flakiness across platforms; the intent is to catch regressions
+    that cause order-of-magnitude increases.
+    """
+
+    def test_small_document_peak_memory_under_5mb(self):
+        """Converting a small document should not allocate more than 5 MiB."""
+        config = NotionifyConfig(token="test")
+        converter = MarkdownToNotionConverter(config)
+        md = "# Hello\n\nThis is a **bold** paragraph.\n\n- a\n- b\n- c\n"
+
+        tracemalloc.start()
+        tracemalloc.clear_traces()
+        converter.convert(md)
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        peak_mb = peak / (1024 * 1024)
+        print(f"\n  Small doc peak memory: {peak_mb:.2f} MiB")
+        assert peak_mb < 5, f"Small doc used too much memory: {peak_mb:.2f} MiB"
+
+    def test_large_document_peak_memory_under_50mb(self):
+        """Converting a 100-section document should stay under 50 MiB peak."""
+        config = NotionifyConfig(token="test")
+        converter = MarkdownToNotionConverter(config)
+        md = _make_large_markdown(100)
+
+        tracemalloc.start()
+        tracemalloc.clear_traces()
+        result = converter.convert(md)
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        peak_mb = peak / (1024 * 1024)
+        print(
+            f"\n  Large doc ({len(result.blocks)} blocks) peak memory: {peak_mb:.2f} MiB"
+        )
+        assert peak_mb < 50, f"Large doc used too much memory: {peak_mb:.2f} MiB"
+
+    def test_renderer_peak_memory_under_20mb(self):
+        """Rendering 100 blocks back to Markdown should stay under 20 MiB peak."""
+        config = NotionifyConfig(token="test")
+        converter = MarkdownToNotionConverter(config)
+        renderer = NotionToMarkdownRenderer(config)
+
+        md = _make_large_markdown(20)
+        result = converter.convert(md)
+        blocks = _simulate_notion_blocks(result.blocks)
+
+        tracemalloc.start()
+        tracemalloc.clear_traces()
+        output = renderer.render_blocks(blocks)
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        peak_mb = peak / (1024 * 1024)
+        print(f"\n  Renderer ({len(blocks)} blocks) peak memory: {peak_mb:.2f} MiB")
+        assert len(output) > 0
+        assert peak_mb < 20, f"Renderer used too much memory: {peak_mb:.2f} MiB"
+
+    def test_diff_plan_peak_memory_under_10mb(self):
+        """Diff planning 200 blocks should use under 10 MiB peak."""
+        config = NotionifyConfig(token="test")
+        converter = MarkdownToNotionConverter(config)
+        planner = DiffPlanner(config)
+
+        md = _make_large_markdown(20)
+        result = converter.convert(md)
+        blocks = _simulate_notion_blocks(result.blocks)
+        for i, block in enumerate(blocks):
+            block["id"] = f"block-{i:04d}"
+
+        tracemalloc.start()
+        tracemalloc.clear_traces()
+        planner.plan(blocks, result.blocks)
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        peak_mb = peak / (1024 * 1024)
+        print(f"\n  Diff plan ({len(blocks)} blocks) peak memory: {peak_mb:.2f} MiB")
+        assert peak_mb < 10, f"Diff plan used too much memory: {peak_mb:.2f} MiB"
