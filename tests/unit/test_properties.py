@@ -103,7 +103,14 @@ from notionify.errors import (
     _reconstruct_error,
 )
 from notionify.image.detect import detect_image_source, mime_to_extension
-from notionify.models import BlockSignature, DiffOp, DiffOpType, ImageSourceType
+from notionify.models import (
+    BlockSignature,
+    ConversionResult,
+    ConversionWarning,
+    DiffOp,
+    DiffOpType,
+    ImageSourceType,
+)
 from notionify.notion_api.blocks import extract_block_ids
 from notionify.notion_api.retries import compute_backoff, should_retry
 from notionify.observability.logger import StructuredFormatter
@@ -6801,3 +6808,139 @@ class TestRendererRemainingMethodsProperties:
         block = {f"heading_{level}": {"rich_text": self._rt(text)}}
         result = fn(r, block, 0)
         assert result.startswith("#" * level + " ")
+
+
+# ---------------------------------------------------------------------------
+# Dataclass model property tests
+# ---------------------------------------------------------------------------
+
+
+class TestBlockSignatureModelProperties:
+    """Property tests for the BlockSignature frozen dataclass."""
+
+    def _sig(self, **kwargs) -> BlockSignature:
+        defaults = dict(
+            block_type="paragraph",
+            rich_text_hash="aaa",
+            structural_hash="bbb",
+            attrs_hash="ccc",
+            nesting_depth=0,
+        )
+        defaults.update(kwargs)
+        return BlockSignature(**defaults)
+
+    @given(
+        bt=st.text(min_size=1, max_size=20, alphabet=string.ascii_lowercase + "_"),
+        depth=st.integers(min_value=0, max_value=10),
+    )
+    @settings(max_examples=200)
+    def test_fields_stored_correctly(self, bt: str, depth: int) -> None:
+        """block_type and nesting_depth are stored verbatim."""
+        sig = self._sig(block_type=bt, nesting_depth=depth)
+        assert sig.block_type == bt
+        assert sig.nesting_depth == depth
+
+    @given(
+        bt=st.text(min_size=1, max_size=20, alphabet=string.ascii_lowercase + "_"),
+    )
+    @settings(max_examples=200)
+    def test_equal_fields_produce_equal_signatures(self, bt: str) -> None:
+        """Two BlockSignature instances with identical fields compare equal."""
+        sig1 = self._sig(block_type=bt)
+        sig2 = self._sig(block_type=bt)
+        assert sig1 == sig2
+
+    def test_different_block_type_not_equal(self) -> None:
+        """Signatures with different block_type are not equal."""
+        assert self._sig(block_type="paragraph") != self._sig(block_type="heading_1")
+
+    def test_different_nesting_depth_not_equal(self) -> None:
+        """Signatures with different nesting_depth are not equal."""
+        assert self._sig(nesting_depth=0) != self._sig(nesting_depth=1)
+
+    @given(
+        bt=st.text(min_size=1, max_size=20, alphabet=string.ascii_lowercase + "_"),
+    )
+    @settings(max_examples=100)
+    def test_signature_is_hashable(self, bt: str) -> None:
+        """BlockSignature (frozen) is hashable and can be used as a dict key."""
+        sig = self._sig(block_type=bt)
+        d = {sig: "value"}
+        assert d[sig] == "value"
+
+    @given(
+        bt=st.text(min_size=1, max_size=20, alphabet=string.ascii_lowercase + "_"),
+    )
+    @settings(max_examples=100)
+    def test_equal_signatures_have_same_hash(self, bt: str) -> None:
+        """Equal BlockSignature instances have identical hashes."""
+        sig1 = self._sig(block_type=bt)
+        sig2 = self._sig(block_type=bt)
+        assert hash(sig1) == hash(sig2)
+
+
+class TestDiffOpModelProperties:
+    """Property tests for the DiffOp dataclass."""
+
+    @given(op_type=st.sampled_from(list(DiffOpType)))
+    @settings(max_examples=50)
+    def test_op_type_stored_correctly(self, op_type: DiffOpType) -> None:
+        """op_type attribute is stored verbatim."""
+        op = DiffOp(op_type=op_type)
+        assert op.op_type == op_type
+
+    def test_optional_fields_default_to_none(self) -> None:
+        """existing_id, new_block, position_after default to None."""
+        op = DiffOp(op_type=DiffOpType.KEEP)
+        assert op.existing_id is None
+        assert op.new_block is None
+        assert op.position_after is None
+
+    def test_depth_defaults_to_zero(self) -> None:
+        """depth defaults to 0 when not specified."""
+        op = DiffOp(op_type=DiffOpType.INSERT)
+        assert op.depth == 0
+
+    @given(depth=st.integers(min_value=0, max_value=10))
+    @settings(max_examples=100)
+    def test_depth_stored_correctly(self, depth: int) -> None:
+        """depth is stored verbatim."""
+        op = DiffOp(op_type=DiffOpType.KEEP, depth=depth)
+        assert op.depth == depth
+
+
+class TestConversionResultModelProperties:
+    """Property tests for the ConversionResult dataclass."""
+
+    def test_default_constructor_has_empty_lists(self) -> None:
+        """Default ConversionResult has empty blocks, images, and warnings."""
+        result = ConversionResult()
+        assert result.blocks == []
+        assert result.images == []
+        assert result.warnings == []
+
+    def test_blocks_list_is_mutable(self) -> None:
+        """Blocks list can be modified after construction."""
+        result = ConversionResult()
+        block = {"type": "paragraph"}
+        result.blocks.append(block)
+        assert result.blocks == [block]
+
+    def test_default_instances_do_not_share_lists(self) -> None:
+        """Two default ConversionResult instances have independent list objects."""
+        r1 = ConversionResult()
+        r2 = ConversionResult()
+        r1.blocks.append({"type": "divider"})
+        assert r2.blocks == []
+
+    @given(
+        code=st.text(min_size=1, max_size=20, alphabet=string.ascii_uppercase + "_"),
+        message=st.text(min_size=1, max_size=60),
+    )
+    @settings(max_examples=100)
+    def test_conversion_warning_fields_stored(self, code: str, message: str) -> None:
+        """ConversionWarning stores code and message verbatim."""
+        w = ConversionWarning(code=code, message=message)
+        assert w.code == code
+        assert w.message == message
+        assert w.context == {}
