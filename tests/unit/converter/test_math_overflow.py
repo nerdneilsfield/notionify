@@ -74,6 +74,46 @@ class TestBlockMathOverflow:
         assert w.context["expression_length"] == 1500
         assert w.context["limit"] == EQUATION_CHAR_LIMIT
 
+    def test_exactly_at_limit_no_overflow(self):
+        """Expression exactly at 1000 chars should not trigger overflow."""
+        config = NotionifyConfig(token="test", math_strategy="equation")
+        expr = "x" * EQUATION_CHAR_LIMIT
+        blocks, warnings = build_block_math(expr, config)
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "equation"
+        assert len(warnings) == 0
+
+    def test_one_over_limit_triggers_overflow(self):
+        """Expression at 1001 chars should trigger overflow."""
+        config = NotionifyConfig(
+            token="test", math_strategy="equation", math_overflow_block="code"
+        )
+        expr = "x" * (EQUATION_CHAR_LIMIT + 1)
+        blocks, warnings = build_block_math(expr, config)
+        assert blocks[0]["type"] == "code"
+        assert any(w.code == "MATH_OVERFLOW" for w in warnings)
+
+    def test_code_strategy_no_overflow(self):
+        """Code strategy bypasses equation limit entirely."""
+        config = NotionifyConfig(token="test", math_strategy="code")
+        expr = "x" * (EQUATION_CHAR_LIMIT + 500)
+        blocks, warnings = build_block_math(expr, config)
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "code"
+        assert blocks[0]["code"]["language"] == "latex"
+        assert len(warnings) == 0
+
+    def test_latex_text_strategy(self):
+        """latex_text strategy renders as paragraph with delimiters."""
+        config = NotionifyConfig(token="test", math_strategy="latex_text")
+        expr = "E = mc^2"
+        blocks, warnings = build_block_math(expr, config)
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "paragraph"
+        content = blocks[0]["paragraph"]["rich_text"][0]["text"]["content"]
+        assert content == "$$E = mc^2$$"
+        assert len(warnings) == 0
+
 
 # ── Inline math overflow ──────────────────────────────────────────────
 
@@ -125,6 +165,45 @@ class TestInlineMathOverflow:
         assert isinstance(result, list)
         assert len(result) == 1
         assert result[0]["type"] == "equation"
+        assert len(warnings) == 0
+
+    def test_exactly_at_limit_no_overflow(self):
+        """Expression exactly at 1000 chars should not trigger overflow."""
+        config = NotionifyConfig(token="test", math_strategy="equation")
+        expr = "y" * EQUATION_CHAR_LIMIT
+        result, warnings = build_inline_math(expr, config)
+        assert len(result) == 1
+        assert result[0]["type"] == "equation"
+        assert len(warnings) == 0
+
+    def test_one_over_limit_triggers_overflow(self):
+        """Expression at 1001 chars should trigger overflow."""
+        config = NotionifyConfig(
+            token="test", math_strategy="equation", math_overflow_inline="code"
+        )
+        expr = "y" * (EQUATION_CHAR_LIMIT + 1)
+        result, warnings = build_inline_math(expr, config)
+        assert len(result) == 1
+        assert result[0]["annotations"]["code"] is True
+        assert any(w.code == "MATH_OVERFLOW" for w in warnings)
+
+    def test_code_strategy_no_overflow(self):
+        """Code strategy bypasses equation limit entirely."""
+        config = NotionifyConfig(token="test", math_strategy="code")
+        expr = "y" * (EQUATION_CHAR_LIMIT + 500)
+        result, warnings = build_inline_math(expr, config)
+        assert len(result) == 1
+        assert result[0]["annotations"]["code"] is True
+        assert len(warnings) == 0
+
+    def test_latex_text_strategy(self):
+        """latex_text strategy renders as plain text with delimiters."""
+        config = NotionifyConfig(token="test", math_strategy="latex_text")
+        expr = "E = mc^2"
+        result, warnings = build_inline_math(expr, config)
+        assert len(result) == 1
+        assert result[0]["type"] == "text"
+        assert result[0]["text"]["content"] == "$E = mc^2$"
         assert len(warnings) == 0
 
 

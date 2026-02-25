@@ -284,6 +284,55 @@ class TestComputeSignature:
         )
 
 
+    def test_bookmark_url_attr(self):
+        """Bookmark block extracts URL from type-specific attributes."""
+        block = {"type": "bookmark", "bookmark": {"url": "https://example.com"}}
+        attrs = _extract_type_attrs(block, "bookmark")
+        assert attrs["url"] == "https://example.com"
+
+    def test_embed_url_attr(self):
+        """Embed block extracts URL from type-specific attributes."""
+        block = {"type": "embed", "embed": {"url": "https://youtube.com/watch?v=123"}}
+        attrs = _extract_type_attrs(block, "embed")
+        assert attrs["url"] == "https://youtube.com/watch?v=123"
+
+    def test_toggle_color_attr(self):
+        """Toggle block extracts color attribute."""
+        block = {"type": "toggle", "toggle": {"rich_text": [], "color": "red"}}
+        attrs = _extract_type_attrs(block, "toggle")
+        assert attrs["color"] == "red"
+
+    def test_heading_toggleable_attr(self):
+        """Heading block extracts is_toggleable and color attributes."""
+        block = {
+            "type": "heading_1",
+            "heading_1": {"rich_text": [], "is_toggleable": True, "color": "blue"},
+        }
+        attrs = _extract_type_attrs(block, "heading_1")
+        assert attrs["is_toggleable"] is True
+        assert attrs["color"] == "blue"
+
+    def test_column_list_empty_attrs(self):
+        """column_list block has no type-specific attributes."""
+        block = {"type": "column_list", "column_list": {}}
+        attrs = _extract_type_attrs(block, "column_list")
+        assert attrs == {}
+
+    def test_callout_icon_and_color(self):
+        """Callout block extracts icon and color."""
+        block = {
+            "type": "callout",
+            "callout": {
+                "rich_text": [],
+                "icon": {"type": "emoji", "emoji": "💡"},
+                "color": "yellow_background",
+            },
+        }
+        attrs = _extract_type_attrs(block, "callout")
+        assert attrs["icon"] == {"type": "emoji", "emoji": "💡"}
+        assert attrs["color"] == "yellow_background"
+
+
 class TestNormalizeRichText:
     def test_empty_rich_text(self):
         block = {"paragraph": {"rich_text": []}}

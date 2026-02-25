@@ -319,6 +319,48 @@ class TestBuildImageBlock:
         assert blocks[0]["type"] == "paragraph"
         assert any(w.code == "IMAGE_PLACEHOLDER" for w in warnings)
 
+    def test_data_uri_image_with_upload_enabled(self):
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "data:image/png;base64,iVBOR..."},
+                "children": [{"type": "text", "raw": "data img"}],
+            }],
+        }
+        blocks, images, _ = build_blocks([token], _config(image_upload=True))
+        assert len(images) == 1
+        assert images[0].src.startswith("data:")
+
+    def test_data_uri_image_without_upload_skip(self):
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "data:image/png;base64,iVBOR..."},
+                "children": [],
+            }],
+        }
+        blocks, _, warnings = build_blocks(
+            [token], _config(image_upload=False, image_fallback="skip"),
+        )
+        assert len(blocks) == 0
+        assert any(w.code == "IMAGE_SKIPPED" for w in warnings)
+
+    def test_image_raise_fallback(self):
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "./photo.jpg"},
+                "children": [{"type": "text", "raw": "my photo"}],
+            }],
+        }
+        blocks, _, warnings = build_blocks(
+            [token], _config(image_upload=False, image_fallback="raise"),
+        )
+        assert any(w.code == "IMAGE_ERROR" for w in warnings)
+
 
 # =========================================================================
 # Multiple blocks
