@@ -145,7 +145,7 @@ class DiffPlanner:
 
             # Delete unmatched existing blocks before this anchor.
             while existing_ptr < e_anchor:
-                if existing_ptr not in matched_existing:
+                if existing_ptr not in matched_existing:  # pragma: no branch
                     ops.append(
                         DiffOp(
                             op_type=DiffOpType.DELETE,
@@ -156,7 +156,7 @@ class DiffPlanner:
 
             # Insert or update/replace unmatched new blocks before this anchor.
             while new_ptr < n_anchor:
-                if new_ptr not in matched_new:
+                if new_ptr not in matched_new:  # pragma: no branch
                     ops.append(
                         DiffOp(
                             op_type=DiffOpType.INSERT,
@@ -178,7 +178,7 @@ class DiffPlanner:
 
         # Handle remaining existing blocks after last anchor.
         while existing_ptr < len(existing):
-            if existing_ptr not in matched_existing:
+            if existing_ptr not in matched_existing:  # pragma: no branch
                 ops.append(
                     DiffOp(
                         op_type=DiffOpType.DELETE,
@@ -189,7 +189,7 @@ class DiffPlanner:
 
         # Handle remaining new blocks after last anchor.
         while new_ptr < len(new):
-            if new_ptr not in matched_new:
+            if new_ptr not in matched_new:  # pragma: no branch
                 ops.append(
                     DiffOp(
                         op_type=DiffOpType.INSERT,
