@@ -35,6 +35,8 @@ from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.converter.rich_text import (
     _clone_text_segment,
     _has_non_default_annotations,
+    _make_text_segment,
+    _merge_annotations,
     build_rich_text,
     extract_text,
     split_rich_text,
@@ -4447,3 +4449,114 @@ class TestNormalizeRichTextProperties:
         block: dict = {}
         result = _normalize_rich_text(block, "paragraph")
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# _make_text_segment properties
+# ---------------------------------------------------------------------------
+
+
+class TestMakeTextSegmentProperties:
+    """_make_text_segment structure and annotation-elision invariants."""
+
+    @given(content=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=50))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_type_is_always_text(self, content: str) -> None:
+        """Segment type is always 'text'."""
+        seg = _make_text_segment(content, {})
+        assert seg["type"] == "text"
+
+    @given(content=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=50))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_content_equals_input(self, content: str) -> None:
+        """text.content always equals the input content string."""
+        seg = _make_text_segment(content, {})
+        assert seg["text"]["content"] == content
+
+    @given(content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_all_default_annotations_elided(self, content: str) -> None:
+        """When all annotations are default, no 'annotations' key is emitted."""
+        default_annots = {
+            "bold": False,
+            "italic": False,
+            "strikethrough": False,
+            "underline": False,
+            "code": False,
+            "color": "default",
+        }
+        seg = _make_text_segment(content, default_annots)
+        assert "annotations" not in seg
+
+    @given(
+        content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+        flag=st.sampled_from(["bold", "italic", "strikethrough", "underline", "code"]),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_non_default_annotation_included(self, content: str, flag: str) -> None:
+        """When any annotation is non-default, 'annotations' key is emitted."""
+        annots = {flag: True}
+        seg = _make_text_segment(content, annots)
+        assert "annotations" in seg
+
+    @given(
+        content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+        href=st.text(alphabet=_SAFE_TEXT + "/.:?=#", min_size=1, max_size=50),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_href_included_when_truthy(self, content: str, href: str) -> None:
+        """href is included in segment when truthy."""
+        seg = _make_text_segment(content, {}, href=href)
+        assert seg["href"] == href
+
+
+# ---------------------------------------------------------------------------
+# _merge_annotations properties
+# ---------------------------------------------------------------------------
+
+
+class TestMergeAnnotationsProperties:
+    """_merge_annotations OR semantics and non-mutation invariants."""
+
+    @given(
+        flag=st.sampled_from(["bold", "italic", "strikethrough", "underline", "code"]),
+    )
+    @settings(max_examples=200)
+    def test_true_in_base_stays_true_after_merge(self, flag: str) -> None:
+        """OR semantics: True in base remains True regardless of override."""
+        base = {flag: True}
+        result = _merge_annotations(base, **{flag: False})
+        assert result[flag] is True
+
+    @given(
+        flag=st.sampled_from(["bold", "italic", "strikethrough", "underline", "code"]),
+    )
+    @settings(max_examples=200)
+    def test_false_plus_true_override_becomes_true(self, flag: str) -> None:
+        """OR semantics: False in base + True override → True."""
+        base = {flag: False}
+        result = _merge_annotations(base, **{flag: True})
+        assert result[flag] is True
+
+    @given(
+        flag=st.sampled_from(["bold", "italic", "strikethrough", "underline", "code"]),
+    )
+    @settings(max_examples=200)
+    def test_base_is_not_mutated(self, flag: str) -> None:
+        """_merge_annotations never mutates the base dict."""
+        base = {flag: False}
+        original = dict(base)
+        _merge_annotations(base, **{flag: True})
+        assert base == original
+
+    @given(
+        bold=st.booleans(),
+        italic=st.booleans(),
+    )
+    @settings(max_examples=200)
+    def test_unknown_overrides_are_ignored(self, bold: bool, italic: bool) -> None:
+        """Keys not present in base are silently ignored."""
+        base = {"bold": bold, "italic": italic}
+        result = _merge_annotations(base, unknown_key=True)
+        assert "unknown_key" not in result
+        assert set(result.keys()) == {"bold", "italic"}
