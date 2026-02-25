@@ -1058,6 +1058,28 @@ class TestInlineRendererProperties:
         text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
     )
     @settings(max_examples=200)
+    def test_underline_annotation_wraps_safe_text(self, text: str) -> None:
+        """A text segment with underline=True must produce <u>text</u> in rendered output."""
+        seg = {
+            "type": "text",
+            "plain_text": text,
+            "text": {"content": text},
+            "annotations": {
+                "bold": False,
+                "italic": False,
+                "strikethrough": False,
+                "underline": True,
+                "code": False,
+                "color": "default",
+            },
+        }
+        result = render_rich_text([seg])
+        assert f"<u>{text}</u>" in result
+
+    @given(
+        text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+    )
+    @settings(max_examples=200)
     def test_escaped_output_longer_than_or_equal_to_input_with_special_chars(
         self, text: str
     ) -> None:
