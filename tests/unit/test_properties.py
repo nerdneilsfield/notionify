@@ -1120,3 +1120,87 @@ class TestLCSMatcherProperties:
         pairs = lcs_match(existing, new)
         for ei, ni in pairs:
             assert existing[ei] == new[ni]
+
+
+# ---------------------------------------------------------------------------
+# 12. TestNotionifyConfigProperties
+# ---------------------------------------------------------------------------
+
+
+class TestNotionifyConfigProperties:
+    """Property-based tests for :class:`NotionifyConfig` validation."""
+
+    _BASE_URL = "https://api.notion.com/v1"
+
+    @given(
+        base=st.floats(min_value=0.0, max_value=100.0, allow_nan=False),
+        maximum=st.floats(min_value=0.0, max_value=3600.0, allow_nan=False),
+    )
+    @settings(max_examples=200)
+    def test_valid_retry_delays_accepted(self, base: float, maximum: float) -> None:
+        """Config with base <= max delay must not raise ValueError."""
+        assume(base <= maximum)
+        cfg = NotionifyConfig(
+            token="test",
+            base_url=self._BASE_URL,
+            retry_base_delay=base,
+            retry_max_delay=maximum,
+        )
+        assert cfg.retry_base_delay == base
+        assert cfg.retry_max_delay == maximum
+
+    @given(
+        base=st.floats(min_value=0.01, max_value=100.0, allow_nan=False),
+        maximum=st.floats(min_value=0.0, max_value=99.0, allow_nan=False),
+    )
+    @settings(max_examples=200)
+    def test_base_delay_greater_than_max_raises(
+        self, base: float, maximum: float
+    ) -> None:
+        """Config with base_delay > max_delay must raise ValueError."""
+        assume(base > maximum)
+        with pytest.raises(ValueError, match="retry_base_delay"):
+            NotionifyConfig(
+                token="test",
+                base_url=self._BASE_URL,
+                retry_base_delay=base,
+                retry_max_delay=maximum,
+            )
+
+    @given(delay=st.floats(min_value=-1000.0, max_value=-0.001, allow_nan=False))
+    @settings(max_examples=100)
+    def test_negative_retry_base_delay_raises(self, delay: float) -> None:
+        """Negative retry_base_delay must raise ValueError."""
+        with pytest.raises(ValueError, match="retry_base_delay"):
+            NotionifyConfig(
+                token="test",
+                base_url=self._BASE_URL,
+                retry_base_delay=delay,
+                retry_max_delay=abs(delay) + 1,
+            )
+
+    @given(rps=st.floats(min_value=-100.0, max_value=0.0, allow_nan=False))
+    @settings(max_examples=100)
+    def test_non_positive_rate_limit_rps_raises(self, rps: float) -> None:
+        """rate_limit_rps <= 0 must raise ValueError."""
+        with pytest.raises(ValueError, match="rate_limit_rps"):
+            NotionifyConfig(token="test", base_url=self._BASE_URL, rate_limit_rps=rps)
+
+    @given(attempts=st.integers(min_value=0, max_value=20))
+    @settings(max_examples=100)
+    def test_valid_max_attempts_accepted(self, attempts: int) -> None:
+        """Non-negative retry_max_attempts must not raise."""
+        cfg = NotionifyConfig(
+            token="test", base_url=self._BASE_URL, retry_max_attempts=attempts
+        )
+        assert cfg.retry_max_attempts == attempts
+
+    def test_insecure_http_non_localhost_raises(self) -> None:
+        """HTTP base_url to non-local host must raise ValueError."""
+        with pytest.raises(ValueError, match="insecure HTTP"):
+            NotionifyConfig(token="test", base_url="http://api.notion.com/v1")
+
+    def test_http_localhost_accepted(self) -> None:
+        """HTTP base_url to localhost must be accepted."""
+        cfg = NotionifyConfig(token="test", base_url="http://localhost:3000/v1")
+        assert "localhost" in cfg.base_url
