@@ -1936,3 +1936,149 @@ class TestDiffPlannerProperties:
         for op in ops:
             if op.op_type == DiffOpType.KEEP:
                 assert op.existing_id in existing_ids
+
+
+# ---------------------------------------------------------------------------
+# TestTokenBucketProperties
+# ---------------------------------------------------------------------------
+
+class TestTokenBucketProperties:
+    """Property-based tests for TokenBucket initialization and state invariants."""
+
+    @given(rate=st.floats(min_value=-100.0, max_value=0.0, allow_nan=False))
+    @settings(max_examples=100)
+    def test_invalid_rate_raises(self, rate: float) -> None:
+        """rate_rps <= 0 raises ValueError."""
+        from notionify.notion_api.rate_limit import TokenBucket
+        with pytest.raises(ValueError, match="rate_rps"):
+            TokenBucket(rate_rps=rate)
+
+    @given(burst=st.integers(max_value=0))
+    @settings(max_examples=100)
+    def test_invalid_burst_raises(self, burst: int) -> None:
+        """burst < 1 raises ValueError."""
+        from notionify.notion_api.rate_limit import TokenBucket
+        with pytest.raises(ValueError, match="burst"):
+            TokenBucket(rate_rps=1.0, burst=burst)
+
+    @given(
+        rate=st.floats(min_value=0.01, max_value=1000.0, allow_nan=False),
+        burst=st.integers(min_value=1, max_value=100),
+    )
+    @settings(max_examples=200)
+    def test_initial_tokens_equals_burst(self, rate: float, burst: int) -> None:
+        """Fresh bucket starts at full capacity (tokens == burst)."""
+        from notionify.notion_api.rate_limit import TokenBucket
+        bucket = TokenBucket(rate_rps=rate, burst=burst)
+        assert bucket.tokens == float(burst)
+
+    @given(
+        rate=st.floats(min_value=0.01, max_value=1000.0, allow_nan=False),
+        burst=st.integers(min_value=1, max_value=100),
+        requested=st.integers(min_value=1, max_value=100),
+    )
+    @settings(max_examples=200)
+    def test_acquire_from_full_bucket_no_wait(
+        self, rate: float, burst: int, requested: int
+    ) -> None:
+        """Acquiring <= burst tokens from a full bucket returns 0.0 wait."""
+        from unittest.mock import patch
+
+        from notionify.notion_api.rate_limit import TokenBucket
+        assume(requested <= burst)
+        bucket = TokenBucket(rate_rps=rate, burst=burst)
+        with patch("time.sleep"):
+            wait = bucket.acquire(requested)
+        assert wait == 0.0
+        assert bucket.tokens == float(burst - requested)
+
+    @given(
+        rate=st.floats(min_value=0.01, max_value=1000.0, allow_nan=False),
+        burst=st.integers(min_value=1, max_value=100),
+        requested=st.integers(min_value=1, max_value=200),
+    )
+    @settings(max_examples=200)
+    def test_acquire_wait_is_non_negative(
+        self, rate: float, burst: int, requested: int
+    ) -> None:
+        """acquire() always returns a non-negative wait time."""
+        from unittest.mock import patch
+
+        from notionify.notion_api.rate_limit import TokenBucket
+        bucket = TokenBucket(rate_rps=rate, burst=burst)
+        with patch("time.sleep"):
+            wait = bucket.acquire(requested)
+        assert wait >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# TestImageMimeSniffProperties
+# ---------------------------------------------------------------------------
+
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+_JPEG_MAGIC = b"\xff\xd8\xff"
+_GIF87_MAGIC = b"GIF87a"
+_GIF89_MAGIC = b"GIF89a"
+_BMP_MAGIC = b"BM"
+
+
+class TestImageMimeSniffProperties:
+    """Property-based tests for _sniff_mime magic-byte MIME detection."""
+
+    @given(suffix=st.binary(max_size=20))
+    @settings(max_examples=200)
+    def test_png_magic_detected(self, suffix: bytes) -> None:
+        """PNG magic bytes always yield 'image/png'."""
+        from notionify.image.validate import _sniff_mime
+        assert _sniff_mime(_PNG_MAGIC + suffix) == "image/png"
+
+    @given(suffix=st.binary(max_size=20))
+    @settings(max_examples=200)
+    def test_jpeg_magic_detected(self, suffix: bytes) -> None:
+        """JPEG magic bytes always yield 'image/jpeg'."""
+        from notionify.image.validate import _sniff_mime
+        assert _sniff_mime(_JPEG_MAGIC + suffix) == "image/jpeg"
+
+    @given(suffix=st.binary(max_size=20))
+    @settings(max_examples=200)
+    def test_gif87_magic_detected(self, suffix: bytes) -> None:
+        """GIF87a magic bytes always yield 'image/gif'."""
+        from notionify.image.validate import _sniff_mime
+        assert _sniff_mime(_GIF87_MAGIC + suffix) == "image/gif"
+
+    @given(suffix=st.binary(max_size=20))
+    @settings(max_examples=200)
+    def test_gif89_magic_detected(self, suffix: bytes) -> None:
+        """GIF89a magic bytes always yield 'image/gif'."""
+        from notionify.image.validate import _sniff_mime
+        assert _sniff_mime(_GIF89_MAGIC + suffix) == "image/gif"
+
+    @given(middle=st.binary(min_size=4, max_size=4), suffix=st.binary(max_size=10))
+    @settings(max_examples=200)
+    def test_webp_magic_detected(self, middle: bytes, suffix: bytes) -> None:
+        """RIFF....WEBP pattern yields 'image/webp'."""
+        from notionify.image.validate import _sniff_mime
+        data = b"RIFF" + middle + b"WEBP" + suffix
+        assert _sniff_mime(data) == "image/webp"
+
+    def test_riff_non_webp_returns_none(self) -> None:
+        """RIFF with non-WEBP marker at bytes 8-12 returns None."""
+        from notionify.image.validate import _sniff_mime
+        # RIFF + 4 bytes padding + WAVE (not WEBP) + padding
+        data = b"RIFF" + b"\x00\x00\x00\x00" + b"WAVE" + b"\x00\x00\x00\x00"
+        assert _sniff_mime(data) is None
+
+    @given(suffix=st.binary(max_size=20))
+    @settings(max_examples=200)
+    def test_bmp_magic_detected(self, suffix: bytes) -> None:
+        """BM magic bytes always yield 'image/bmp'."""
+        from notionify.image.validate import _sniff_mime
+        assert _sniff_mime(_BMP_MAGIC + suffix) == "image/bmp"
+
+    @given(data=st.binary(max_size=3))
+    @settings(max_examples=200)
+    def test_short_data_result_is_valid(self, data: bytes) -> None:
+        """_sniff_mime on short data returns None or a valid image/ MIME type."""
+        from notionify.image.validate import _sniff_mime
+        result = _sniff_mime(data)
+        assert result is None or result.startswith("image/")
