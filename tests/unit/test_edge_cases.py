@@ -47,6 +47,61 @@ class TestBaseUrlValidation:
         assert config.base_url.startswith("https://")
 
 
+# ── Config: numeric parameter validation ─────────────────────────────
+
+
+class TestNumericConfigValidation:
+    def test_negative_retry_max_attempts_rejected(self):
+        with pytest.raises(ValueError, match="retry_max_attempts"):
+            NotionifyConfig(token="test", retry_max_attempts=-1)
+
+    def test_zero_retry_max_attempts_accepted(self):
+        config = NotionifyConfig(token="test", retry_max_attempts=0)
+        assert config.retry_max_attempts == 0
+
+    def test_negative_retry_base_delay_rejected(self):
+        with pytest.raises(ValueError, match="retry_base_delay"):
+            NotionifyConfig(token="test", retry_base_delay=-0.5)
+
+    def test_negative_retry_max_delay_rejected(self):
+        with pytest.raises(ValueError, match="retry_max_delay"):
+            NotionifyConfig(token="test", retry_max_delay=-1.0)
+
+    def test_zero_rate_limit_rps_rejected(self):
+        with pytest.raises(ValueError, match="rate_limit_rps"):
+            NotionifyConfig(token="test", rate_limit_rps=0)
+
+    def test_negative_rate_limit_rps_rejected(self):
+        with pytest.raises(ValueError, match="rate_limit_rps"):
+            NotionifyConfig(token="test", rate_limit_rps=-1.0)
+
+    def test_zero_timeout_seconds_rejected(self):
+        with pytest.raises(ValueError, match="timeout_seconds"):
+            NotionifyConfig(token="test", timeout_seconds=0)
+
+    def test_zero_image_max_size_bytes_rejected(self):
+        with pytest.raises(ValueError, match="image_max_size_bytes"):
+            NotionifyConfig(token="test", image_max_size_bytes=0)
+
+    def test_zero_image_max_concurrent_rejected(self):
+        with pytest.raises(ValueError, match="image_max_concurrent"):
+            NotionifyConfig(token="test", image_max_concurrent=0)
+
+    def test_valid_numeric_config_accepted(self):
+        config = NotionifyConfig(
+            token="test",
+            retry_max_attempts=3,
+            retry_base_delay=0.5,
+            retry_max_delay=30.0,
+            rate_limit_rps=5.0,
+            timeout_seconds=10.0,
+            image_max_size_bytes=1024,
+            image_max_concurrent=2,
+        )
+        assert config.retry_max_attempts == 3
+        assert config.rate_limit_rps == 5.0
+
+
 # ── Notion→MD: table rendering edge cases ─────────────────────────────
 
 

@@ -243,6 +243,23 @@ class NotionifyConfig:
                 "Use HTTPS to protect your API token, or target localhost for testing."
             )
 
+        # Numeric parameter validation — catch invalid values at config
+        # time instead of letting them surface as confusing runtime errors.
+        if self.retry_max_attempts < 0:
+            raise ValueError(f"retry_max_attempts must be >= 0, got {self.retry_max_attempts}")
+        if self.retry_base_delay < 0:
+            raise ValueError(f"retry_base_delay must be >= 0, got {self.retry_base_delay}")
+        if self.retry_max_delay < 0:
+            raise ValueError(f"retry_max_delay must be >= 0, got {self.retry_max_delay}")
+        if self.rate_limit_rps <= 0:
+            raise ValueError(f"rate_limit_rps must be > 0, got {self.rate_limit_rps}")
+        if self.timeout_seconds <= 0:
+            raise ValueError(f"timeout_seconds must be > 0, got {self.timeout_seconds}")
+        if self.image_max_size_bytes <= 0:
+            raise ValueError(f"image_max_size_bytes must be > 0, got {self.image_max_size_bytes}")
+        if self.image_max_concurrent < 1:
+            raise ValueError(f"image_max_concurrent must be >= 1, got {self.image_max_concurrent}")
+
     def __repr__(self) -> str:
         """Mask the token to prevent accidental credential leakage."""
         parts: list[str] = []
