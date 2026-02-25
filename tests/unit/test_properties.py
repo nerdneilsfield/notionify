@@ -27,6 +27,8 @@ from notionify.converter.block_builder import (
     _NOTION_LANGUAGES,
     _build_divider,
     _build_heading,
+    _build_list_item,
+    _build_task_list_item,
     _BuildContext,
     _classify_image_source,
     _normalize_language,
@@ -5978,3 +5980,69 @@ class TestBlockBuilderParagraphAndMathProperties:
         ctx = self._ctx()
         result = _build_block_math({"raw": expression}, ctx)
         assert len(ctx.blocks) == len(result)
+
+
+class TestBuildListItemProperties:
+    """Property tests for _build_list_item and _build_task_list_item."""
+
+    _CONFIG = NotionifyConfig(token="test-token")
+
+    def _ctx(self) -> _BuildContext:
+        return _BuildContext(self._CONFIG)
+
+    # --- _build_list_item ---
+
+    def test_build_list_item_unordered_type(self) -> None:
+        """ordered=False produces a bulleted_list_item block."""
+        ctx = self._ctx()
+        result = _build_list_item({"children": []}, ordered=False, ctx=ctx)
+        assert result["type"] == "bulleted_list_item"
+
+    def test_build_list_item_ordered_type(self) -> None:
+        """ordered=True produces a numbered_list_item block."""
+        ctx = self._ctx()
+        result = _build_list_item({"children": []}, ordered=True, ctx=ctx)
+        assert result["type"] == "numbered_list_item"
+
+    def test_build_list_item_adds_to_context(self) -> None:
+        """_build_list_item registers the block in ctx.blocks."""
+        ctx = self._ctx()
+        _build_list_item({"children": []}, ordered=False, ctx=ctx)
+        assert len(ctx.blocks) == 1
+
+    @given(ordered=st.booleans())
+    @settings(max_examples=50)
+    def test_build_list_item_color_is_default(self, ordered: bool) -> None:
+        """List item block always has color 'default'."""
+        ctx = self._ctx()
+        result = _build_list_item({"children": []}, ordered=ordered, ctx=ctx)
+        block_type = result["type"]
+        assert result[block_type]["color"] == "default"
+
+    # --- _build_task_list_item ---
+
+    def test_build_task_list_item_type_is_to_do(self) -> None:
+        """_build_task_list_item always produces a 'to_do' block."""
+        ctx = self._ctx()
+        result = _build_task_list_item({"children": [], "attrs": {}}, ctx)
+        assert result["type"] == "to_do"
+
+    def test_build_task_list_item_checked_true_preserved(self) -> None:
+        """checked=True attribute is preserved in the block."""
+        ctx = self._ctx()
+        token: dict = {"children": [], "attrs": {"checked": True}}
+        result = _build_task_list_item(token, ctx)
+        assert result["to_do"]["checked"] is True
+
+    def test_build_task_list_item_checked_false_preserved(self) -> None:
+        """checked=False attribute is preserved in the block."""
+        ctx = self._ctx()
+        token: dict = {"children": [], "attrs": {"checked": False}}
+        result = _build_task_list_item(token, ctx)
+        assert result["to_do"]["checked"] is False
+
+    def test_build_task_list_item_adds_to_context(self) -> None:
+        """_build_task_list_item registers the block in ctx.blocks."""
+        ctx = self._ctx()
+        _build_task_list_item({"children": [], "attrs": {}}, ctx)
+        assert len(ctx.blocks) == 1
