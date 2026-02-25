@@ -299,6 +299,117 @@ class TestEmpty:
         assert len(result.warnings) == 0
 
 
+class TestTaskList:
+    """Verify task_list.md round-trips correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "task_list.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 4
+
+    def test_task_states_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "task_list.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Completed task" in round_tripped
+        assert "Pending task" in round_tripped
+        assert "[x]" in round_tripped
+        assert "[ ]" in round_tripped
+
+
+class TestCodeBlocks:
+    """Verify code_blocks.md round-trips correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "code_blocks.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 3
+
+    def test_languages_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "code_blocks.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "```python" in round_tripped
+        assert "```javascript" in round_tripped
+        assert "greet" in round_tripped
+        assert "add" in round_tripped
+
+
+class TestNestedLists:
+    """Verify nested_lists.md round-trips correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "nested_lists.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 4
+
+    def test_list_content_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "nested_lists.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Level 1 bullet" in round_tripped
+        assert "First ordered" in round_tripped
+
+
+class TestTables:
+    """Verify tables.md round-trips correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "tables.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 2
+
+    def test_table_content_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "tables.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Header A" in round_tripped
+        assert "Cell 1" in round_tripped
+
+
+class TestMixedAll:
+    """Verify mixed_all.md round-trips all block types."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "mixed_all.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 10
+
+    def test_diverse_content_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "mixed_all.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "**bold**" in round_tripped
+        assert "Bullet item" in round_tripped
+        assert "```python" in round_tripped
+        assert "famous quote" in round_tripped
+        assert "---" in round_tripped
+        assert "https://example.com/pic.png" in round_tripped
+
+
+class TestUnicodeEmoji:
+    """Verify unicode_emoji.md round-trips correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "unicode_emoji.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 3
+        assert len(result.warnings) == 0
+
+    def test_content_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "unicode_emoji.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Hello world" in round_tripped
+        assert "Star item" in round_tripped
+
+
 class TestBlockCounts:
     """Verify block counts match expectations."""
 
