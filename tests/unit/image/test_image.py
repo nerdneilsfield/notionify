@@ -102,6 +102,10 @@ class TestDetectUnknown:
     def test_random_string(self):
         assert detect_image_source("ftp://server/file") == ImageSourceType.UNKNOWN
 
+    def test_malformed_ipv6_url_is_unknown(self):
+        """Malformed IPv6 URL triggers ValueError in urlparse -> UNKNOWN (line 50-52)."""
+        assert detect_image_source("http://[") == ImageSourceType.UNKNOWN
+
 
 # =========================================================================
 # U-IM-005: Validate MIME type - allowed

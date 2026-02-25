@@ -1136,6 +1136,13 @@ class TestNormalizeLanguageCoverageGaps:
         result = c.convert("```totallyfakelang\ncode\n```")
         assert result.blocks[0]["code"]["language"] == "plain text"
 
+    def test_alias_first_word_maps_correctly(self):
+        """'js extra' -> first='js' -> alias -> 'javascript' (line 104-105)."""
+        from notionify.converter.block_builder import _normalize_language
+        # Full string is not in NOTION_LANGUAGES or LANGUAGE_ALIASES,
+        # but the first word 'js' is an alias. This covers line 105.
+        assert _normalize_language("js extra") == "javascript"
+
 
 class TestClassifyImageSourceCoverageGaps:
     """Cover _classify_image_source file:// scheme and UNKNOWN fallback
@@ -1191,6 +1198,14 @@ class TestClassifyImageSourceCoverageGaps:
         blocks, images, warnings = build_blocks(tokens, make_config(image_fallback="skip"))
         assert blocks == []
         assert any(w.code == "IMAGE_SKIPPED" for w in warnings)
+
+    def test_malformed_ipv6_url_is_unknown_source(self):
+        """Malformed IPv6 URL 'http://[' triggers ValueError and returns UNKNOWN (line 127-129)."""
+        from notionify.converter.block_builder import _classify_image_source
+        from notionify.models import ImageSourceType
+        # urlparse raises ValueError for invalid IPv6 addresses.
+        result = _classify_image_source("http://[")
+        assert result == ImageSourceType.UNKNOWN
 
 
 class TestHeadingOverflowParagraphContent:
