@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 
 from notionify.notion_api.blocks import AsyncBlockAPI, BlockAPI
 from notionify.notion_api.files import AsyncFileAPI, FileAPI
@@ -124,7 +123,7 @@ class TestPageAPISync:
         t.request.return_value = {"id": "pg-6"}
         api = PageAPI(t)
         props = {"Name": {"title": []}}
-        result = api.update("pg-6", properties=props, archived=False)
+        _result = api.update("pg-6", properties=props, archived=False)
         t.request.assert_called_once_with(
             "PATCH",
             "/pages/pg-6",
@@ -388,7 +387,7 @@ class TestBlockAPIAsync:
         t.request = AsyncMock(return_value={"results": []})
         api = AsyncBlockAPI(t)
         children = [{"type": "bulleted_list_item"}]
-        result = await api.append_children("blk-a6", children)
+        _result = await api.append_children("blk-a6", children)
         t.request.assert_called_once_with(
             "PATCH",
             "/blocks/blk-a6/children",

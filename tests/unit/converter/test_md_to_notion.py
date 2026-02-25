@@ -1162,7 +1162,6 @@ class TestClassifyImageSourceCoverageGaps:
 
     def test_empty_url_is_unknown_source(self):
         """An empty URL is classified UNKNOWN (line 112)."""
-        c = MarkdownToNotionConverter(make_config(image_fallback="skip"))
         # Build a paragraph with a bare image token using an empty URL via
         # direct block_builder call so we bypass markdown parsing.
         from notionify.converter.block_builder import build_blocks
@@ -1179,7 +1178,7 @@ class TestClassifyImageSourceCoverageGaps:
         assert any(w.code == "IMAGE_SKIPPED" for w in warnings)
 
 
-class TestHeadingOverflowParagraph:
+class TestHeadingOverflowParagraphContent:
     """Cover the heading_overflow='paragraph' path (lines 233-238)."""
 
     def test_h4_with_paragraph_overflow_produces_bold_paragraph(self):

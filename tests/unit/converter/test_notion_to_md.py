@@ -852,7 +852,7 @@ class TestToggleRendering:
         assert "hidden content" in md
 
 
-class TestPassthroughBlocks:
+class TestColumnPassthroughBlocks:
     """column_list / column blocks pass through children (lines 492-493)."""
 
     def test_column_list_passthrough(self):

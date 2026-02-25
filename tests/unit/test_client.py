@@ -5,8 +5,6 @@ All Notion API calls are mocked so that these tests run entirely offline.
 
 from __future__ import annotations
 
-import asyncio
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,7 +16,6 @@ from notionify.models import (
     AppendResult,
     BlockUpdateResult,
     ConversionResult,
-    ConversionWarning,
     ImageSourceType,
     InsertResult,
     PageCreateResult,
@@ -136,7 +133,7 @@ class TestCreatePageWithMarkdown:
         client._pages.create = MagicMock(return_value=_page_create_response())
         client._blocks.append_children = MagicMock(return_value=_append_response())
 
-        result = client.create_page_with_markdown(
+        _result = client.create_page_with_markdown(
             parent_id="parent-1",
             title="Fallback Title",
             markdown="# My Real Title\n\nSome content.",
@@ -1182,7 +1179,6 @@ class TestAsyncUploadLocalFileEdgeCases:
     @pytest.mark.asyncio
     async def test_validate_returns_none_data_uses_raw(self, tmp_path):
         """When validate_image returns None for data, raw bytes are used."""
-        import base64
         from unittest.mock import AsyncMock as AM
         from unittest.mock import patch
 

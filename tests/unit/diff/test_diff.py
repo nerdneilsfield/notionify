@@ -3,7 +3,6 @@
 PRD test IDs: U-DF-001 through U-DF-015.
 """
 
-import pytest
 
 from notionify.config import NotionifyConfig
 from notionify.diff.lcs_matcher import lcs_match
@@ -385,7 +384,7 @@ class TestFullOverwriteFallback:
         ops = planner.plan(existing, new)
         # Should be all DELETEs followed by all INSERTs (or upgraded)
         # Since content differs and types match, could be all UPDATEs
-        op_types = [op.op_type for op in ops]
+        _op_types = [op.op_type for op in ops]
         # In full overwrite: DELETE all existing, INSERT all new
         # But upgrade_to_updates may convert DELETE+INSERT -> UPDATE
         assert len(ops) >= 3

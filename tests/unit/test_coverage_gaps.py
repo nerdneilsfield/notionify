@@ -5,9 +5,6 @@ Each test class documents exactly which source file and line(s) it covers.
 
 from __future__ import annotations
 
-import asyncio
-import base64
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -21,11 +18,9 @@ from notionify.diff.planner import DiffPlanner
 from notionify.errors import (
     NotionifyImageNotFoundError,
     NotionifyImageParseError,
-    NotionifyNetworkError,
     NotionifyRetryExhaustedError,
 )
 from notionify.models import (
-    ConversionResult,
     ConversionWarning,
     DiffOp,
     DiffOpType,
@@ -194,7 +189,7 @@ class TestDiffExecutorUnknownOpType:
         executor = DiffExecutor(mock_api, config)
 
         # Create an op with a fake/unknown op_type by manipulating the object
-        op = DiffOp(op_type=DiffOpType.KEEP, existing_id="blk-1")
+        _op = DiffOp(op_type=DiffOpType.KEEP, existing_id="blk-1")
         # We need to monkeypatch the op_type to something not in the executor's branches
         # The executor checks: KEEP, UPDATE, REPLACE, INSERT, DELETE, else.
         # Since DiffOpType is an enum, we'll use patch to make the comparison fail.
@@ -339,8 +334,6 @@ class TestSyncClientImageEdgeCases:
         # The fallthrough at line 580 is only reached if source_type is not
         # LOCAL_FILE, DATA_URI, EXTERNAL_URL, or UNKNOWN.
         # We use monkeypatching to simulate this.
-        pending = PendingImage(src="test.png", source_type=ImageSourceType.UNKNOWN, block_index=0)
-
         # Patch source_type to something that passes UNKNOWN check but fails LOCAL_FILE and DATA_URI
         class FakePending:
             src = "test.png"
@@ -562,8 +555,6 @@ class TestSyncTransportDebugDumpNonJsonResponseProper:
         resp.request = httpx.Request("GET", "https://api.notion.com/v1/test")
 
         # Patch response.json to fail on first call (debug dump) but succeed on second (success path)
-        original_json = resp.json
-
         def patched_json():
             call_count[0] += 1
             if call_count[0] == 1:

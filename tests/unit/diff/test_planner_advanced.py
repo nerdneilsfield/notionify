@@ -490,7 +490,7 @@ class TestSyncExecutor:
         ops = [
             DiffOp(op_type=DiffOpType.UPDATE, existing_id="blk-1", new_block=None),
         ]
-        result = executor.execute("page-1", ops)
+        _result = executor.execute("page-1", ops)
         assert len(mock_api.updates) == 0
 
     def test_delete_with_none_existing_id(self, mock_api):
@@ -612,7 +612,6 @@ class TestPlannerEdgeCases:
         new = [_heading("X"), _heading("Y")]
         ops = self._plan(existing, new)
         deletes = [o for o in ops if o.op_type == DiffOpType.DELETE]
-        inserts = [o for o in ops if o.op_type == DiffOpType.INSERT]
         # All deletes come before all inserts
         last_delete_idx = max(i for i, o in enumerate(ops) if o.op_type == DiffOpType.DELETE)
         first_insert_idx = min(i for i, o in enumerate(ops) if o.op_type == DiffOpType.INSERT)

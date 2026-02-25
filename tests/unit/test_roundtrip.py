@@ -10,7 +10,6 @@ semantic content rather than exact character matches.
 """
 import re
 
-import pytest
 
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter

@@ -517,7 +517,6 @@ class TestDataURISizePrecheck:
         # 19.9 * 1024 * 1024 = 20867891 bytes
         # base64 chars needed: 20867891 * 4 / 3 ~ 27823855
         # Use valid base64 (all 'A's decode fine)
-        b64_chars = 27_000_000  # ~ 20.25 MiB -- just over the limit, so let's be precise
         # 20 MiB = 20971520 bytes. At 3/4 ratio, that's 27962027 chars.
         # To be UNDER 20 MiB, we need < 27962027 chars.
         safe_b64 = "A" * 27_900_000  # estimated decode = 27900000 * 3/4 = 20925000 < 20971520

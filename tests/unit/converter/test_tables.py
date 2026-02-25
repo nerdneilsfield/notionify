@@ -7,7 +7,6 @@ Covers lines missed by integration tests:
   263-266 - children/raw branches in _extract_inline_text
 """
 
-import pytest
 
 from notionify.config import NotionifyConfig
 from notionify.converter.tables import (
