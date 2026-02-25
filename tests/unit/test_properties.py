@@ -6131,3 +6131,202 @@ class TestBuildListAndDispatchProperties:
         result = _process_tokens(tokens, ctx)
         assert len(result) == 2
         assert len(ctx.blocks) == 2
+
+
+# ---------------------------------------------------------------------------
+# ASTNormalizer private method properties
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeTokensListProperties:
+    """Property tests for ASTNormalizer._normalize_tokens."""
+
+    def _n(self) -> ASTNormalizer:
+        return ASTNormalizer()
+
+    def test_empty_list_returns_empty(self) -> None:
+        """_normalize_tokens([]) → []."""
+        assert self._n()._normalize_tokens([]) == []
+
+    def test_blank_line_tokens_are_skipped(self) -> None:
+        """blank_line tokens are silently dropped."""
+        result = self._n()._normalize_tokens(
+            [{"type": "blank_line"}, {"type": "blank_line"}]
+        )
+        assert result == []
+
+    @given(count=st.integers(min_value=1, max_value=5))
+    @settings(max_examples=100)
+    def test_thematic_break_tokens_all_preserved(self, count: int) -> None:
+        """Non-skipped tokens all appear in output."""
+        tokens = [{"type": "thematic_break"} for _ in range(count)]
+        result = self._n()._normalize_tokens(tokens)
+        assert len(result) == count
+
+    @given(count=st.integers(min_value=1, max_value=5))
+    @settings(max_examples=100)
+    def test_blank_lines_mixed_with_valid_filtered(self, count: int) -> None:
+        """Blank lines interleaved with valid tokens are dropped."""
+        tokens: list[dict] = []
+        for _ in range(count):
+            tokens.append({"type": "blank_line"})
+            tokens.append({"type": "thematic_break"})
+        result = self._n()._normalize_tokens(tokens)
+        assert len(result) == count
+
+
+class TestNormalizeTokenDispatchProperties:
+    """Property tests for ASTNormalizer._normalize_token."""
+
+    def _n(self) -> ASTNormalizer:
+        return ASTNormalizer()
+
+    def test_blank_line_returns_none(self) -> None:
+        """blank_line → None."""
+        assert self._n()._normalize_token({"type": "blank_line"}) is None
+
+    def test_footnotes_returns_none(self) -> None:
+        """footnotes token → None."""
+        assert self._n()._normalize_token({"type": "footnotes"}) is None
+
+    def test_footnote_ref_renders_bracket_notation(self) -> None:
+        """footnote_ref → text token with '[^key]' raw value."""
+        result = self._n()._normalize_token({"type": "footnote_ref", "raw": "1"})
+        assert result is not None
+        assert result["type"] == "text"
+        assert result["raw"] == "[^1]"
+
+    def test_thematic_break_mapped_to_block(self) -> None:
+        """thematic_break (in _BLOCK_TYPE_MAP) → normalized block dict."""
+        result = self._n()._normalize_token({"type": "thematic_break"})
+        assert result is not None
+        assert result["type"] == "thematic_break"
+
+    def test_text_inline_mapped(self) -> None:
+        """text (in _INLINE_TYPE_MAP) → normalized inline token."""
+        result = self._n()._normalize_token({"type": "text", "raw": "hi"})
+        assert result is not None
+        assert result["type"] == "text"
+
+    @given(
+        unknown=st.text(
+            min_size=3,
+            max_size=20,
+            alphabet=st.characters(whitelist_categories=("L",)),
+        )
+    )
+    @settings(max_examples=200)
+    def test_unknown_type_passed_through_with_type_preserved(
+        self, unknown: str
+    ) -> None:
+        """Unknown token types are passed through; original type is preserved."""
+        from notionify.converter.ast_normalizer import (
+            _BLOCK_TYPE_MAP,
+            _INLINE_TYPE_MAP,
+            _SKIP_TYPES,
+        )
+
+        assume(unknown not in _BLOCK_TYPE_MAP)
+        assume(unknown not in _INLINE_TYPE_MAP)
+        assume(unknown not in _SKIP_TYPES)
+        assume(unknown not in {"footnotes", "footnote_ref", "raw"})
+        assume(unknown not in {"table_head", "table_body", "table_row", "table_cell"})
+        result = self._n()._normalize_token({"type": unknown})
+        assert result is not None
+        assert result["type"] == unknown
+
+
+class TestNormalizeBlockProperties2:
+    """Property tests for ASTNormalizer._normalize_block."""
+
+    def _n(self) -> ASTNormalizer:
+        return ASTNormalizer()
+
+    def test_block_code_strips_trailing_newline(self) -> None:
+        """block_code: trailing '\\n' stripped from raw."""
+        result = self._n()._normalize_block(
+            {"type": "block_code", "raw": "x = 1\n"}, "block_code"
+        )
+        assert result["raw"] == "x = 1"
+
+    def test_block_code_without_newline_unchanged(self) -> None:
+        """block_code without trailing newline is preserved."""
+        result = self._n()._normalize_block(
+            {"type": "block_code", "raw": "x = 1"}, "block_code"
+        )
+        assert result["raw"] == "x = 1"
+
+    @given(expr=st.text(min_size=0, max_size=80))
+    @settings(max_examples=200)
+    def test_block_math_preserves_raw_verbatim(self, expr: str) -> None:
+        """block_math: raw expression is preserved verbatim."""
+        result = self._n()._normalize_block(
+            {"type": "block_math", "raw": expr}, "block_math"
+        )
+        assert result["raw"] == expr
+
+    def test_thematic_break_has_no_children_key(self) -> None:
+        """thematic_break: result must not include a 'children' key."""
+        result = self._n()._normalize_block(
+            {"type": "thematic_break"}, "thematic_break"
+        )
+        assert "children" not in result
+
+    @given(
+        canonical=st.sampled_from(
+            ["heading", "paragraph", "block_code", "block_math", "thematic_break"]
+        )
+    )
+    @settings(max_examples=100)
+    def test_result_always_has_type_key(self, canonical: str) -> None:
+        """_normalize_block always sets 'type' to the canonical type."""
+        result = self._n()._normalize_block({"type": "any"}, canonical)
+        assert result["type"] == canonical
+
+
+class TestNormalizeInlineProperties2:
+    """Property tests for ASTNormalizer._normalize_inline."""
+
+    def _n(self) -> ASTNormalizer:
+        return ASTNormalizer()
+
+    @given(raw=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_text_token_preserves_raw(self, raw: str) -> None:
+        """text inline: raw value is preserved."""
+        result = self._n()._normalize_inline({"type": "text", "raw": raw}, "text")
+        assert result["raw"] == raw
+
+    def test_softbreak_has_no_children(self) -> None:
+        """softbreak: no 'children' key in output."""
+        result = self._n()._normalize_inline({"type": "softbreak"}, "softbreak")
+        assert "children" not in result
+
+    @given(raw=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_codespan_preserves_raw(self, raw: str) -> None:
+        """codespan: raw value is preserved verbatim."""
+        result = self._n()._normalize_inline(
+            {"type": "codespan", "raw": raw}, "codespan"
+        )
+        assert result["raw"] == raw
+
+    @given(raw=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_inline_math_preserves_raw(self, raw: str) -> None:
+        """inline_math: expression stored in raw is preserved."""
+        result = self._n()._normalize_inline(
+            {"type": "inline_math", "raw": raw}, "inline_math"
+        )
+        assert result["raw"] == raw
+
+    @given(
+        canonical=st.sampled_from(
+            ["text", "softbreak", "linebreak", "codespan", "inline_math", "html_inline"]
+        )
+    )
+    @settings(max_examples=100)
+    def test_result_always_has_type_key(self, canonical: str) -> None:
+        """_normalize_inline always sets 'type' to the canonical type."""
+        result = self._n()._normalize_inline({"type": "any"}, canonical)
+        assert result["type"] == canonical
