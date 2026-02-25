@@ -1161,3 +1161,49 @@ class TestMixedListTypes:
         round_tripped = renderer.render_blocks(blocks)
         assert "Alpha in first sequence" in round_tripped
         assert "New sequence starts at one again" in round_tripped
+
+
+class TestMathInContext:
+    """Round-trip tests for math_in_context.md.
+
+    Verifies that inline math expressions survive conversion when they appear
+    inside headings, list items, and blockquotes — not just paragraphs.
+    """
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "math_in_context.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_math_in_heading_produces_equation_segment(self, converter):
+        md = (FIXTURES_DIR / "math_in_context.md").read_text()
+        result = converter.convert(md)
+        heading_blocks = [b for b in result.blocks if b.get("type") == "heading_1"]
+        assert heading_blocks, "Should produce at least one heading_1 block"
+        heading_rt = heading_blocks[0].get("heading_1", {}).get("rich_text", [])
+        types = [seg.get("type") for seg in heading_rt]
+        assert "equation" in types, "Heading should contain an equation segment"
+
+    def test_math_in_list_items_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "math_in_context.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Pythagorean theorem" in round_tripped
+        assert "golden ratio" in round_tripped
+
+    def test_math_in_blockquote_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "math_in_context.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Newton" in round_tripped
+        assert "unit circle" in round_tripped
+
+    def test_multiple_heading_levels_with_math(self, converter):
+        md = (FIXTURES_DIR / "math_in_context.md").read_text()
+        result = converter.convert(md)
+        block_types = [b.get("type") for b in result.blocks]
+        assert "heading_1" in block_types
+        assert "heading_2" in block_types
