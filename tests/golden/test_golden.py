@@ -410,6 +410,90 @@ class TestUnicodeEmoji:
         assert "Star item" in round_tripped
 
 
+class TestLinks:
+    """Verify links.md round-trips with link URL fidelity."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "links.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_link_urls_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "https://openai.com" in round_tripped
+        assert "https://docs.python.org" in round_tripped
+
+    def test_link_text_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "OpenAI" in round_tripped
+        assert "Python docs" in round_tripped
+
+    def test_multiple_links_in_paragraph(self, converter, renderer):
+        md = (FIXTURES_DIR / "links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "https://example.com/one" in round_tripped
+        assert "https://example.com/two" in round_tripped
+
+    def test_links_in_lists_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "https://example.com/1" in round_tripped
+        assert "https://example.com/2" in round_tripped
+
+
+class TestInlineMixed:
+    """Verify inline_mixed.md round-trips all inline format combinations."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "inline_mixed.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_bold_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "inline_mixed.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "**bold**" in round_tripped or "bold" in round_tripped
+
+    def test_strikethrough_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "inline_mixed.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "~~" in round_tripped
+
+    def test_inline_code_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "inline_mixed.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "`code`" in round_tripped
+        assert "`greet(name)`" in round_tripped
+
+    def test_mixed_formatting_does_not_lose_text(self, converter, renderer):
+        md = (FIXTURES_DIR / "inline_mixed.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "bold" in round_tripped
+        assert "italic" in round_tripped
+        assert "code" in round_tripped
+        assert "strike" in round_tripped
+
+
 class TestBlockCounts:
     """Verify block counts match expectations."""
 
@@ -423,3 +507,15 @@ class TestBlockCounts:
         md = (FIXTURES_DIR / "complex.md").read_text()
         result = converter.convert(md)
         assert len(result.blocks) >= 8
+
+    def test_links_block_count(self, converter):
+        md = (FIXTURES_DIR / "links.md").read_text()
+        result = converter.convert(md)
+        # Headings + paragraphs + list items
+        assert len(result.blocks) >= 8
+
+    def test_inline_mixed_block_count(self, converter):
+        md = (FIXTURES_DIR / "inline_mixed.md").read_text()
+        result = converter.convert(md)
+        # Multiple sections with paragraphs
+        assert len(result.blocks) >= 5

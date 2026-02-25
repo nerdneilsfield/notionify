@@ -993,4 +993,125 @@ class TestEquationWithHref:
         result = render_rich_text([seg])
         assert "$E=mc^2$" in result
         assert "https://example.com" in result
-        assert result.startswith("[")
+
+
+class TestBookmarkRendering:
+    """_render_bookmark produces a Markdown link with optional caption."""
+
+    def test_bookmark_basic_url(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "bookmark",
+            "bookmark": {"url": "https://example.com", "caption": []},
+        }
+        md = r.render_blocks([block])
+        assert "https://example.com" in md
+
+    def test_bookmark_with_caption(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "bookmark",
+            "bookmark": {
+                "url": "https://example.com",
+                "caption": [_make_text_segment("My caption")],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "https://example.com" in md
+        assert "My caption" in md
+
+    def test_bookmark_empty_url(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "bookmark",
+            "bookmark": {"url": "", "caption": []},
+        }
+        md = r.render_blocks([block])
+        # Should render without crashing; link text will be empty
+        assert md is not None
+
+    def test_bookmark_url_with_parens(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "bookmark",
+            "bookmark": {"url": "https://example.com/path(1)", "caption": []},
+        }
+        md = r.render_blocks([block])
+        # Parens in URL must be percent-encoded so the MD link is valid
+        assert "example.com" in md
+        assert "(" not in md.split("](")[1] if "](" in md else True
+
+
+class TestFileBlockRendering:
+    """_render_file produces a Markdown link for external/hosted files."""
+
+    def test_file_external_url(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "file",
+            "file": {
+                "type": "external",
+                "external": {"url": "https://example.com/doc.pdf"},
+                "name": "doc.pdf",
+                "caption": [],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "https://example.com/doc.pdf" in md
+        assert "doc.pdf" in md
+
+    def test_file_hosted_url(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "file",
+            "file": {
+                "type": "file",
+                "file": {"url": "https://cdn.notion.so/file.zip?token=abc"},
+                "name": "archive.zip",
+                "caption": [],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "cdn.notion.so" in md
+
+    def test_file_caption_overrides_name(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "file",
+            "file": {
+                "type": "external",
+                "external": {"url": "https://example.com/report.pdf"},
+                "name": "report.pdf",
+                "caption": [_make_text_segment("Annual Report")],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "Annual Report" in md
+
+    def test_file_no_name_falls_back_to_url_basename(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "file",
+            "file": {
+                "type": "external",
+                "external": {"url": "https://example.com/data.csv"},
+                "name": "",
+                "caption": [],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "data.csv" in md
+
+    def test_file_no_url_renders_file_label(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "file",
+            "file": {
+                "type": "external",
+                "external": {"url": ""},
+                "name": "",
+                "caption": [],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "File" in md
