@@ -74,6 +74,16 @@ class TestImportPerformance:
         assert notionify.__version__ == "3.0.0"
 
 
+def _make_1000_paragraph_markdown() -> str:
+    """Generate a ~1000-block markdown document."""
+    lines = ["# Performance Test Document\n"]
+    for i in range(333):
+        lines.append(f"## Section {i}\n")
+        lines.append(f"Paragraph {i} with **bold** and *italic* and `code` text.\n")
+        lines.append(f"Another paragraph with [link](https://example.com/{i}).\n")
+    return "\n".join(lines)
+
+
 class TestConverterPerformance:
     """Benchmark the Markdown -> Notion converter."""
 
@@ -197,3 +207,59 @@ class TestDiffPerformance:
         avg_ms = (elapsed / 10) * 1000
         print(f"\n  Compute 100 signatures: {avg_ms:.2f}ms avg")
         assert avg_ms < 10, f"Signature computation too slow: {avg_ms:.2f}ms"
+
+
+class TestPRDBenchmarks:
+    """PRD Section 20.9 performance benchmarks."""
+
+    def test_convert_1000_blocks_under_500ms(self):
+        """Convert ~1000-block markdown in < 500ms."""
+        config = NotionifyConfig(token="test")
+        converter = MarkdownToNotionConverter(config)
+        md = _make_1000_paragraph_markdown()
+
+        start = time.perf_counter()
+        result = converter.convert(md)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        print(f"\n  Convert ~1000 blocks: {elapsed_ms:.2f}ms, {len(result.blocks)} blocks")
+        assert len(result.blocks) >= 500, f"Expected >= 500 blocks, got {len(result.blocks)}"
+        assert elapsed_ms < 500, f"1000-block conversion too slow: {elapsed_ms:.2f}ms"
+
+    def test_export_1000_blocks_under_2s(self):
+        """Render ~1000 blocks back to Markdown in < 2s."""
+        config = NotionifyConfig(token="test")
+        converter = MarkdownToNotionConverter(config)
+        renderer = NotionToMarkdownRenderer(config)
+        md = _make_1000_paragraph_markdown()
+
+        result = converter.convert(md)
+        blocks = _simulate_notion_blocks(result.blocks)
+
+        start = time.perf_counter()
+        output = renderer.render_blocks(blocks)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        print(f"\n  Export {len(blocks)} blocks: {elapsed_ms:.2f}ms")
+        assert len(output) > 0
+        assert elapsed_ms < 2000, f"1000-block export too slow: {elapsed_ms:.2f}ms"
+
+    def test_diff_plan_500_identical_under_200ms(self):
+        """Diff plan for 500 identical blocks in < 200ms."""
+        config = NotionifyConfig(token="test")
+        converter = MarkdownToNotionConverter(config)
+        planner = DiffPlanner(config)
+
+        md = _make_large_markdown(50)
+        result = converter.convert(md)
+        blocks = _simulate_notion_blocks(result.blocks)
+
+        for i, block in enumerate(blocks):
+            block["id"] = f"block-{i:04d}"
+
+        start = time.perf_counter()
+        planner.plan(blocks, result.blocks)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        print(f"\n  Diff plan {len(blocks)} identical blocks: {elapsed_ms:.2f}ms")
+        assert elapsed_ms < 200, f"500-block diff plan too slow: {elapsed_ms:.2f}ms"
