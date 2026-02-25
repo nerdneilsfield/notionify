@@ -612,3 +612,247 @@ class TestPlannerEdgeCases:
         assert last_delete_idx < first_insert_idx
         assert deletes[0].existing_id == "e1"
         assert deletes[1].existing_id == "e2"
+
+
+class TestSyncExecutorBranchCoverage:
+    """Branch coverage for DiffExecutor._exec_replace and _exec_insert_batch."""
+
+    @pytest.fixture
+    def mock_api(self):
+        class SyncMockBlockAPI:
+            def __init__(self):
+                self.updates = []
+                self.deletes = []
+                self.appends = []
+                self._counter = 0
+
+            def update(self, block_id, payload):
+                self.updates.append((block_id, payload))
+                return {"id": block_id}
+
+            def delete(self, block_id):
+                self.deletes.append(block_id)
+                return {"id": block_id}
+
+            def append_children(self, parent_id, children, after=None):
+                self.appends.append((parent_id, children, after))
+                results = [{"id": f"new-{self._counter + i}"} for i in range(len(children))]
+                self._counter += len(children)
+                return {"results": results}
+
+        return SyncMockBlockAPI()
+
+    def test_replace_with_none_existing_id_skips_delete(self, mock_api):
+        """REPLACE with existing_id=None skips delete API call — covers 122->125."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(
+                op_type=DiffOpType.REPLACE,
+                existing_id=None,
+                new_block=_para("new-content"),
+            ),
+        ]
+        result = executor.execute("page-1", ops)
+        assert len(mock_api.deletes) == 0  # no delete API call
+        assert result.blocks_replaced == 1  # new block was inserted
+
+    def test_replace_empty_append_response_no_crash(self, mock_api):
+        """REPLACE where append_children returns no IDs — covers 130->132."""
+        mock_api.append_children = lambda pid, ch, after=None: {}  # no results key
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(
+                op_type=DiffOpType.REPLACE,
+                existing_id="old-1",
+                new_block=_para("replacement"),
+            ),
+        ]
+        result = executor.execute("page-1", ops)
+        assert "old-1" in mock_api.deletes
+        assert result.blocks_replaced == 1
+
+    def test_insert_all_none_blocks_no_api_call(self, mock_api):
+        """All INSERT ops with None new_block → empty insert_blocks → 146->155."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.INSERT, new_block=None),
+            DiffOp(op_type=DiffOpType.INSERT, new_block=None),
+        ]
+        result = executor.execute("page-1", ops)
+        assert len(mock_api.appends) == 0  # no API call made
+        assert result.blocks_inserted == 0
+
+    def test_unknown_op_type_is_skipped(self, mock_api):
+        """An op with an unknown type falls through to the else clause (line 104)."""
+        config = NotionifyConfig(token="test")
+        executor = DiffExecutor(mock_api, config)
+
+        class _FakeOpType:
+            value = "UNKNOWN"
+
+        fake_op = DiffOp(op_type=_FakeOpType(), existing_id="blk-x")  # type: ignore[arg-type]
+        executor.execute("page-1", [fake_op])
+        # Should not crash; no API calls made
+        assert len(mock_api.deletes) == 0
+
+
+class TestAsyncExecutorBranchCoverage:
+    """Branch coverage for AsyncDiffExecutor edge cases."""
+
+    @pytest.fixture
+    def mock_api(self):
+        class AsyncMockBlockAPI:
+            def __init__(self):
+                self.updates = []
+                self.deletes = []
+                self.appends = []
+                self._counter = 0
+
+            async def update(self, block_id, payload):
+                self.updates.append((block_id, payload))
+                return {"id": block_id}
+
+            async def delete(self, block_id):
+                self.deletes.append(block_id)
+                return {"id": block_id}
+
+            async def append_children(self, parent_id, children, after=None):
+                self.appends.append((parent_id, children, after))
+                results = [{"id": f"new-{self._counter + i}"} for i in range(len(children))]
+                self._counter += len(children)
+                return {"results": results}
+
+        return AsyncMockBlockAPI()
+
+    @pytest.mark.asyncio
+    async def test_async_delete_with_none_id_skips_api(self, mock_api):
+        """Async DELETE with existing_id=None skips delete API — covers 221->223."""
+        config = NotionifyConfig(token="test")
+        executor = AsyncDiffExecutor(mock_api, config)
+        ops = [DiffOp(op_type=DiffOpType.DELETE, existing_id=None)]
+        result = await executor.execute("page-1", ops)
+        assert len(mock_api.deletes) == 0
+        assert result.blocks_deleted == 1
+
+    @pytest.mark.asyncio
+    async def test_async_replace_with_none_existing_id(self, mock_api):
+        """Async REPLACE with existing_id=None skips delete — covers 245->248."""
+        config = NotionifyConfig(token="test")
+        executor = AsyncDiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(
+                op_type=DiffOpType.REPLACE,
+                existing_id=None,
+                new_block=_para("replacement"),
+            ),
+        ]
+        result = await executor.execute("page-1", ops)
+        assert len(mock_api.deletes) == 0
+        assert result.blocks_replaced == 1
+
+    @pytest.mark.asyncio
+    async def test_async_replace_with_none_new_block(self, mock_api):
+        """Async REPLACE with new_block=None skips insert — covers 248->exit."""
+        config = NotionifyConfig(token="test")
+        executor = AsyncDiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(
+                op_type=DiffOpType.REPLACE,
+                existing_id="old-1",
+                new_block=None,
+            ),
+        ]
+        result = await executor.execute("page-1", ops)
+        assert "old-1" in mock_api.deletes
+        assert result.blocks_replaced == 0
+
+    @pytest.mark.asyncio
+    async def test_async_replace_empty_append_response(self, mock_api):
+        """Async REPLACE where append returns no IDs — covers 253->255."""
+        mock_api.append_children = (
+            lambda pid, ch, after=None: __import__('asyncio').coroutine(lambda: {})()
+        )
+
+        async def empty_append(pid, ch, after=None):
+            return {}
+
+        mock_api.append_children = empty_append
+        config = NotionifyConfig(token="test")
+        executor = AsyncDiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(
+                op_type=DiffOpType.REPLACE,
+                existing_id="old-1",
+                new_block=_para("new"),
+            ),
+        ]
+        result = await executor.execute("page-1", ops)
+        assert result.blocks_replaced == 1
+
+    @pytest.mark.asyncio
+    async def test_async_insert_with_none_block_skipped(self, mock_api):
+        """Async INSERT with None block doesn't add to insert_blocks — covers 265->267."""
+        config = NotionifyConfig(token="test")
+        executor = AsyncDiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.INSERT, new_block=None),
+            DiffOp(op_type=DiffOpType.INSERT, new_block=_para("real")),
+        ]
+        result = await executor.execute("page-1", ops)
+        assert result.blocks_inserted == 1
+
+    @pytest.mark.asyncio
+    async def test_async_insert_all_none_blocks(self, mock_api):
+        """All async INSERT ops with None → empty insert_blocks — covers 269->278."""
+        config = NotionifyConfig(token="test")
+        executor = AsyncDiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.INSERT, new_block=None),
+            DiffOp(op_type=DiffOpType.INSERT, new_block=None),
+        ]
+        result = await executor.execute("page-1", ops)
+        assert len(mock_api.appends) == 0
+        assert result.blocks_inserted == 0
+
+    @pytest.mark.asyncio
+    async def test_async_insert_empty_append_response(self, mock_api):
+        """Async INSERT where append returns no IDs — covers 275->270."""
+        async def empty_append(pid, ch, after=None):
+            return {}
+
+        mock_api.append_children = empty_append
+        config = NotionifyConfig(token="test")
+        executor = AsyncDiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.INSERT, new_block=_para("a")),
+        ]
+        result = await executor.execute("page-1", ops)
+        assert result.blocks_inserted == 1
+
+    @pytest.mark.asyncio
+    async def test_async_update_with_none_existing_id(self, mock_api):
+        """Async UPDATE with existing_id=None skips API — covers 204->209."""
+        config = NotionifyConfig(token="test")
+        executor = AsyncDiffExecutor(mock_api, config)
+        ops = [
+            DiffOp(op_type=DiffOpType.UPDATE, existing_id=None, new_block=_para("x")),
+        ]
+        result = await executor.execute("page-1", ops)
+        assert len(mock_api.updates) == 0
+        assert result.blocks_inserted == 1
+
+    @pytest.mark.asyncio
+    async def test_async_unknown_op_type_skipped(self, mock_api):
+        """Unknown op type falls to else clause (line 227)."""
+        config = NotionifyConfig(token="test")
+        executor = AsyncDiffExecutor(mock_api, config)
+
+        class _FakeOpType:
+            value = "UNKNOWN"
+
+        fake_op = DiffOp(op_type=_FakeOpType(), existing_id="blk-x")  # type: ignore[arg-type]
+        await executor.execute("page-1", [fake_op])
+        assert len(mock_api.deletes) == 0
