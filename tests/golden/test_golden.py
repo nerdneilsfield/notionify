@@ -896,3 +896,39 @@ class TestMultiblockAnnotations:
         round_tripped = renderer.render_blocks(blocks)
         # Headings with Bold/italic/code should produce block-level output
         assert len(round_tripped) > 0
+
+
+class TestMathMixed:
+    """Verify math_mixed.md: inline and block math coexist without interference."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "math_mixed.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 5
+
+    def test_inline_math_produces_equation_segments(self, converter):
+        """Inline math expressions must produce rich_text equation segments."""
+        md = (FIXTURES_DIR / "math_mixed.md").read_text()
+        result = converter.convert(md)
+        has_equation_seg = any(
+            seg.get("type") == "equation"
+            for block in result.blocks
+            for seg in block.get(block.get("type", ""), {}).get("rich_text", [])
+        )
+        assert has_equation_seg
+
+    def test_block_math_produces_equation_block(self, converter):
+        """Block math ($$...$$) must produce at least one equation block."""
+        md = (FIXTURES_DIR / "math_mixed.md").read_text()
+        result = converter.convert(md)
+        equation_blocks = [b for b in result.blocks if b.get("type") == "equation"]
+        assert len(equation_blocks) >= 1
+
+    def test_regular_text_paragraphs_preserved(self, converter, renderer):
+        """Regular text paragraphs coexisting with math must survive round-trip."""
+        md = (FIXTURES_DIR / "math_mixed.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Pythagorean theorem" in round_tripped
+        assert "Euler" in round_tripped
