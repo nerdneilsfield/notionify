@@ -49,7 +49,7 @@
 | `quote` | `> text` | Full | |
 | `divider` | `---` | Full | |
 | `equation` | `$$expression$$` | Full | |
-| `table` | Markdown table | Full | Header row supported |
+| `table` | Markdown table | Full | Header row supported; `has_row_header=true` bolds first column |
 | `image` (external) | `![caption](url)` | Full | |
 | `image` (file) | `![caption](url)` | Full | Expiry warning optional |
 | `callout` | `> icon text` | Lossy | Icon + text merged |
