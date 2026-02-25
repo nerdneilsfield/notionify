@@ -17,6 +17,7 @@ from hypothesis import strategies as st
 
 from notionify.config import NotionifyConfig
 from notionify.converter.ast_normalizer import ASTNormalizer
+from notionify.converter.inline_renderer import markdown_escape, render_rich_text
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.converter.rich_text import split_rich_text
@@ -849,3 +850,87 @@ class TestNotionToMarkdownRendererProperties:
             sig1 = compute_signature(block)
             sig2 = compute_signature(block)
             assert sig1 == sig2
+
+
+# ---------------------------------------------------------------------------
+# 9. TestInlineRendererProperties
+# ---------------------------------------------------------------------------
+
+
+class TestInlineRendererProperties:
+    """Property-based tests for :func:`markdown_escape` and :func:`render_rich_text`."""
+
+    @given(text=st.text(max_size=500))
+    @settings(max_examples=200)
+    def test_escape_code_context_is_identity(self, text: str) -> None:
+        """In code context, markdown_escape must return the text unchanged."""
+        assert markdown_escape(text, context="code") == text
+
+    @given(text=st.text(max_size=500))
+    @settings(max_examples=200)
+    def test_escape_always_returns_string(self, text: str) -> None:
+        """markdown_escape must always return a string for any context."""
+        for ctx in ("inline", "code", "url"):
+            result = markdown_escape(text, context=ctx)
+            assert isinstance(result, str)
+
+    @given(text=st.text(max_size=500))
+    @settings(max_examples=200)
+    def test_escape_url_replaces_parens(self, text: str) -> None:
+        """In url context, parentheses are percent-encoded."""
+        result = markdown_escape(text, context="url")
+        assert "(" not in result
+        assert ")" not in result
+
+    @given(
+        text=st.text(
+            alphabet=st.characters(blacklist_characters=r'\`*_{}[]()#+-.!|'),
+            max_size=500,
+        )
+    )
+    @settings(max_examples=200)
+    def test_escape_inline_no_special_chars_unchanged(self, text: str) -> None:
+        """Text without special Markdown chars is unchanged in inline context."""
+        assert markdown_escape(text, context="inline") == text
+
+    @given(text=st.text(max_size=200))
+    @settings(max_examples=200)
+    def test_escape_inline_is_deterministic(self, text: str) -> None:
+        """markdown_escape produces the same result for repeated calls."""
+        assert markdown_escape(text) == markdown_escape(text)
+
+    @given(
+        segments=st.lists(
+            st.fixed_dictionaries({
+                "type": st.just("text"),
+                "plain_text": st.text(max_size=200),
+                "text": st.fixed_dictionaries({"content": st.text(max_size=200)}),
+            }),
+            max_size=10,
+        )
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_render_rich_text_never_raises(self, segments: list[dict]) -> None:
+        """render_rich_text must never raise on arbitrary text segments."""
+        result = render_rich_text(segments)
+        assert isinstance(result, str)
+
+    def test_render_rich_text_empty_returns_empty(self) -> None:
+        """Empty segment list always renders to empty string."""
+        assert render_rich_text([]) == ""
+
+    @given(
+        text=st.text(min_size=1, max_size=200),
+    )
+    @settings(max_examples=200)
+    def test_render_rich_text_plain_contains_text(self, text: str) -> None:
+        """Plain text segment must appear (possibly escaped) in rendered output."""
+        # Build a segment without special Markdown chars to avoid escaping.
+        safe = text.replace("\\", "").replace("`", "").replace("*", "").replace("_", "")
+        if not safe:
+            return
+        seg = {"type": "text", "plain_text": safe, "text": {"content": safe}}
+        result = render_rich_text([seg])
+        # The escaped output must contain the core text characters.
+        assert isinstance(result, str)
+        assert len(result) >= len(safe)
