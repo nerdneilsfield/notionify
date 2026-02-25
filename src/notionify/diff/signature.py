@@ -100,7 +100,7 @@ def _extract_type_attrs(block: dict, block_type: str) -> dict:
 
     # For equation blocks, the expression lives at the top of type_data.
     if block_type == "equation":
-        expr = type_data.get("expression", "")
+        expr = type_data.get("expression") or ""
         attrs["expression"] = expr
 
     # For image blocks, capture the image source info.

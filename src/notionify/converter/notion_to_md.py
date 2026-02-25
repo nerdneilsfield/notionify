@@ -253,8 +253,8 @@ class NotionToMarkdownRenderer:
         return "---\n\n"
 
     def _render_equation(self, block: dict, depth: int) -> str:
-        block_data = block.get("equation", {})
-        expression = block_data.get("expression", "")
+        block_data = block.get("equation") or {}
+        expression = block_data.get("expression") or ""
         return f"$$\n{expression}\n$$\n\n"
 
     def _render_table(self, block: dict, depth: int) -> str:
