@@ -17,9 +17,9 @@ from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.converter.rich_text import build_rich_text, split_rich_text
 
 __all__ = [
+    "ASTNormalizer",
     "MarkdownToNotionConverter",
     "NotionToMarkdownRenderer",
-    "ASTNormalizer",
     "build_blocks",
     "build_rich_text",
     "split_rich_text",

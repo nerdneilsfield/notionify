@@ -14,7 +14,7 @@ from .executor import AsyncDiffExecutor, DiffExecutor
 from .planner import DiffPlanner
 
 __all__ = [
-    "DiffPlanner",
-    "DiffExecutor",
     "AsyncDiffExecutor",
+    "DiffExecutor",
+    "DiffPlanner",
 ]

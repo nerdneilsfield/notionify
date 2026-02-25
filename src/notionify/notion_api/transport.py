@@ -126,7 +126,7 @@ def _dump_payload(
     if response_body is not None:
         dump["response_body"] = response_body
     safe_dump = redact(dump, token)
-    print(  # noqa: T201
+    print(
         _json.dumps(safe_dump, indent=2, default=str),
         file=sys.stderr,
     )

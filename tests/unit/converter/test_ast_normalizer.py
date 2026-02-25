@@ -155,7 +155,6 @@ class TestInlineNormalization:
         assert "children" in links[0]
 
     def test_image(self, normalizer):
-        children = self._get_inline_tokens(normalizer, "![alt](https://img.png)")
         # Image might be inline or at paragraph level depending on parser
         tokens = normalizer.parse("![alt](https://img.png)")
         all_types = self._collect_types(tokens)

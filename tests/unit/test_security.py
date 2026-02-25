@@ -652,7 +652,7 @@ class TestErrorContextNoLeaks:
     # -- Subclass error codes --------------------------------------------
 
     @pytest.mark.parametrize(
-        "cls, expected_code",
+        ("cls", "expected_code"),
         [
             (NotionifyValidationError, ErrorCode.VALIDATION_ERROR),
             (NotionifyAuthError, ErrorCode.AUTH_ERROR),
@@ -783,9 +783,9 @@ class TestErrorContextNoLeaks:
         try:
             _parse_data_uri(src)
         except (NotionifyImageParseError, NotionifyImageSizeError) as err:
-            # The src in context should be truncated
+            # Defensively check: only assert if error is raised with src in context
             if "src" in err.context:
-                assert len(err.context["src"]) <= 203  # 200 + "..."
+                assert len(err.context["src"]) <= 203  # 200 + "..."  # noqa: PT017
 
     def test_error_cause_chaining(self):
         """Errors properly chain __cause__ when a cause is provided."""

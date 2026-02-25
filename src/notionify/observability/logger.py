@@ -74,7 +74,7 @@ class StructuredFormatter(logging.Formatter):
 
 
 # ---------------------------------------------------------------------------
-# Internal registry – one handler per logger name so that ``get_logger``
+# Internal registry -- one handler per logger name so that ``get_logger``
 # is idempotent even when called from multiple threads/modules.
 # ---------------------------------------------------------------------------
 _configured_loggers: set[str] = set()

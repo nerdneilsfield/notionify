@@ -151,7 +151,7 @@ def build_blocks(
 class _BuildContext:
     """Mutable accumulator for the block building pass."""
 
-    __slots__ = ("config", "blocks", "images", "warnings")
+    __slots__ = ("blocks", "config", "images", "warnings")
 
     def __init__(self, config: NotionifyConfig) -> None:
         self.config = config

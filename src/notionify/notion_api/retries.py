@@ -105,6 +105,6 @@ def compute_backoff(
         delay = min(base * (2 ** attempt), maximum)
 
     if jitter:
-        delay *= 0.5 + random.random() * 0.5  # noqa: S311
+        delay *= 0.5 + random.random() * 0.5
 
     return delay

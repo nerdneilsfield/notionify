@@ -7,6 +7,8 @@ completed or has expired.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from notionify.errors import NotionifyUploadExpiredError
 from notionify.models import UploadState
 
@@ -29,7 +31,7 @@ class UploadStateMachine:
         The UUID of the upload being tracked.
     """
 
-    VALID_TRANSITIONS: dict[UploadState, set[UploadState]] = {
+    VALID_TRANSITIONS: ClassVar[dict[UploadState, set[UploadState]]] = {
         UploadState.PENDING: {UploadState.UPLOADING},
         UploadState.UPLOADING: {UploadState.UPLOADED, UploadState.FAILED},
         UploadState.UPLOADED: {UploadState.ATTACHED, UploadState.EXPIRED},

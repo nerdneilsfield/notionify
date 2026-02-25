@@ -17,7 +17,7 @@ from notionify.utils.chunk import chunk_children
 class _ExecState:
     """Mutable state shared across diff execution handlers."""
 
-    __slots__ = ("kept", "inserted", "deleted", "replaced", "last_block_id")
+    __slots__ = ("deleted", "inserted", "kept", "last_block_id", "replaced")
 
     def __init__(self) -> None:
         self.kept = 0

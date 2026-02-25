@@ -610,7 +610,7 @@ class TestNotionTransportLifecycle:
         transport = NotionTransport(make_config())
         with (
             patch.object(transport._client, "close") as mock_close,
-            pytest.raises(ValueError),
+            pytest.raises(ValueError, match="test error"),
             transport,
         ):
             raise ValueError("test error")
@@ -976,7 +976,7 @@ class TestAsyncNotionTransportLifecycle:
         transport = AsyncNotionTransport(make_config())
         with (
             patch.object(transport._client, "aclose", new=AsyncMock()) as mock_aclose,
-            pytest.raises(ValueError),
+            pytest.raises(ValueError, match="test error"),
         ):
             async with transport:
                 raise ValueError("test error")

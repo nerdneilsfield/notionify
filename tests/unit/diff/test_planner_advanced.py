@@ -318,7 +318,7 @@ class TestFullOverwriteFallback:
 class TestAsyncExecutorMirror:
     """Verify the async executor mirrors sync executor behavior."""
 
-    @pytest.fixture()
+    @pytest.fixture
     def mock_api(self):
         class AsyncMockBlockAPI:
             def __init__(self):
@@ -405,7 +405,7 @@ class TestAsyncExecutorMirror:
 class TestSyncExecutor:
     """Verify the sync DiffExecutor edge cases."""
 
-    @pytest.fixture()
+    @pytest.fixture
     def mock_api(self):
         class SyncMockBlockAPI:
             def __init__(self):

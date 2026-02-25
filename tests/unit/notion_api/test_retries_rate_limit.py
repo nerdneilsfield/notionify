@@ -269,7 +269,7 @@ class TestTokenBucket:
             TokenBucket(rate_rps=-1.0)
 
     def test_very_small_negative_rate_raises_value_error(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="rate_rps"):
             TokenBucket(rate_rps=-0.001)
 
     def test_zero_burst_raises_value_error(self):
@@ -381,7 +381,7 @@ class TestTokenBucket:
             try:
                 for _ in range(10):
                     bucket.acquire(tokens=1)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 errors.append(exc)
 
         threads = [threading.Thread(target=worker) for _ in range(10)]

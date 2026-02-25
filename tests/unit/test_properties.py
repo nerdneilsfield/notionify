@@ -115,7 +115,7 @@ class TestChunkChildrenProperties:
     @given(size=st.integers(max_value=0))
     def test_invalid_size_raises(self, size: int) -> None:
         """A size < 1 must raise ValueError."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="size"):
             chunk_children([], size)
 
 
@@ -183,7 +183,7 @@ class TestSplitStringProperties:
     @given(limit=st.integers(max_value=0))
     def test_invalid_limit_raises(self, limit: int) -> None:
         """A limit < 1 must raise ValueError."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="limit"):
             split_string("abc", limit)
 
 

@@ -115,7 +115,7 @@ class NotionifyConfig:
         * ``"raise"`` — raise :class:`NotionifyConversionError`.
     heading_overflow:
         How to handle Markdown headings of level 4 and above (Notion only
-        supports H1–H3).
+        supports H1-H3).
 
         * ``"downgrade"`` — clamp to ``heading_3``.
         * ``"paragraph"`` — render as a bold paragraph.

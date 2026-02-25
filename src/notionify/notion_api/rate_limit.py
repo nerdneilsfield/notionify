@@ -28,7 +28,7 @@ class TokenBucket:
         Maximum number of tokens the bucket can hold (burst ceiling).
     """
 
-    __slots__ = ("rate", "burst", "tokens", "last_refill", "_lock")
+    __slots__ = ("_lock", "burst", "last_refill", "rate", "tokens")
 
     def __init__(self, rate_rps: float, burst: int = 10) -> None:
         if rate_rps <= 0:
@@ -83,7 +83,7 @@ class AsyncTokenBucket:
         Maximum number of tokens the bucket can hold (burst ceiling).
     """
 
-    __slots__ = ("rate", "burst", "tokens", "last_refill", "_lock")
+    __slots__ = ("_lock", "burst", "last_refill", "rate", "tokens")
 
     def __init__(self, rate_rps: float, burst: int = 10) -> None:
         if rate_rps <= 0:
