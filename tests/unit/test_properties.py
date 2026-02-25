@@ -17,6 +17,11 @@ from hypothesis import strategies as st
 
 from notionify.config import NotionifyConfig
 from notionify.converter.ast_normalizer import ASTNormalizer
+from notionify.converter.block_builder import (
+    _LANGUAGE_ALIASES,
+    _NOTION_LANGUAGES,
+    _normalize_language,
+)
 from notionify.converter.inline_renderer import markdown_escape, render_rich_text
 from notionify.converter.math import EQUATION_CHAR_LIMIT, build_block_math, build_inline_math
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
@@ -1512,3 +1517,56 @@ class TestTableBuilderProperties:
         block2, w2 = build_table(token, self._config)
         assert block1 == block2
         assert [w.code for w in w1] == [w.code for w in w2]
+
+
+# ---------------------------------------------------------------------------
+# 16. TestNormalizeLanguageProperties
+# ---------------------------------------------------------------------------
+
+_ALL_NOTION_LANGS = sorted(_NOTION_LANGUAGES)
+_ALL_ALIASES = sorted(_LANGUAGE_ALIASES.keys())
+
+
+class TestNormalizeLanguageProperties:
+    """Property-based tests for :func:`_normalize_language`."""
+
+    @given(info=st.text(max_size=100))
+    @settings(max_examples=200)
+    def test_always_returns_string(self, info: str) -> None:
+        """_normalize_language must always return a non-empty string."""
+        result = _normalize_language(info)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    @given(info=st.one_of(st.none(), st.just(""), st.just("  ")))
+    @settings(max_examples=20)
+    def test_none_or_empty_returns_plain_text(self, info) -> None:
+        """None or empty info always returns 'plain text'."""
+        assert _normalize_language(info) == "plain text"
+
+    @given(lang=st.sampled_from(_ALL_NOTION_LANGS))
+    @settings(max_examples=50)
+    def test_known_notion_language_returned_unchanged(self, lang: str) -> None:
+        """Known Notion language identifiers are returned as-is."""
+        assert _normalize_language(lang) == lang
+
+    @given(alias=st.sampled_from(_ALL_ALIASES))
+    @settings(max_examples=50)
+    def test_known_alias_resolves_correctly(self, alias: str) -> None:
+        """Known aliases are resolved to their canonical Notion language."""
+        expected = _LANGUAGE_ALIASES[alias]
+        assert _normalize_language(alias) == expected
+
+    @given(info=st.text(max_size=100))
+    @settings(max_examples=200)
+    def test_result_always_in_notion_languages(self, info: str) -> None:
+        """Every result must be a known Notion language or 'plain text'."""
+        result = _normalize_language(info)
+        assert result in _NOTION_LANGUAGES or result == "plain text"
+
+    @given(lang=st.sampled_from(_ALL_NOTION_LANGS))
+    @settings(max_examples=50)
+    def test_case_insensitive(self, lang: str) -> None:
+        """Language matching is case-insensitive."""
+        assert _normalize_language(lang.upper()) == lang
+        assert _normalize_language(lang.capitalize()) == lang

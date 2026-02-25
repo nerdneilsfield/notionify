@@ -88,14 +88,23 @@ def _normalize_language(info: str | None) -> str:
     if not info:
         return "plain text"
     lang = info.strip().lower()
-    # Sometimes the info string has extra words (e.g. "python3")
-    lang = lang.split()[0] if lang else "plain text"
+    if not lang:
+        return "plain text"
+    # Check the full string first to support multi-word Notion languages
+    # such as "visual basic", "plain text", "java/c/c++/c#".
     if lang in _NOTION_LANGUAGES:
         return lang
     if lang in _LANGUAGE_ALIASES:
         return _LANGUAGE_ALIASES[lang]
+    # Sometimes the info string has extra words (e.g. "python3 run")
+    # or trailing metadata — take the first token and retry.
+    first = lang.split()[0]
+    if first in _NOTION_LANGUAGES:
+        return first
+    if first in _LANGUAGE_ALIASES:
+        return _LANGUAGE_ALIASES[first]
     # Strip trailing digits (e.g. "python3" -> "python")
-    stripped = re.sub(r"\d+$", "", lang)
+    stripped = re.sub(r"\d+$", "", first)
     if stripped in _NOTION_LANGUAGES:
         return stripped
     if stripped in _LANGUAGE_ALIASES:
