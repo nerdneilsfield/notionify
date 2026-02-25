@@ -25,6 +25,9 @@ from notionify.converter.ast_normalizer import ASTNormalizer
 from notionify.converter.block_builder import (
     _LANGUAGE_ALIASES,
     _NOTION_LANGUAGES,
+    _build_divider,
+    _build_heading,
+    _BuildContext,
     _classify_image_source,
     _normalize_language,
 )
@@ -5735,3 +5738,80 @@ class TestLinkAndMathHandlerProperties:
             {"raw": expression}, self._CONFIG, self._base_anns(), None, []
         )
         assert len(result) >= 1
+
+
+class TestBlockBuilderHelperProperties:
+    """Property tests for simpler block_builder.py helpers using _BuildContext."""
+
+    _CONFIG = NotionifyConfig(token="test-token")
+
+    def _ctx(self) -> _BuildContext:
+        return _BuildContext(self._CONFIG)
+
+    # --- _build_divider ---
+
+    def test_build_divider_returns_one_block(self) -> None:
+        """_build_divider always returns a list with exactly one block."""
+        ctx = self._ctx()
+        result = _build_divider({}, ctx)
+        assert len(result) == 1
+
+    def test_build_divider_block_type_is_divider(self) -> None:
+        """_build_divider produces a block of type 'divider'."""
+        ctx = self._ctx()
+        result = _build_divider({}, ctx)
+        assert result[0]["type"] == "divider"
+
+    def test_build_divider_adds_block_to_context(self) -> None:
+        """_build_divider registers the block in ctx.blocks."""
+        ctx = self._ctx()
+        _build_divider({}, ctx)
+        assert len(ctx.blocks) == 1
+        assert ctx.blocks[0]["type"] == "divider"
+
+    # --- _build_heading ---
+
+    @given(level=st.integers(min_value=1, max_value=3))
+    @settings(max_examples=50)
+    def test_build_heading_level_1_to_3_produces_heading_block(self, level: int) -> None:
+        """Heading levels 1-3 produce the matching heading_N block type."""
+        ctx = self._ctx()
+        token: dict = {"attrs": {"level": level}, "children": []}
+        result = _build_heading(token, ctx)
+        assert len(result) == 1
+        assert result[0]["type"] == f"heading_{level}"
+
+    @given(level=st.integers(min_value=4, max_value=6))
+    @settings(max_examples=50)
+    def test_build_heading_overflow_downgrade_clamps_to_3(self, level: int) -> None:
+        """Heading levels > 3 with downgrade overflow produce heading_3."""
+        from notionify.config import NotionifyConfig as _Config
+
+        cfg = _Config(token="test-token", heading_overflow="downgrade")
+        ctx = _BuildContext(cfg)
+        token: dict = {"attrs": {"level": level}, "children": []}
+        result = _build_heading(token, ctx)
+        assert len(result) == 1
+        assert result[0]["type"] == "heading_3"
+
+    @given(level=st.integers(min_value=4, max_value=6))
+    @settings(max_examples=50)
+    def test_build_heading_overflow_paragraph_produces_paragraph(self, level: int) -> None:
+        """Heading levels > 3 with paragraph overflow produce a paragraph block."""
+        from notionify.config import NotionifyConfig as _Config
+
+        cfg = _Config(token="test-token", heading_overflow="paragraph")
+        ctx = _BuildContext(cfg)
+        token: dict = {"attrs": {"level": level}, "children": []}
+        result = _build_heading(token, ctx)
+        assert len(result) == 1
+        assert result[0]["type"] == "paragraph"
+
+    @given(level=st.integers(min_value=1, max_value=6))
+    @settings(max_examples=50)
+    def test_build_heading_adds_block_to_context(self, level: int) -> None:
+        """_build_heading always adds exactly one block to ctx.blocks."""
+        ctx = self._ctx()
+        token: dict = {"attrs": {"level": level}, "children": []}
+        _build_heading(token, ctx)
+        assert len(ctx.blocks) == 1
