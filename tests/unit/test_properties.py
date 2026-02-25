@@ -2739,3 +2739,253 @@ class TestRoundTripProperties:
         blocks, md_out = self._roundtrip(text)
         assert any(b["type"] == "paragraph" for b in blocks)
         assert text in md_out
+
+
+# ---------------------------------------------------------------------------
+# TestCalloutRenderingNeverRaiseProperties (iteration 19)
+# ---------------------------------------------------------------------------
+
+
+class TestCalloutRenderingNeverRaiseProperties:
+    """Callout blocks with arbitrary inputs must never raise and always return str.
+
+    Invariant: NotionToMarkdownRenderer.render_block on a callout block with
+    any combination of text, icon type, and depth must not raise an exception.
+    """
+
+    _config = NotionifyConfig(token="test-token")
+
+    @given(
+        text=st.text(max_size=300),
+        depth=st.integers(min_value=0, max_value=5),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_callout_no_icon_never_raises(self, text: str, depth: int) -> None:
+        """Callout without icon always renders."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        seg = {"type": "text", "plain_text": text, "text": {"content": text}}
+        block = {"type": "callout", "callout": {"rich_text": [seg]}}
+        result = renderer.render_block(block, depth=depth)
+        assert isinstance(result, str)
+        assert ">" in result
+
+    @given(
+        text=st.text(max_size=200),
+        emoji=st.text(min_size=1, max_size=4),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_callout_emoji_icon_never_raises(self, text: str, emoji: str) -> None:
+        """Callout with emoji icon (arbitrary emoji string) always renders."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        seg = {"type": "text", "plain_text": text, "text": {"content": text}}
+        block = {
+            "type": "callout",
+            "callout": {
+                "rich_text": [seg],
+                "icon": {"type": "emoji", "emoji": emoji},
+            },
+        }
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+        assert result.strip().startswith(">")
+
+    @given(
+        text=st.text(max_size=200),
+        url=st.text(max_size=300),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_callout_external_icon_never_raises(self, text: str, url: str) -> None:
+        """Callout with external URL icon always renders."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        seg = {"type": "text", "plain_text": text, "text": {"content": text}}
+        block = {
+            "type": "callout",
+            "callout": {
+                "rich_text": [seg],
+                "icon": {"type": "external", "external": {"url": url}},
+            },
+        }
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+
+    @given(text=st.text(max_size=200))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_callout_output_always_starts_with_blockquote(self, text: str) -> None:
+        """The rendered callout always starts the first line with '>'."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        seg = {"type": "text", "plain_text": text, "text": {"content": text}}
+        block = {"type": "callout", "callout": {"rich_text": [seg]}}
+        result = renderer.render_block(block)
+        assert result.lstrip().startswith(">")
+
+    @given(text=st.text(max_size=200))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_callout_always_ends_with_double_newline(self, text: str) -> None:
+        """Callout rendering always ends with double newline."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        seg = {"type": "text", "plain_text": text, "text": {"content": text}}
+        block = {"type": "callout", "callout": {"rich_text": [seg]}}
+        result = renderer.render_block(block)
+        assert result.endswith("\n\n")
+
+
+# ---------------------------------------------------------------------------
+# TestLargeRichTextSegmentListProperties (iteration 19)
+# ---------------------------------------------------------------------------
+
+
+class TestLargeRichTextSegmentListProperties:
+    """split_rich_text handles large segment lists without data loss or crash.
+
+    Invariant: Splitting a list of N rich text segments produces output where
+    total character count equals input total character count.
+    """
+
+    @given(
+        texts=st.lists(
+            st.text(min_size=1, max_size=50),
+            min_size=50,
+            max_size=500,
+        ),
+        limit=st.integers(min_value=100, max_value=2000),
+    )
+    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
+    def test_large_list_total_char_count_preserved(self, texts: list[str], limit: int) -> None:
+        """Total character count is preserved when splitting large segment arrays."""
+        segs = [
+            {
+                "type": "text",
+                "text": {"content": t},
+                "annotations": {
+                    "bold": False, "italic": False, "code": False,
+                    "strikethrough": False, "underline": False, "color": "default",
+                },
+            }
+            for t in texts
+        ]
+        result = split_rich_text(segs, limit=limit)
+        total_in = sum(len(t) for t in texts)
+        total_out = sum(
+            len(seg.get("text", {}).get("content", "") or
+                seg.get("equation", {}).get("expression", ""))
+            for seg in result
+        )
+        assert total_in == total_out
+
+    @given(
+        texts=st.lists(
+            st.text(min_size=1, max_size=50),
+            min_size=100,
+            max_size=1000,
+        ),
+    )
+    @settings(max_examples=30, suppress_health_check=[HealthCheck.too_slow])
+    def test_large_list_never_raises(self, texts: list[str]) -> None:
+        """split_rich_text with 100-1000 segments never raises."""
+        segs = [
+            {
+                "type": "text",
+                "text": {"content": t},
+                "annotations": {
+                    "bold": False, "italic": False, "code": False,
+                    "strikethrough": False, "underline": False, "color": "default",
+                },
+            }
+            for t in texts
+        ]
+        result = split_rich_text(segs, limit=2000)
+        assert isinstance(result, list)
+
+
+# ---------------------------------------------------------------------------
+# TestRetryStatusCodeProperties (iteration 19)
+# ---------------------------------------------------------------------------
+
+
+class TestRetryStatusCodeProperties:
+    """Property-based tests for should_retry and compute_backoff across HTTP status ranges.
+
+    Invariants:
+    - should_retry is deterministic: same inputs → same output
+    - compute_backoff is monotonically non-decreasing with attempt number
+    - 2xx/3xx/4xx (not 429) are never retried
+    - 429 is always retried (up to max attempts)
+    - compute_backoff result is always non-negative
+    """
+
+    @given(status=st.integers(min_value=200, max_value=399))
+    @settings(max_examples=200)
+    def test_2xx_3xx_not_retried(self, status: int) -> None:
+        """Success and redirect responses are never retried."""
+        assert should_retry(status_code=status, exception=None, attempt=0, max_attempts=3) is False
+
+    @given(status=st.integers(min_value=400, max_value=428))
+    @settings(max_examples=200)
+    def test_4xx_not_retried_except_429(self, status: int) -> None:
+        """4xx errors (except 429) are not retried."""
+        assert should_retry(status_code=status, exception=None, attempt=0, max_attempts=3) is False
+
+    @given(status=st.integers(min_value=430, max_value=499))
+    @settings(max_examples=200)
+    def test_4xx_above_429_not_retried(self, status: int) -> None:
+        """4xx errors above 429 are not retried."""
+        assert should_retry(status_code=status, exception=None, attempt=0, max_attempts=3) is False
+
+    @given(attempt=st.integers(min_value=0, max_value=1))
+    @settings(max_examples=50)
+    def test_429_always_retried_within_attempts(self, attempt: int) -> None:
+        """Rate limit (429) is retried when attempt+1 < max_attempts."""
+        # max_attempts=3: attempts 0 and 1 are retried; attempt 2 is the last
+        result = should_retry(status_code=429, exception=None, attempt=attempt, max_attempts=3)
+        assert result is True
+
+    @given(attempt=st.integers(min_value=3, max_value=100))
+    @settings(max_examples=50)
+    def test_never_retry_past_max_attempts(self, attempt: int) -> None:
+        """No status code is retried past max_attempts."""
+        for status in (429, 500, 502, 503, 504):
+            result = should_retry(
+                status_code=status, exception=None, attempt=attempt, max_attempts=3
+            )
+            assert result is False
+
+    @given(
+        attempt=st.integers(min_value=0, max_value=10),
+        base=st.floats(min_value=0.1, max_value=5.0, allow_nan=False),
+        maximum=st.floats(min_value=5.0, max_value=60.0, allow_nan=False),
+    )
+    @settings(max_examples=200)
+    def test_compute_backoff_always_nonnegative(
+        self, attempt: int, base: float, maximum: float
+    ) -> None:
+        """compute_backoff always returns a non-negative value."""
+        result = compute_backoff(attempt=attempt, base=base, maximum=maximum, jitter=False)
+        assert result >= 0.0
+
+    @given(
+        base=st.floats(min_value=0.1, max_value=5.0, allow_nan=False),
+        maximum=st.floats(min_value=5.0, max_value=60.0, allow_nan=False),
+    )
+    @settings(max_examples=100)
+    def test_compute_backoff_never_exceeds_maximum(
+        self, base: float, maximum: float
+    ) -> None:
+        """compute_backoff result never exceeds maximum."""
+        for attempt in range(10):
+            result = compute_backoff(attempt=attempt, base=base, maximum=maximum, jitter=False)
+            assert result <= maximum
+
+    @given(
+        attempt=st.integers(min_value=0, max_value=8),
+        base=st.floats(min_value=0.1, max_value=5.0, allow_nan=False),
+        maximum=st.floats(min_value=5.0, max_value=60.0, allow_nan=False),
+    )
+    @settings(max_examples=100)
+    def test_compute_backoff_monotonically_nondecreasing(
+        self, attempt: int, base: float, maximum: float
+    ) -> None:
+        """compute_backoff(n+1) >= compute_backoff(n) with jitter disabled."""
+        r0 = compute_backoff(attempt=attempt, base=base, maximum=maximum, jitter=False)
+        r1 = compute_backoff(attempt=attempt + 1, base=base, maximum=maximum, jitter=False)
+        # Both are capped at maximum, so either r1 >= r0 or both equal maximum
+        assert r1 >= r0 or (r0 == maximum and r1 == maximum)
