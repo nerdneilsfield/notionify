@@ -1453,3 +1453,52 @@ class TestHeadingInlineFormatting:
         round_tripped = renderer.render_blocks(blocks)
         assert "Content after bold heading" in round_tripped
         assert "Content after italic heading" in round_tripped
+
+
+class TestConsecutiveCodeBlocks:
+    """Round-trip tests for multiple code blocks appearing back-to-back."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "consecutive_code_blocks.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+
+    def test_produces_code_blocks(self, converter):
+        md = (FIXTURES_DIR / "consecutive_code_blocks.md").read_text()
+        result = converter.convert(md)
+        code_blocks = [b for b in result.blocks if b.get("type") == "code"]
+        assert len(code_blocks) >= 4  # python, js, bash, json/yaml
+
+    def test_languages_preserved_in_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_code_blocks.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "```python" in round_tripped
+        assert "```javascript" in round_tripped
+        assert "```bash" in round_tripped
+
+    def test_code_content_preserved_in_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_code_blocks.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert 'return "world"' in round_tripped
+        assert 'return "hello"' in round_tripped
+        assert 'echo "done"' in round_tripped
+
+    def test_heading_preserved_between_blocks(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_code_blocks.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Mixed Languages" in round_tripped
+        assert "Code Block After Heading" in round_tripped
+
+    def test_json_and_yaml_blocks_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_code_blocks.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert '{"key": "value"}' in round_tripped
+        assert "key: value" in round_tripped

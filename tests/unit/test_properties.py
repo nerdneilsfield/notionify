@@ -7309,11 +7309,10 @@ class TestBlockUpdateResultModelProperties:
     @given(block_id=st.text(min_size=1, max_size=100))
     @settings(max_examples=50)
     def test_block_id_in_repr(self, block_id: str) -> None:
-        """block_id appears in the dataclass repr for printable strings."""
-        # Non-printable chars get escaped in repr; restrict to printable.
-        assume(block_id.isprintable())
+        """repr(block_id) appears in the dataclass repr for any string."""
+        # Dataclass uses repr() for each field, so compare repr-to-repr.
         result = BlockUpdateResult(block_id=block_id)
-        assert block_id in repr(result)
+        assert repr(block_id) in repr(result)
 
 
 # ---------------------------------------------------------------------------
@@ -7745,3 +7744,244 @@ class TestRenderImageFileTypeProperties:
         }
         result = r._render_image(block, 0)
         assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# _render_code: detect_latex_code flag and language='latex' branch
+# ---------------------------------------------------------------------------
+
+
+class TestRenderCodeLatexProperties:
+    """_render_code: detect_latex_code flag and latex language branch."""
+
+    def _r(self, detect_latex: bool = True) -> NotionToMarkdownRenderer:
+        cfg = NotionifyConfig(token="test-token", detect_latex_code=detect_latex)
+        return NotionToMarkdownRenderer(cfg)
+
+    def _block(self, language: str, text: str) -> dict:
+        return {
+            "code": {
+                "language": language,
+                "rich_text": [{"plain_text": text}],
+            }
+        }
+
+    def test_latex_with_detect_enabled_produces_display_math(self) -> None:
+        """detect_latex_code=True + language='latex' → $$...$$."""
+        r = self._r(detect_latex=True)
+        result = r._render_code(self._block("latex", "x^2"), 0)
+        assert result == "$$\nx^2\n$$\n\n"
+
+    def test_latex_with_detect_disabled_produces_fence(self) -> None:
+        """detect_latex_code=False + language='latex' → ```latex fence."""
+        r = self._r(detect_latex=False)
+        result = r._render_code(self._block("latex", "x^2"), 0)
+        assert result == "```latex\nx^2\n```\n\n"
+
+    def test_plain_text_language_becomes_empty_fence(self) -> None:
+        """language='plain text' normalises to '' giving a bare fence."""
+        r = self._r(detect_latex=False)
+        result = r._render_code(self._block("plain text", "hello"), 0)
+        assert result == "```\nhello\n```\n\n"
+
+    def test_non_latex_with_detect_enabled_still_uses_fence(self) -> None:
+        """detect_latex_code=True but language != 'latex' → normal fence."""
+        r = self._r(detect_latex=True)
+        result = r._render_code(self._block("python", "x = 1"), 0)
+        assert result.startswith("```python\n")
+
+    def test_code_output_always_ends_with_double_newline(self) -> None:
+        """_render_code always ends with \\n\\n."""
+        for lang in ("latex", "python", "plain text", ""):
+            r = self._r()
+            result = r._render_code(self._block(lang, "code"), 0)
+            assert result.endswith("\n\n"), f"language={lang!r}"
+
+    @given(
+        code=st.text(min_size=0, max_size=200),
+        detect=st.booleans(),
+    )
+    @settings(max_examples=50)
+    def test_render_code_never_raises(self, code: str, detect: bool) -> None:
+        """_render_code never raises for arbitrary code content."""
+        r = self._r(detect_latex=detect)
+        block = {"code": {"language": "latex", "rich_text": [{"plain_text": code}]}}
+        result = r._render_code(block, 0)
+        assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# _render_toggle: bullet format and children propagation
+# ---------------------------------------------------------------------------
+
+
+class TestRenderToggleProperties:
+    """_render_toggle: output format and children rendering."""
+
+    def _r(self) -> NotionToMarkdownRenderer:
+        cfg = NotionifyConfig(token="test-token")
+        return NotionToMarkdownRenderer(cfg)
+
+    def _seg(self, text: str) -> dict:
+        return {
+            "type": "text",
+            "text": {"content": text},
+            "plain_text": text,
+            "annotations": {},
+        }
+
+    def test_toggle_produces_bullet_line(self) -> None:
+        """Toggle renders as '- text\\n' at depth 0."""
+        r = self._r()
+        block = {"toggle": {"rich_text": [self._seg("My toggle")]}}
+        result = r._render_toggle(block, 0)
+        assert result.startswith("- ")
+        assert "My toggle" in result
+
+    def test_toggle_without_children_is_single_bullet(self) -> None:
+        """Toggle with no children produces exactly one newline."""
+        r = self._r()
+        block = {"toggle": {"rich_text": [self._seg("Solo")]}}
+        result = r._render_toggle(block, 0)
+        assert result == "- Solo\n"
+
+    def test_toggle_children_appear_in_output(self) -> None:
+        """Children of a toggle block are rendered and appear in output."""
+        r = self._r()
+        child = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [self._seg("child text")]},
+        }
+        block = {"toggle": {"rich_text": [self._seg("Parent")], "children": [child]}}
+        result = r._render_toggle(block, 0)
+        assert "child text" in result
+
+    def test_toggle_depth_adds_indent(self) -> None:
+        """Depth > 0 adds two-space indent per level to the bullet."""
+        r = self._r()
+        block = {"toggle": {"rich_text": [self._seg("T")]}}
+        result_d0 = r._render_toggle(block, 0)
+        result_d1 = r._render_toggle(block, 1)
+        assert result_d0 == "- T\n"
+        assert result_d1 == "  - T\n"
+
+    @given(text=st.text(min_size=0, max_size=100))
+    @settings(max_examples=50)
+    def test_render_toggle_never_raises(self, text: str) -> None:
+        """_render_toggle never raises for arbitrary text content."""
+        r = self._r()
+        block = {
+            "toggle": {
+                "rich_text": [
+                    {
+                        "type": "text",
+                        "text": {"content": text},
+                        "plain_text": text,
+                        "annotations": {},
+                    }
+                ]
+            }
+        }
+        result = r._render_toggle(block, 0)
+        assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# _render_bookmark: URL and optional caption rendering
+# ---------------------------------------------------------------------------
+
+
+class TestRenderBookmarkProperties:
+    """_render_bookmark: URL link and optional caption as blockquote."""
+
+    def _r(self) -> NotionToMarkdownRenderer:
+        cfg = NotionifyConfig(token="test-token")
+        return NotionToMarkdownRenderer(cfg)
+
+    def _seg(self, text: str) -> dict:
+        return {
+            "type": "text",
+            "text": {"content": text},
+            "plain_text": text,
+            "annotations": {},
+        }
+
+    def test_bookmark_produces_markdown_link(self) -> None:
+        """Bookmark renders URL as [url](url) markdown link."""
+        r = self._r()
+        block = {"bookmark": {"url": "https://example.com", "caption": []}}
+        result = r._render_bookmark(block, 0)
+        assert "[https://example.com](https://example.com)" in result
+
+    def test_bookmark_with_caption_appends_blockquote(self) -> None:
+        """Caption is rendered as > blockquote line after the URL."""
+        r = self._r()
+        block = {
+            "bookmark": {
+                "url": "https://example.com",
+                "caption": [self._seg("My bookmark")],
+            }
+        }
+        result = r._render_bookmark(block, 0)
+        assert "> My bookmark" in result
+
+    def test_bookmark_without_caption_has_no_blockquote(self) -> None:
+        """No caption → no > character in output."""
+        r = self._r()
+        block = {"bookmark": {"url": "https://example.com", "caption": []}}
+        result = r._render_bookmark(block, 0)
+        assert ">" not in result
+
+    def test_bookmark_ends_with_double_newline(self) -> None:
+        """Output always ends with \\n\\n."""
+        r = self._r()
+        block = {"bookmark": {"url": "https://a.com", "caption": []}}
+        result = r._render_bookmark(block, 0)
+        assert result.endswith("\n\n")
+
+    @given(url=st.text(min_size=1, max_size=100, alphabet=string.ascii_letters + ":/._-"))
+    @settings(max_examples=50)
+    def test_render_bookmark_never_raises(self, url: str) -> None:
+        """_render_bookmark never raises for arbitrary URL strings."""
+        r = self._r()
+        block = {"bookmark": {"url": url, "caption": []}}
+        result = r._render_bookmark(block, 0)
+        assert isinstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# _render_link_preview: URL-only link rendering
+# ---------------------------------------------------------------------------
+
+
+class TestRenderLinkPreviewProperties:
+    """_render_link_preview: simple URL link without caption support."""
+
+    def _r(self) -> NotionToMarkdownRenderer:
+        cfg = NotionifyConfig(token="test-token")
+        return NotionToMarkdownRenderer(cfg)
+
+    def test_link_preview_produces_markdown_link(self) -> None:
+        """Link preview renders as [url](url)\\n\\n."""
+        r = self._r()
+        block = {"link_preview": {"url": "https://example.com"}}
+        result = r._render_link_preview(block, 0)
+        assert "[https://example.com](https://example.com)" in result
+        assert result.endswith("\n\n")
+
+    def test_link_preview_has_no_caption_section(self) -> None:
+        """Link preview never emits a > blockquote line."""
+        r = self._r()
+        block = {"link_preview": {"url": "https://x.com"}}
+        result = r._render_link_preview(block, 0)
+        assert ">" not in result
+
+    @given(url=st.text(min_size=1, max_size=100, alphabet=string.ascii_letters + ":/._-"))
+    @settings(max_examples=50)
+    def test_render_link_preview_never_raises(self, url: str) -> None:
+        """_render_link_preview never raises for arbitrary URL strings."""
+        r = self._r()
+        block = {"link_preview": {"url": url}}
+        result = r._render_link_preview(block, 0)
+        assert isinstance(result, str)
+
