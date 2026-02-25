@@ -4677,3 +4677,50 @@ class TestExtractTypeAttrsProperties:
             assert set(result.keys()) <= {"image_type", "url"}
         else:
             assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# extract_text properties
+# ---------------------------------------------------------------------------
+
+
+class TestExtractTextProperties:
+    """extract_text always returns a str and concatenates token raw values."""
+
+    def test_empty_list_returns_empty_string(self) -> None:
+        """Zero tokens → empty string."""
+        assert extract_text([]) == ""
+
+    @given(raw=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_single_text_token_returns_raw(self, raw: str) -> None:
+        """A single text token returns its 'raw' value."""
+        tokens = [{"type": "text", "raw": raw}]
+        assert extract_text(tokens) == raw
+
+    @given(
+        parts=st.lists(
+            st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20),
+            min_size=1,
+            max_size=5,
+        )
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_multiple_text_tokens_are_concatenated(self, parts: list[str]) -> None:
+        """Multiple text tokens produce their raw values joined."""
+        tokens = [{"type": "text", "raw": p} for p in parts]
+        assert extract_text(tokens) == "".join(parts)
+
+    @given(raw=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_nested_children_are_recursed(self, raw: str) -> None:
+        """Tokens with 'children' are recursed into."""
+        tokens = [{"type": "strong", "children": [{"type": "text", "raw": raw}]}]
+        assert extract_text(tokens) == raw
+
+    @given(raw=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_non_text_token_with_raw_uses_raw(self, raw: str) -> None:
+        """Non-text tokens without children but with 'raw' use their raw value."""
+        tokens = [{"type": "softline", "raw": raw}]
+        assert extract_text(tokens) == raw
