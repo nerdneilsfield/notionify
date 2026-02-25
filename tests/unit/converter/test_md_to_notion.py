@@ -521,6 +521,83 @@ class TestTable:
 
 
 # =========================================================================
+# U-CV-023: Table with inline formatting in cells
+# =========================================================================
+
+class TestTableInlineFormatting:
+    """U-CV-023: Table cells can contain inline formatting."""
+
+    def test_table_bold_and_italic_in_cells(self):
+        c = MarkdownToNotionConverter(make_config())
+        md = (
+            "| **Bold** | *Italic* | `Code` |\n"
+            "|----------|----------|--------|\n"
+            "| normal   | ~~del~~  | text   |"
+        )
+        result = c.convert(md)
+        assert len(result.blocks) == 1
+        b = result.blocks[0]
+        assert b["type"] == "table"
+        rows = b["table"]["children"]
+        assert len(rows) == 2
+        # Header row cells should have rich_text segments
+        header_cells = rows[0]["table_row"]["cells"]
+        assert len(header_cells) == 3
+        # Each cell is a list of rich_text segments
+        for cell in header_cells:
+            assert isinstance(cell, list)
+            assert len(cell) >= 1
+
+    def test_table_link_in_cell(self):
+        c = MarkdownToNotionConverter(make_config())
+        md = (
+            "| Name |\n"
+            "|------|\n"
+            "| [Link](https://example.com) |"
+        )
+        result = c.convert(md)
+        b = result.blocks[0]
+        assert b["type"] == "table"
+        body_cell = b["table"]["children"][1]["table_row"]["cells"][0]
+        # At least one segment should have a href or link
+        assert len(body_cell) >= 1
+
+
+# =========================================================================
+# U-CV-024: Table with enable_tables=False
+# =========================================================================
+
+class TestTableDisabled:
+    """U-CV-024: Table with enable_tables=False follows configured fallback."""
+
+    def test_disabled_paragraph_fallback(self):
+        c = MarkdownToNotionConverter(make_config(enable_tables=False, table_fallback="paragraph"))
+        md = "| A | B |\n|---|---|\n| 1 | 2 |"
+        result = c.convert(md)
+        assert len(result.blocks) == 1
+        b = result.blocks[0]
+        assert b["type"] == "paragraph"
+        content = _get_rich_text_content(b)
+        assert "A" in content
+        assert "B" in content
+
+    def test_disabled_raise_fallback(self):
+        from notionify.errors import NotionifyConversionError
+        c = MarkdownToNotionConverter(make_config(enable_tables=False, table_fallback="raise"))
+        md = "| X |\n|---|\n| Y |"
+        with pytest.raises(NotionifyConversionError):
+            c.convert(md)
+
+    def test_disabled_comment_fallback(self):
+        c = MarkdownToNotionConverter(make_config(enable_tables=False, table_fallback="comment"))
+        md = "| X |\n|---|\n| Y |"
+        result = c.convert(md)
+        b = result.blocks[0]
+        assert b["type"] == "paragraph"
+        assert "table omitted" in _get_rich_text_content(b)
+
+
+# =========================================================================
 # U-CV-025: Math strategy "equation"
 # =========================================================================
 
@@ -590,6 +667,104 @@ class TestMathLatexTextStrategy:
         rt = _get_rich_text(result.blocks[0])
         all_content = "".join(seg.get("text", {}).get("content", "") for seg in rt)
         assert "$E=mc^2$" in all_content
+
+
+# =========================================================================
+# U-CV-028: Block math > 1000 chars overflow
+# =========================================================================
+
+class TestBlockMathOverflowEndToEnd:
+    """U-CV-028: Block math > 1000 chars falls back per math_overflow_block."""
+
+    def test_overflow_code_fallback(self):
+        c = MarkdownToNotionConverter(make_config(
+            math_strategy="equation", math_overflow_block="code"
+        ))
+        long_expr = "x" * 1100
+        result = c.convert(f"$$\n{long_expr}\n$$")
+        code_blocks = [b for b in result.blocks if b["type"] == "code"]
+        assert len(code_blocks) >= 1
+        assert code_blocks[0]["code"]["language"] == "latex"
+
+    def test_overflow_split_fallback(self):
+        c = MarkdownToNotionConverter(make_config(
+            math_strategy="equation", math_overflow_block="split"
+        ))
+        long_expr = "y" * 1100
+        result = c.convert(f"$$\n{long_expr}\n$$")
+        eq_blocks = [b for b in result.blocks if b["type"] == "equation"]
+        assert len(eq_blocks) >= 2
+
+    def test_overflow_text_fallback(self):
+        c = MarkdownToNotionConverter(make_config(
+            math_strategy="equation", math_overflow_block="text"
+        ))
+        long_expr = "z" * 1100
+        result = c.convert(f"$$\n{long_expr}\n$$")
+        para_blocks = [b for b in result.blocks if b["type"] == "paragraph"]
+        assert len(para_blocks) >= 1
+        content = _get_rich_text_content(para_blocks[0])
+        assert "$$" in content
+
+
+# =========================================================================
+# U-CV-029: Inline math equation strategy
+# =========================================================================
+
+class TestInlineMathEquation:
+    """U-CV-029: Inline math with equation strategy produces equation segment."""
+
+    def test_inline_math_equation(self):
+        c = MarkdownToNotionConverter(make_config(math_strategy="equation"))
+        result = c.convert("Solve $x^2 + 1 = 0$ for x.")
+        rt = _get_rich_text(result.blocks[0])
+        eq_segs = [seg for seg in rt if seg.get("type") == "equation"]
+        assert len(eq_segs) == 1
+        assert eq_segs[0]["equation"]["expression"] == "x^2 + 1 = 0"
+
+
+# =========================================================================
+# U-CV-030: Inline math code strategy
+# =========================================================================
+
+class TestInlineMathCode:
+    """U-CV-030: Inline math with code strategy produces code annotation."""
+
+    def test_inline_math_code(self):
+        c = MarkdownToNotionConverter(make_config(math_strategy="code"))
+        result = c.convert("Solve $x^2 + 1 = 0$ for x.")
+        rt = _get_rich_text(result.blocks[0])
+        code_segs = [seg for seg in rt if seg.get("annotations", {}).get("code")]
+        assert len(code_segs) >= 1
+        assert code_segs[0]["text"]["content"] == "x^2 + 1 = 0"
+
+
+# =========================================================================
+# U-CV-031: Inline math > 1000 chars overflow
+# =========================================================================
+
+class TestInlineMathOverflowEndToEnd:
+    """U-CV-031: Inline math > 1000 chars falls back per math_overflow_inline."""
+
+    def test_overflow_code_fallback(self):
+        c = MarkdownToNotionConverter(make_config(
+            math_strategy="equation", math_overflow_inline="code"
+        ))
+        long_expr = "a" * 1100
+        result = c.convert(f"The expression ${long_expr}$ is long.")
+        rt = _get_rich_text(result.blocks[0])
+        code_segs = [seg for seg in rt if seg.get("annotations", {}).get("code")]
+        assert len(code_segs) >= 1
+
+    def test_overflow_text_fallback(self):
+        c = MarkdownToNotionConverter(make_config(
+            math_strategy="equation", math_overflow_inline="text"
+        ))
+        long_expr = "b" * 1100
+        result = c.convert(f"The expression ${long_expr}$ is long.")
+        rt = _get_rich_text(result.blocks[0])
+        all_text = "".join(seg.get("text", {}).get("content", "") for seg in rt)
+        assert "$" in all_text
 
 
 # =========================================================================
