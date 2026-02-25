@@ -1,21 +1,19 @@
 # Session Continuity
 
-Updated: 2026-02-25T13:30:00Z
+Updated: 2026-02-25T13:10:00Z
 
 ## Current State
 
-- Iteration: 20
+- Iteration: 18
 - Phase: GROWTH
 - RARV Step: REFLECT
 - Provider: claude
-- Elapsed: 8h 50m
+- Elapsed: 8h 30m
 
 ## Last Completed Task
 
-- Last commit: test: add 5 Hypothesis round-trip property tests (iteration 20)
-- Tests: 1667 unit+golden passed (up from 1662)
-- Added TestRoundTripProperties to test_properties.py
-- 100% line coverage, 99% branch (planner.py 4 unreachable branches only)
+- Last commit: test: add 50 MetricsHook protocol + integration tests, raise CI threshold to 95% (iteration 18)
+- Files changed: tests/unit/test_metrics_hook.py (new), .github/workflows/ci.yml
 
 ## Active Blockers
 
@@ -23,22 +21,9 @@ Updated: 2026-02-25T13:30:00Z
 
 ## Next Up
 
-- Additional golden fixtures for edge cases
-- State machine terminal state comprehensive tests
-- Config validation property tests
+- No pending tasks
 
 ## Key Decisions This Session
 
-- Added bandit to CI with nosec annotations (iteration 15)
-- Fixed lint in test files: import sorting, PERF401 list comprehension, RUF003 ambiguous chars
-- Created 5 new test files: async_edge_cases, deep_nesting, encoding, upload_single, executor_failures
-- Added 12 upload_multi failure tests to existing test file
-- Added 2 golden fixtures: unicode_accented.md, multiblock_annotations.md
-- Added 4 memory benchmarks using tracemalloc
-- PRD 500ms benchmark flaky when run alongside 1676 tests (CPU contention) - passes in isolation (181ms)
-
-## Mistakes & Learnings
-
-- `append_children(page_id, batch, after=last_block_id)`: `after` is keyword arg, use `call_args.kwargs["after"]` not `call_args[0][2]`
-- Ruff I001 import sorting: stdlib imports must be in one contiguous block, then third-party
-- Performance benchmarks with tight limits (< 500ms) can flake during full suite run; evaluate in isolation
+- Added dedicated test file for MetricsHook protocol (PRD 17.3) with 50 tests covering protocol conformance, NoopMetricsHook, recording hook, PRD metric name verification, config wiring, and metrics emission
+- Raised CI coverage threshold from 90% to 95% (actual coverage is 99.90%)

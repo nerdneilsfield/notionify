@@ -40,7 +40,7 @@ jobs:
         run: bandit -r src/notionify/
 
       - name: Run tests with coverage
-        run: pytest tests/ -v --tb=short -q --cov=src/notionify --cov-branch --cov-report=term-missing --cov-fail-under=90
+        run: pytest tests/ -v --tb=short -q --cov=src/notionify --cov-branch --cov-report=term-missing --cov-fail-under=95
 
       - name: Run performance benchmarks
         run: pytest tests/perf/ -v -s
