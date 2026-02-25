@@ -196,39 +196,9 @@ def _process_tokens(tokens: list[dict], ctx: _BuildContext) -> list[dict]:
 def _process_token(token: dict, ctx: _BuildContext) -> list[dict]:
     """Process a single token and return the block(s) produced."""
     token_type = token.get("type", "")
-
-    if token_type == "heading":
-        return [_build_heading(token, ctx)]
-
-    if token_type == "paragraph":
-        return _build_paragraph(token, ctx)
-
-    if token_type == "block_quote":
-        return [_build_block_quote(token, ctx)]
-
-    if token_type == "list":
-        return _build_list(token, ctx)
-
-    if token_type == "block_code":
-        return [_build_code_block(token, ctx)]
-
-    if token_type == "thematic_break":
-        return [_build_divider(ctx)]
-
-    if token_type == "table":
-        return _build_table(token, ctx)
-
-    if token_type == "block_math":
-        return _build_block_math(token, ctx)
-
-    if token_type == "html_block":
-        ctx.add_warning(
-            "HTML_BLOCK_SKIPPED",
-            "HTML block was skipped (not supported by Notion).",
-            raw=token.get("raw", "")[:200],
-        )
-        return []
-
+    handler = _BLOCK_HANDLERS.get(token_type)
+    if handler is not None:
+        return handler(token, ctx)
     # Unknown block type
     if token_type:
         ctx.add_warning(
@@ -242,7 +212,7 @@ def _process_token(token: dict, ctx: _BuildContext) -> list[dict]:
 # Block builders
 # ---------------------------------------------------------------------------
 
-def _build_heading(token: dict, ctx: _BuildContext) -> dict:
+def _build_heading(token: dict, ctx: _BuildContext) -> list[dict]:
     """Build a Notion heading block."""
     level = token.get("attrs", {}).get("level", 1)
     children = token.get("children", [])
@@ -290,7 +260,7 @@ def _build_heading(token: dict, ctx: _BuildContext) -> dict:
         }
 
     ctx.add_block(block)
-    return block
+    return [block]
 
 
 def _build_paragraph(token: dict, ctx: _BuildContext) -> list[dict]:
@@ -322,7 +292,7 @@ def _build_paragraph(token: dict, ctx: _BuildContext) -> list[dict]:
     return [block]
 
 
-def _build_block_quote(token: dict, ctx: _BuildContext) -> dict:
+def _build_block_quote(token: dict, ctx: _BuildContext) -> list[dict]:
     """Build a Notion quote block.
 
     Notion quote blocks support children, so we recursively process
@@ -371,7 +341,7 @@ def _build_block_quote(token: dict, ctx: _BuildContext) -> dict:
         block["quote"]["children"] = nested_blocks
 
     ctx.add_block(block)
-    return block
+    return [block]
 
 
 def _build_list(token: dict, ctx: _BuildContext) -> list[dict]:
@@ -497,7 +467,7 @@ def _build_task_list_item(token: dict, ctx: _BuildContext) -> dict:
     return block
 
 
-def _build_code_block(token: dict, ctx: _BuildContext) -> dict:
+def _build_code_block(token: dict, ctx: _BuildContext) -> list[dict]:
     """Build a Notion code block."""
     raw = token.get("raw", "")
     info = token.get("attrs", {}).get("info")
@@ -518,10 +488,10 @@ def _build_code_block(token: dict, ctx: _BuildContext) -> dict:
     }
 
     ctx.add_block(block)
-    return block
+    return [block]
 
 
-def _build_divider(ctx: _BuildContext) -> dict:
+def _build_divider(token: dict, ctx: _BuildContext) -> list[dict]:
     """Build a Notion divider block."""
     block = {
         "object": "block",
@@ -529,7 +499,7 @@ def _build_divider(ctx: _BuildContext) -> dict:
         "divider": {},
     }
     ctx.add_block(block)
-    return block
+    return [block]
 
 
 def _build_table(token: dict, ctx: _BuildContext) -> list[dict]:
@@ -659,3 +629,30 @@ def _extract_text(children: list[dict]) -> str:
         elif "raw" in token:
             parts.append(token["raw"])
     return "".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Block handler dispatch table
+# ---------------------------------------------------------------------------
+
+def _handle_html_block(token: dict, ctx: _BuildContext) -> list[dict]:
+    """Handle HTML blocks by emitting a warning and skipping."""
+    ctx.add_warning(
+        "HTML_BLOCK_SKIPPED",
+        "HTML block was skipped (not supported by Notion).",
+        raw=token.get("raw", "")[:200],
+    )
+    return []
+
+
+_BLOCK_HANDLERS = {
+    "heading": _build_heading,
+    "paragraph": _build_paragraph,
+    "block_quote": _build_block_quote,
+    "list": _build_list,
+    "block_code": _build_code_block,
+    "thematic_break": _build_divider,
+    "table": _build_table,
+    "block_math": _build_block_math,
+    "html_block": _handle_html_block,
+}

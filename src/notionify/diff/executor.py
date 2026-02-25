@@ -14,6 +14,19 @@ from notionify.models import ConversionWarning, DiffOp, DiffOpType, UpdateResult
 from notionify.utils.chunk import chunk_children
 
 
+class _ExecState:
+    """Mutable state shared across diff execution handlers."""
+
+    __slots__ = ("kept", "inserted", "deleted", "replaced", "last_block_id")
+
+    def __init__(self) -> None:
+        self.kept = 0
+        self.inserted = 0
+        self.deleted = 0
+        self.replaced = 0
+        self.last_block_id: str | None = None
+
+
 class DiffExecutor:
     """Synchronous diff executor.
 
@@ -48,22 +61,16 @@ class DiffExecutor:
         UpdateResult
             Summary of what was done.
         """
-        kept = 0
-        inserted = 0
-        deleted = 0
-        replaced = 0
+        state = _ExecState()
         warnings: list[ConversionWarning] = []
-
-        # Track the last known block ID for positioning inserts.
-        last_block_id: str | None = None
 
         i = 0
         while i < len(ops):
             op = ops[i]
 
             if op.op_type == DiffOpType.KEEP:
-                kept += 1
-                last_block_id = op.existing_id
+                state.kept += 1
+                state.last_block_id = op.existing_id
                 i += 1
 
             elif op.op_type == DiffOpType.UPDATE:
@@ -72,53 +79,21 @@ class DiffExecutor:
                     type_data = op.new_block.get(block_type, {})
                     payload = {block_type: type_data}
                     self._api.update(op.existing_id, payload)
-                last_block_id = op.existing_id
-                inserted += 1  # counts as a write operation
+                state.last_block_id = op.existing_id
+                state.inserted += 1  # counts as a write operation
                 i += 1
 
             elif op.op_type == DiffOpType.REPLACE:
-                # Delete old block.
-                if op.existing_id:
-                    self._api.delete(op.existing_id)
-                    deleted += 1
-                # Insert new block after the last known position.
-                if op.new_block:
-                    response = self._api.append_children(
-                        page_id,
-                        [op.new_block],
-                        after=last_block_id,
-                    )
-                    new_ids = _extract_block_ids(response)
-                    if new_ids:
-                        last_block_id = new_ids[-1]
-                    replaced += 1
+                self._exec_replace(page_id, op, state)
                 i += 1
 
             elif op.op_type == DiffOpType.INSERT:
-                # Batch consecutive inserts.
-                insert_blocks: list[dict] = []
-                while i < len(ops) and ops[i].op_type == DiffOpType.INSERT:
-                    block = ops[i].new_block
-                    if block is not None:
-                        insert_blocks.append(block)
-                    i += 1
-
-                if insert_blocks:
-                    for batch in chunk_children(insert_blocks):
-                        response = self._api.append_children(
-                            page_id,
-                            batch,
-                            after=last_block_id,
-                        )
-                        new_ids = _extract_block_ids(response)
-                        if new_ids:
-                            last_block_id = new_ids[-1]
-                    inserted += len(insert_blocks)
+                i = self._exec_insert_batch(page_id, ops, i, state)
 
             elif op.op_type == DiffOpType.DELETE:
                 if op.existing_id:
                     self._api.delete(op.existing_id)
-                deleted += 1
+                state.deleted += 1
                 i += 1
 
             else:
@@ -126,13 +101,52 @@ class DiffExecutor:
 
         return UpdateResult(
             strategy_used="diff",
-            blocks_kept=kept,
-            blocks_inserted=inserted,
-            blocks_deleted=deleted,
-            blocks_replaced=replaced,
+            blocks_kept=state.kept,
+            blocks_inserted=state.inserted,
+            blocks_deleted=state.deleted,
+            blocks_replaced=state.replaced,
             images_uploaded=0,
             warnings=warnings,
         )
+
+    def _exec_replace(
+        self, page_id: str, op: DiffOp, state: _ExecState,
+    ) -> None:
+        """Execute a REPLACE op: delete old block and insert new one."""
+        if op.existing_id:
+            self._api.delete(op.existing_id)
+            state.deleted += 1
+        if op.new_block:
+            response = self._api.append_children(
+                page_id, [op.new_block], after=state.last_block_id,
+            )
+            new_ids = _extract_block_ids(response)
+            if new_ids:
+                state.last_block_id = new_ids[-1]
+            state.replaced += 1
+
+    def _exec_insert_batch(
+        self, page_id: str, ops: list[DiffOp], start: int, state: _ExecState,
+    ) -> int:
+        """Batch consecutive INSERT ops into append_children calls. Returns new index."""
+        insert_blocks: list[dict] = []
+        i = start
+        while i < len(ops) and ops[i].op_type == DiffOpType.INSERT:
+            block = ops[i].new_block
+            if block is not None:
+                insert_blocks.append(block)
+            i += 1
+
+        if insert_blocks:
+            for batch in chunk_children(insert_blocks):
+                response = self._api.append_children(
+                    page_id, batch, after=state.last_block_id,
+                )
+                new_ids = _extract_block_ids(response)
+                if new_ids:
+                    state.last_block_id = new_ids[-1]
+            state.inserted += len(insert_blocks)
+        return i
 
 
 class AsyncDiffExecutor:
@@ -167,21 +181,16 @@ class AsyncDiffExecutor:
         UpdateResult
             Summary of what was done.
         """
-        kept = 0
-        inserted = 0
-        deleted = 0
-        replaced = 0
+        state = _ExecState()
         warnings: list[ConversionWarning] = []
-
-        last_block_id: str | None = None
 
         i = 0
         while i < len(ops):
             op = ops[i]
 
             if op.op_type == DiffOpType.KEEP:
-                kept += 1
-                last_block_id = op.existing_id
+                state.kept += 1
+                state.last_block_id = op.existing_id
                 i += 1
 
             elif op.op_type == DiffOpType.UPDATE:
@@ -190,50 +199,21 @@ class AsyncDiffExecutor:
                     type_data = op.new_block.get(block_type, {})
                     payload = {block_type: type_data}
                     await self._api.update(op.existing_id, payload)
-                last_block_id = op.existing_id
-                inserted += 1
+                state.last_block_id = op.existing_id
+                state.inserted += 1
                 i += 1
 
             elif op.op_type == DiffOpType.REPLACE:
-                if op.existing_id:
-                    await self._api.delete(op.existing_id)
-                    deleted += 1
-                if op.new_block:
-                    response = await self._api.append_children(
-                        page_id,
-                        [op.new_block],
-                        after=last_block_id,
-                    )
-                    new_ids = _extract_block_ids(response)
-                    if new_ids:
-                        last_block_id = new_ids[-1]
-                    replaced += 1
+                await self._exec_replace(page_id, op, state)
                 i += 1
 
             elif op.op_type == DiffOpType.INSERT:
-                insert_blocks: list[dict] = []
-                while i < len(ops) and ops[i].op_type == DiffOpType.INSERT:
-                    block = ops[i].new_block
-                    if block is not None:
-                        insert_blocks.append(block)
-                    i += 1
-
-                if insert_blocks:
-                    for batch in chunk_children(insert_blocks):
-                        response = await self._api.append_children(
-                            page_id,
-                            batch,
-                            after=last_block_id,
-                        )
-                        new_ids = _extract_block_ids(response)
-                        if new_ids:
-                            last_block_id = new_ids[-1]
-                    inserted += len(insert_blocks)
+                i = await self._exec_insert_batch(page_id, ops, i, state)
 
             elif op.op_type == DiffOpType.DELETE:
                 if op.existing_id:
                     await self._api.delete(op.existing_id)
-                deleted += 1
+                state.deleted += 1
                 i += 1
 
             else:
@@ -241,13 +221,52 @@ class AsyncDiffExecutor:
 
         return UpdateResult(
             strategy_used="diff",
-            blocks_kept=kept,
-            blocks_inserted=inserted,
-            blocks_deleted=deleted,
-            blocks_replaced=replaced,
+            blocks_kept=state.kept,
+            blocks_inserted=state.inserted,
+            blocks_deleted=state.deleted,
+            blocks_replaced=state.replaced,
             images_uploaded=0,
             warnings=warnings,
         )
+
+    async def _exec_replace(
+        self, page_id: str, op: DiffOp, state: _ExecState,
+    ) -> None:
+        """Execute a REPLACE op: delete old block and insert new one."""
+        if op.existing_id:
+            await self._api.delete(op.existing_id)
+            state.deleted += 1
+        if op.new_block:
+            response = await self._api.append_children(
+                page_id, [op.new_block], after=state.last_block_id,
+            )
+            new_ids = _extract_block_ids(response)
+            if new_ids:
+                state.last_block_id = new_ids[-1]
+            state.replaced += 1
+
+    async def _exec_insert_batch(
+        self, page_id: str, ops: list[DiffOp], start: int, state: _ExecState,
+    ) -> int:
+        """Batch consecutive INSERT ops into append_children calls. Returns new index."""
+        insert_blocks: list[dict] = []
+        i = start
+        while i < len(ops) and ops[i].op_type == DiffOpType.INSERT:
+            block = ops[i].new_block
+            if block is not None:
+                insert_blocks.append(block)
+            i += 1
+
+        if insert_blocks:
+            for batch in chunk_children(insert_blocks):
+                response = await self._api.append_children(
+                    page_id, batch, after=state.last_block_id,
+                )
+                new_ids = _extract_block_ids(response)
+                if new_ids:
+                    state.last_block_id = new_ids[-1]
+            state.inserted += len(insert_blocks)
+        return i
 
 
 def _extract_block_ids(response: dict) -> list[str]:

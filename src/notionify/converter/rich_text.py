@@ -55,191 +55,6 @@ def _merge_annotations(base: dict, **overrides: bool) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-def build_rich_text(
-    children: list[dict],
-    config: NotionifyConfig,
-    *,
-    annotations: dict | None = None,
-    href: str | None = None,
-    warnings: list[ConversionWarning] | None = None,
-) -> list[dict]:
-    """Convert inline AST tokens to Notion rich_text array.
-
-    Handles: text, strong, emphasis, codespan, strikethrough, link, image
-    (as text fallback), inline_math, softbreak, linebreak, html_inline.
-
-    Parameters
-    ----------
-    children:
-        List of normalized inline AST tokens.
-    config:
-        SDK configuration (used for math strategy decisions).
-    annotations:
-        Inherited annotations from a parent inline node (e.g. bold from
-        a ``strong`` wrapper).  Defaults to all-false.
-    href:
-        Inherited link URL from a parent ``link`` node.
-    warnings:
-        Optional mutable list to collect :class:`ConversionWarning` instances
-        generated during inline math conversion.
-
-    Returns
-    -------
-    list[dict]
-        A list of Notion rich_text segment dicts.
-    """
-    if annotations is None:
-        annotations = _default_annotations()
-
-    segments: list[dict] = []
-
-    for token in children:
-        token_type = token.get("type", "")
-
-        if token_type == "text":
-            raw = token.get("raw", "")
-            if not raw:
-                continue
-            seg = _make_text_segment(raw, annotations, href)
-            segments.append(seg)
-
-        elif token_type == "strong":
-            child_annots = _merge_annotations(annotations, bold=True)
-            child_segs = build_rich_text(
-                token.get("children", []), config,
-                annotations=child_annots, href=href, warnings=warnings,
-            )
-            segments.extend(child_segs)
-
-        elif token_type == "emphasis":
-            child_annots = _merge_annotations(annotations, italic=True)
-            child_segs = build_rich_text(
-                token.get("children", []), config,
-                annotations=child_annots, href=href, warnings=warnings,
-            )
-            segments.extend(child_segs)
-
-        elif token_type == "strikethrough":
-            child_annots = _merge_annotations(annotations, strikethrough=True)
-            child_segs = build_rich_text(
-                token.get("children", []), config,
-                annotations=child_annots, href=href, warnings=warnings,
-            )
-            segments.extend(child_segs)
-
-        elif token_type == "codespan":
-            raw = token.get("raw", "")
-            child_annots = _merge_annotations(annotations, code=True)
-            seg = _make_text_segment(raw, child_annots, href)
-            segments.append(seg)
-
-        elif token_type == "link":
-            link_url = token.get("attrs", {}).get("url", "")
-            child_segs = build_rich_text(
-                token.get("children", []), config,
-                annotations=annotations, href=link_url, warnings=warnings,
-            )
-            segments.extend(child_segs)
-
-        elif token_type == "image":
-            # Image in inline context: render as text fallback "[alt](url)"
-            alt = _extract_text(token.get("children", []))
-            url = token.get("attrs", {}).get("url", "")
-            if alt and url:
-                text = f"[{alt}]({url})"
-            elif url:
-                text = url
-            elif alt:
-                text = alt
-            else:
-                text = "[image]"
-            seg = _make_text_segment(text, annotations, href)
-            segments.append(seg)
-
-        elif token_type == "inline_math":
-            from notionify.converter.math import build_inline_math
-            expression = token.get("raw", "")
-            math_seg, math_warnings = build_inline_math(expression, config)
-            if warnings is not None:
-                warnings.extend(math_warnings)
-            # math_seg can be a single segment or list
-            if isinstance(math_seg, list):
-                segments.extend(math_seg)
-            else:
-                segments.append(math_seg)
-
-        elif token_type == "softbreak":
-            # Soft break in markdown = single newline, usually rendered as space
-            seg = _make_text_segment(" ", annotations, href)
-            segments.append(seg)
-
-        elif token_type == "linebreak":
-            # Hard break = literal newline
-            seg = _make_text_segment("\n", annotations, href)
-            segments.append(seg)
-
-        elif token_type == "html_inline":
-            # Render raw HTML as plain text
-            raw = token.get("raw", "")
-            if raw:
-                seg = _make_text_segment(raw, annotations, href)
-                segments.append(seg)
-
-        # Unknown inline types are silently skipped
-
-    return segments
-
-
-def split_rich_text(segments: list[dict], limit: int = 2000) -> list[dict]:
-    """Split any rich_text segment with content > limit into multiple segments.
-
-    Preserves annotations on each split segment.  Never splits multi-byte
-    characters (relies on :func:`split_string` which operates on Python
-    code-points).
-
-    Parameters
-    ----------
-    segments:
-        List of Notion rich_text segment dicts.
-    limit:
-        Maximum character count per segment content.
-
-    Returns
-    -------
-    list[dict]
-        A new list where every segment's content is at most *limit* chars.
-    """
-    output: list[dict] = []
-
-    for segment in segments:
-        seg_type = segment.get("type", "text")
-
-        if seg_type == "equation":
-            # Equations have different limits (1000), handled by math module.
-            # Pass them through unchanged here.
-            output.append(segment)
-            continue
-
-        # Extract content from the text segment
-        content = segment.get("text", {}).get("content", "")
-
-        if len(content) <= limit:
-            output.append(segment)
-            continue
-
-        # Split the content
-        chunks = split_string(content, limit)
-        for chunk in chunks:
-            new_seg = _clone_text_segment(segment, chunk)
-            output.append(new_seg)
-
-    return output
-
-
-# ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
@@ -298,3 +113,250 @@ def _extract_text(children: list[dict]) -> str:
         elif "raw" in token:
             parts.append(token["raw"])
     return "".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Inline token handlers
+# ---------------------------------------------------------------------------
+# Each handler takes (token, config, annotations, href, warnings)
+# and returns a list of Notion rich_text segment dicts.
+
+def _handle_text(
+    token: dict, config: NotionifyConfig,
+    annotations: dict, href: str | None,
+    warnings: list[ConversionWarning] | None,
+) -> list[dict]:
+    raw = token.get("raw", "")
+    if not raw:
+        return []
+    return [_make_text_segment(raw, annotations, href)]
+
+
+def _handle_strong(
+    token: dict, config: NotionifyConfig,
+    annotations: dict, href: str | None,
+    warnings: list[ConversionWarning] | None,
+) -> list[dict]:
+    child_annots = _merge_annotations(annotations, bold=True)
+    return build_rich_text(
+        token.get("children", []), config,
+        annotations=child_annots, href=href, warnings=warnings,
+    )
+
+
+def _handle_emphasis(
+    token: dict, config: NotionifyConfig,
+    annotations: dict, href: str | None,
+    warnings: list[ConversionWarning] | None,
+) -> list[dict]:
+    child_annots = _merge_annotations(annotations, italic=True)
+    return build_rich_text(
+        token.get("children", []), config,
+        annotations=child_annots, href=href, warnings=warnings,
+    )
+
+
+def _handle_strikethrough(
+    token: dict, config: NotionifyConfig,
+    annotations: dict, href: str | None,
+    warnings: list[ConversionWarning] | None,
+) -> list[dict]:
+    child_annots = _merge_annotations(annotations, strikethrough=True)
+    return build_rich_text(
+        token.get("children", []), config,
+        annotations=child_annots, href=href, warnings=warnings,
+    )
+
+
+def _handle_codespan(
+    token: dict, config: NotionifyConfig,
+    annotations: dict, href: str | None,
+    warnings: list[ConversionWarning] | None,
+) -> list[dict]:
+    raw = token.get("raw", "")
+    child_annots = _merge_annotations(annotations, code=True)
+    return [_make_text_segment(raw, child_annots, href)]
+
+
+def _handle_link(
+    token: dict, config: NotionifyConfig,
+    annotations: dict, href: str | None,
+    warnings: list[ConversionWarning] | None,
+) -> list[dict]:
+    link_url = token.get("attrs", {}).get("url", "")
+    return build_rich_text(
+        token.get("children", []), config,
+        annotations=annotations, href=link_url, warnings=warnings,
+    )
+
+
+def _handle_image(
+    token: dict, config: NotionifyConfig,
+    annotations: dict, href: str | None,
+    warnings: list[ConversionWarning] | None,
+) -> list[dict]:
+    alt = _extract_text(token.get("children", []))
+    url = token.get("attrs", {}).get("url", "")
+    if alt and url:
+        text = f"[{alt}]({url})"
+    elif url:
+        text = url
+    elif alt:
+        text = alt
+    else:
+        text = "[image]"
+    return [_make_text_segment(text, annotations, href)]
+
+
+def _handle_inline_math(
+    token: dict, config: NotionifyConfig,
+    annotations: dict, href: str | None,
+    warnings: list[ConversionWarning] | None,
+) -> list[dict]:
+    from notionify.converter.math import build_inline_math
+    expression = token.get("raw", "")
+    math_seg, math_warnings = build_inline_math(expression, config)
+    if warnings is not None:
+        warnings.extend(math_warnings)
+    if isinstance(math_seg, list):
+        return math_seg
+    return [math_seg]
+
+
+def _handle_softbreak(
+    token: dict, config: NotionifyConfig,
+    annotations: dict, href: str | None,
+    warnings: list[ConversionWarning] | None,
+) -> list[dict]:
+    return [_make_text_segment(" ", annotations, href)]
+
+
+def _handle_linebreak(
+    token: dict, config: NotionifyConfig,
+    annotations: dict, href: str | None,
+    warnings: list[ConversionWarning] | None,
+) -> list[dict]:
+    return [_make_text_segment("\n", annotations, href)]
+
+
+def _handle_html_inline(
+    token: dict, config: NotionifyConfig,
+    annotations: dict, href: str | None,
+    warnings: list[ConversionWarning] | None,
+) -> list[dict]:
+    raw = token.get("raw", "")
+    if not raw:
+        return []
+    return [_make_text_segment(raw, annotations, href)]
+
+
+# Dispatch table: token type -> handler function
+_INLINE_HANDLERS = {
+    "text": _handle_text,
+    "strong": _handle_strong,
+    "emphasis": _handle_emphasis,
+    "strikethrough": _handle_strikethrough,
+    "codespan": _handle_codespan,
+    "link": _handle_link,
+    "image": _handle_image,
+    "inline_math": _handle_inline_math,
+    "softbreak": _handle_softbreak,
+    "linebreak": _handle_linebreak,
+    "html_inline": _handle_html_inline,
+}
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def build_rich_text(
+    children: list[dict],
+    config: NotionifyConfig,
+    *,
+    annotations: dict | None = None,
+    href: str | None = None,
+    warnings: list[ConversionWarning] | None = None,
+) -> list[dict]:
+    """Convert inline AST tokens to Notion rich_text array.
+
+    Handles: text, strong, emphasis, codespan, strikethrough, link, image
+    (as text fallback), inline_math, softbreak, linebreak, html_inline.
+
+    Parameters
+    ----------
+    children:
+        List of normalized inline AST tokens.
+    config:
+        SDK configuration (used for math strategy decisions).
+    annotations:
+        Inherited annotations from a parent inline node (e.g. bold from
+        a ``strong`` wrapper).  Defaults to all-false.
+    href:
+        Inherited link URL from a parent ``link`` node.
+    warnings:
+        Optional mutable list to collect :class:`ConversionWarning` instances
+        generated during inline math conversion.
+
+    Returns
+    -------
+    list[dict]
+        A list of Notion rich_text segment dicts.
+    """
+    if annotations is None:
+        annotations = _default_annotations()
+
+    segments: list[dict] = []
+
+    for token in children:
+        handler = _INLINE_HANDLERS.get(token.get("type", ""))
+        if handler is not None:
+            segments.extend(handler(token, config, annotations, href, warnings))
+
+    return segments
+
+
+def split_rich_text(segments: list[dict], limit: int = 2000) -> list[dict]:
+    """Split any rich_text segment with content > limit into multiple segments.
+
+    Preserves annotations on each split segment.  Never splits multi-byte
+    characters (relies on :func:`split_string` which operates on Python
+    code-points).
+
+    Parameters
+    ----------
+    segments:
+        List of Notion rich_text segment dicts.
+    limit:
+        Maximum character count per segment content.
+
+    Returns
+    -------
+    list[dict]
+        A new list where every segment's content is at most *limit* chars.
+    """
+    output: list[dict] = []
+
+    for segment in segments:
+        seg_type = segment.get("type", "text")
+
+        if seg_type == "equation":
+            # Equations have different limits (1000), handled by math module.
+            # Pass them through unchanged here.
+            output.append(segment)
+            continue
+
+        # Extract content from the text segment
+        content = segment.get("text", {}).get("content", "")
+
+        if len(content) <= limit:
+            output.append(segment)
+            continue
+
+        # Split the content
+        chunks = split_string(content, limit)
+        for chunk in chunks:
+            new_seg = _clone_text_segment(segment, chunk)
+            output.append(new_seg)
+
+    return output

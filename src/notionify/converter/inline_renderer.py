@@ -44,6 +44,15 @@ def markdown_escape(text: str, context: str = "inline") -> str:
     return _ESCAPE_RE.sub(r'\\\1', text)
 
 
+# Annotation wrappers applied in order: bold -> italic -> strikethrough -> underline
+_ANNOTATION_WRAPPERS = [
+    ("bold", "**", "**"),
+    ("italic", "_", "_"),
+    ("strikethrough", "~~", "~~"),
+    ("underline", "<u>", "</u>"),
+]
+
+
 def render_rich_text(segments: list[dict]) -> str:
     """Render a Notion rich_text array to a Markdown string.
 
@@ -100,20 +109,11 @@ def render_rich_text(segments: list[dict]) -> str:
             text = f"`{plain_text}`"
         else:
             text = markdown_escape(plain_text)
-
-        # Apply annotations in the specified order (innermost first):
-        # code (already applied above) -> bold -> italic -> strikethrough -> underline
-        if annotations.get("bold", False) and not is_code:
-            text = f"**{text}**"
-
-        if annotations.get("italic", False) and not is_code:
-            text = f"_{text}_"
-
-        if annotations.get("strikethrough", False) and not is_code:
-            text = f"~~{text}~~"
-
-        if annotations.get("underline", False) and not is_code:
-            text = f"<u>{text}</u>"
+            # Apply annotations in the specified order (innermost first):
+            # code (already applied above) -> bold -> italic -> strikethrough -> underline
+            for key, prefix, suffix in _ANNOTATION_WRAPPERS:
+                if annotations.get(key, False):
+                    text = f"{prefix}{text}{suffix}"
 
         # Link (outermost wrapping)
         if href:

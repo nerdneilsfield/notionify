@@ -133,6 +133,79 @@ def _dump_payload(
 
 
 # ---------------------------------------------------------------------------
+# Shared request helpers (used by both sync and async transports)
+# ---------------------------------------------------------------------------
+
+def _handle_network_exception(
+    config: NotionifyConfig,
+    metrics: Any,
+    method: str,
+    path: str,
+    exc: Exception,
+    attempt: int,
+) -> float:
+    """Handle a network error during a request attempt.
+
+    Returns the backoff delay (seconds) if the request should be retried.
+    Raises :class:`NotionifyNetworkError` if retries are exhausted.
+    """
+    max_attempts = config.retry_max_attempts
+    metrics.increment(
+        "notionify.requests_total",
+        tags={"method": method, "path": path, "status": "error"},
+    )
+    log.warning(
+        "Request network error",
+        extra={
+            "extra_fields": {
+                "op": "request",
+                "method": method,
+                "path": path,
+                "attempt": attempt + 1,
+                "error": str(exc),
+            }
+        },
+    )
+    if should_retry(None, exc, attempt, max_attempts):
+        delay = compute_backoff(
+            attempt,
+            base=config.retry_base_delay,
+            maximum=config.retry_max_delay,
+            jitter=config.retry_jitter,
+        )
+        metrics.increment(
+            "notionify.retries_total",
+            tags={"method": method, "path": path, "reason": "network_error"},
+        )
+        return delay
+    raise NotionifyNetworkError(
+        message=f"Network error on {method} {path}: {exc}",
+        context={"url": path, "attempt": attempt + 1},
+        cause=exc,
+    ) from exc
+
+
+def _emit_debug_dump(
+    config: NotionifyConfig,
+    method: str,
+    response: httpx.Response,
+    json_payload: Any,
+) -> None:
+    """Emit a redacted debug dump of request/response if enabled."""
+    if not config.debug_dump_payload:
+        return
+    try:
+        resp_body = response.json()
+    except (ValueError, KeyError):
+        resp_body = response.text[:1000]
+    _dump_payload(
+        method, str(response.url), json_payload,
+        response.status_code, resp_body,
+        token=config.token,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Sync transport
 # ---------------------------------------------------------------------------
 
@@ -228,48 +301,13 @@ class NotionTransport:
                 response = self._client.request(method, path, **kwargs)
                 elapsed_ms = (time.monotonic() - t0) * 1000
             except (httpx.TimeoutException, httpx.NetworkError) as exc:
-                elapsed_ms = (time.monotonic() - t0) * 1000
                 last_exception = exc
                 last_status = None
-
-                self._metrics.increment(
-                    "notionify.requests_total",
-                    tags={"method": method, "path": path, "status": "error"},
+                delay = _handle_network_exception(
+                    self._config, self._metrics, method, path, exc, attempt,
                 )
-
-                log.warning(
-                    "Request network error",
-                    extra={
-                        "extra_fields": {
-                            "op": "request",
-                            "method": method,
-                            "path": path,
-                            "attempt": attempt + 1,
-                            "error": str(exc),
-                        }
-                    },
-                )
-
-                if should_retry(None, exc, attempt, max_attempts):
-                    delay = compute_backoff(
-                        attempt,
-                        base=self._config.retry_base_delay,
-                        maximum=self._config.retry_max_delay,
-                        jitter=self._config.retry_jitter,
-                    )
-                    self._metrics.increment(
-                        "notionify.retries_total",
-                        tags={"method": method, "path": path, "reason": "network_error"},
-                    )
-                    time.sleep(delay)
-                    continue
-
-                # Not retryable or exhausted -- raise network error.
-                raise NotionifyNetworkError(
-                    message=f"Network error on {method} {path}: {exc}",
-                    context={"url": path, "attempt": attempt + 1},
-                    cause=exc,
-                ) from exc
+                time.sleep(delay)
+                continue
 
             # 3. Process response
             last_status = response.status_code
@@ -285,17 +323,7 @@ class NotionTransport:
                 tags={"method": method, "path": path, "status": str(response.status_code)},
             )
 
-            # Debug dump
-            if self._config.debug_dump_payload:
-                try:
-                    resp_body = response.json()
-                except (ValueError, KeyError):
-                    resp_body = response.text[:1000]
-                _dump_payload(
-                    method, str(response.url), json_payload,
-                    response.status_code, resp_body,
-                    token=self._config.token,
-                )
+            _emit_debug_dump(self._config, method, response, json_payload)
 
             # 3a. Success
             if 200 <= response.status_code < 300:
@@ -511,47 +539,13 @@ class AsyncNotionTransport:
                 response = await self._client.request(method, path, **kwargs)
                 elapsed_ms = (time.monotonic() - t0) * 1000
             except (httpx.TimeoutException, httpx.NetworkError) as exc:
-                elapsed_ms = (time.monotonic() - t0) * 1000
                 last_exception = exc
                 last_status = None
-
-                self._metrics.increment(
-                    "notionify.requests_total",
-                    tags={"method": method, "path": path, "status": "error"},
+                delay = _handle_network_exception(
+                    self._config, self._metrics, method, path, exc, attempt,
                 )
-
-                log.warning(
-                    "Request network error",
-                    extra={
-                        "extra_fields": {
-                            "op": "request",
-                            "method": method,
-                            "path": path,
-                            "attempt": attempt + 1,
-                            "error": str(exc),
-                        }
-                    },
-                )
-
-                if should_retry(None, exc, attempt, max_attempts):
-                    delay = compute_backoff(
-                        attempt,
-                        base=self._config.retry_base_delay,
-                        maximum=self._config.retry_max_delay,
-                        jitter=self._config.retry_jitter,
-                    )
-                    self._metrics.increment(
-                        "notionify.retries_total",
-                        tags={"method": method, "path": path, "reason": "network_error"},
-                    )
-                    await asyncio.sleep(delay)
-                    continue
-
-                raise NotionifyNetworkError(
-                    message=f"Network error on {method} {path}: {exc}",
-                    context={"url": path, "attempt": attempt + 1},
-                    cause=exc,
-                ) from exc
+                await asyncio.sleep(delay)
+                continue
 
             # 3. Process response
             last_status = response.status_code
@@ -567,17 +561,7 @@ class AsyncNotionTransport:
                 tags={"method": method, "path": path, "status": str(response.status_code)},
             )
 
-            # Debug dump
-            if self._config.debug_dump_payload:
-                try:
-                    resp_body = response.json()
-                except (ValueError, KeyError):
-                    resp_body = response.text[:1000]
-                _dump_payload(
-                    method, str(response.url), json_payload,
-                    response.status_code, resp_body,
-                    token=self._config.token,
-                )
+            _emit_debug_dump(self._config, method, response, json_payload)
 
             # 3a. Success
             if 200 <= response.status_code < 300:
