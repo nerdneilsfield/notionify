@@ -263,12 +263,16 @@ class NotionToMarkdownRenderer:
 
         Implements the algorithm from PRD section 11.3.
 
-        The table block itself contains ``table_width`` and
-        ``has_column_header``.  Row data lives in child ``table_row``
-        blocks, each with a ``cells`` array of rich_text arrays.
+        The table block itself contains ``table_width``, ``has_column_header``,
+        and ``has_row_header``.  Row data lives in child ``table_row`` blocks,
+        each with a ``cells`` array of rich_text arrays.
+
+        When ``has_row_header`` is true the first cell of every row is wrapped
+        in ``**...**`` to visually distinguish it as a row header.
         """
         block_data = block.get("table", {})
         col_count = block_data.get("table_width", 0)
+        has_row_header = block_data.get("has_row_header", False)
 
         # Rows are provided as children
         children = block_data.get("children") or block.get("children")
@@ -288,6 +292,11 @@ class NotionToMarkdownRenderer:
 
             # Render each cell's rich_text
             rendered_cells = [render_rich_text(cell) for cell in cells]
+
+            # Bold the first column when has_row_header is set
+            if has_row_header and rendered_cells:
+                first = rendered_cells[0]
+                rendered_cells[0] = f"**{first}**" if first else first
 
             # Pad to col_count if needed
             while len(rendered_cells) < col_count:

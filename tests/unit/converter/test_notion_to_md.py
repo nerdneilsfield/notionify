@@ -169,7 +169,7 @@ def make_image_external(url, caption=""):
     return block
 
 
-def make_table_block(header_cells, body_rows, has_column_header=True):
+def make_table_block(header_cells, body_rows, has_column_header=True, has_row_header=False):
     """Build a Notion table block with rows as children.
 
     header_cells: list of strings for the header row
@@ -206,7 +206,7 @@ def make_table_block(header_cells, body_rows, has_column_header=True):
         "table": {
             "table_width": col_count,
             "has_column_header": has_column_header,
-            "has_row_header": False,
+            "has_row_header": has_row_header,
             "children": rows,
         },
     }
@@ -1269,3 +1269,101 @@ class TestNotionToMdBranchCoverage:
         from notionify.converter.notion_to_md import _extract_plain_text
         block = {"type": "paragraph", "paragraph": None}
         assert _extract_plain_text(block) == ""
+
+
+# =========================================================================
+# U-NM-023: table has_row_header support
+# =========================================================================
+
+class TestTableRowHeaderRendering:
+    """U-NM-023: Table blocks with has_row_header bold the first column."""
+
+    def test_table_row_header_bolds_first_cell(self):
+        """has_row_header=True wraps each first cell in **...**."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [make_table_block(
+            header_cells=["Name", "Value"],
+            body_rows=[["Alpha", "1"], ["Beta", "2"]],
+            has_row_header=True,
+        )]
+        md = r.render_blocks(blocks)
+        assert "| **Name** | Value |" in md
+        assert "| **Alpha** | 1 |" in md
+        assert "| **Beta** | 2 |" in md
+
+    def test_table_no_row_header_no_bold(self):
+        """has_row_header=False (default) leaves cells unmodified."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [make_table_block(
+            header_cells=["Name", "Value"],
+            body_rows=[["Alpha", "1"]],
+            has_row_header=False,
+        )]
+        md = r.render_blocks(blocks)
+        assert "| Name | Value |" in md
+        assert "| Alpha | 1 |" in md
+        assert "**" not in md
+
+    def test_table_row_header_empty_first_cell_not_double_bolded(self):
+        """An empty first cell with has_row_header is not wrapped in ****."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [make_table_block(
+            header_cells=["", "Value"],
+            body_rows=[["", "Data"]],
+            has_row_header=True,
+        )]
+        md = r.render_blocks(blocks)
+        # Empty cell stays empty — no "****" artefact
+        assert "****" not in md
+
+    def test_table_row_header_single_column(self):
+        """Single-column table with has_row_header bolds every cell."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [make_table_block(
+            header_cells=["Label"],
+            body_rows=[["Row1"], ["Row2"]],
+            has_row_header=True,
+        )]
+        md = r.render_blocks(blocks)
+        assert "| **Label** |" in md
+        assert "| **Row1** |" in md
+        assert "| **Row2** |" in md
+
+    def test_table_row_header_with_column_header(self):
+        """Both has_row_header and has_column_header work together."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [make_table_block(
+            header_cells=["Category", "Q1", "Q2"],
+            body_rows=[["Sales", "100", "200"], ["Costs", "50", "80"]],
+            has_column_header=True,
+            has_row_header=True,
+        )]
+        md = r.render_blocks(blocks)
+        # Separator row present (column header)
+        assert "|---|---|---|" in md
+        # First column bolded (row header)
+        assert "| **Category** |" in md
+        assert "| **Sales** |" in md
+        assert "| **Costs** |" in md
+        # Non-first columns not bolded
+        assert "| Q1 |" in md
+        assert "| 100 |" in md
+
+    def test_table_row_header_missing_key_defaults_false(self):
+        """Table block without has_row_header key defaults to no bolding."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "table",
+            "table": {
+                "table_width": 2,
+                # has_row_header intentionally absent
+                "children": [
+                    {"type": "table_row", "table_row": {"cells": [
+                        [_make_text_segment("X")], [_make_text_segment("Y")],
+                    ]}},
+                ],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "| X | Y |" in md
+        assert "**" not in md
