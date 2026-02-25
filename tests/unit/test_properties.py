@@ -46,6 +46,9 @@ from notionify.utils.text_split import split_string
 # Reusable strategies
 # ---------------------------------------------------------------------------
 
+# Safe alphabet: ASCII letters + digits, no Markdown special chars.
+_SAFE_TEXT = string.ascii_letters + string.digits
+
 # Strategy for a simple Notion-style block dict (the exact shape does not
 # matter for chunk_children, which is type-agnostic).
 _block_st = st.fixed_dictionaries({"type": st.text(min_size=1, max_size=20)})
@@ -953,6 +956,116 @@ class TestInlineRendererProperties:
         # The escaped output must contain the core text characters.
         assert isinstance(result, str)
         assert len(result) >= len(safe)
+
+    @given(
+        char=st.sampled_from(list(r'\`*_{}[]()#+-.!|')),
+    )
+    @settings(max_examples=50)
+    def test_each_special_char_is_escaped_in_inline_context(self, char: str) -> None:
+        """Every character in ESCAPE_CHARS must be backslash-escaped in inline context."""
+        result = markdown_escape(char, context="inline")
+        assert result == f"\\{char}"
+
+    @given(
+        text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+    )
+    @settings(max_examples=200)
+    def test_bold_annotation_wraps_safe_text(self, text: str) -> None:
+        """A text segment with bold=True must produce **text** in rendered output."""
+        seg = {
+            "type": "text",
+            "plain_text": text,
+            "text": {"content": text},
+            "annotations": {
+                "bold": True,
+                "italic": False,
+                "strikethrough": False,
+                "underline": False,
+                "code": False,
+                "color": "default",
+            },
+        }
+        result = render_rich_text([seg])
+        assert f"**{text}**" in result
+
+    @given(
+        text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+    )
+    @settings(max_examples=200)
+    def test_italic_annotation_wraps_safe_text(self, text: str) -> None:
+        """A text segment with italic=True must produce _text_ in rendered output."""
+        seg = {
+            "type": "text",
+            "plain_text": text,
+            "text": {"content": text},
+            "annotations": {
+                "bold": False,
+                "italic": True,
+                "strikethrough": False,
+                "underline": False,
+                "code": False,
+                "color": "default",
+            },
+        }
+        result = render_rich_text([seg])
+        assert f"_{text}_" in result
+
+    @given(
+        text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+    )
+    @settings(max_examples=200)
+    def test_strikethrough_annotation_wraps_safe_text(self, text: str) -> None:
+        """A text segment with strikethrough=True must produce ~~text~~ in rendered output."""
+        seg = {
+            "type": "text",
+            "plain_text": text,
+            "text": {"content": text},
+            "annotations": {
+                "bold": False,
+                "italic": False,
+                "strikethrough": True,
+                "underline": False,
+                "code": False,
+                "color": "default",
+            },
+        }
+        result = render_rich_text([seg])
+        assert f"~~{text}~~" in result
+
+    @given(
+        text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+    )
+    @settings(max_examples=200)
+    def test_code_annotation_wraps_safe_text(self, text: str) -> None:
+        """A text segment with code=True must produce `text` in rendered output."""
+        seg = {
+            "type": "text",
+            "plain_text": text,
+            "text": {"content": text},
+            "annotations": {
+                "bold": False,
+                "italic": False,
+                "strikethrough": False,
+                "underline": False,
+                "code": True,
+                "color": "default",
+            },
+        }
+        result = render_rich_text([seg])
+        assert f"`{text}`" in result
+
+    @given(
+        text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+    )
+    @settings(max_examples=200)
+    def test_escaped_output_longer_than_or_equal_to_input_with_special_chars(
+        self, text: str
+    ) -> None:
+        """Inline escape must not shorten text (each special char gets a backslash added)."""
+        # We add a special char to ensure escaping happens.
+        input_text = text + "*"
+        result = markdown_escape(input_text, context="inline")
+        assert len(result) > len(text)  # at minimum the * is escaped to \*
 
 
 # ---------------------------------------------------------------------------
@@ -3297,8 +3410,6 @@ class TestConfigValidationProperties:
 # ---------------------------------------------------------------------------
 # 19. TestTableRendererProperties
 # ---------------------------------------------------------------------------
-
-_SAFE_TEXT = string.ascii_letters + string.digits
 
 
 def _make_table_block(
