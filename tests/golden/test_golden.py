@@ -1355,6 +1355,56 @@ class TestMathInTable:
         assert "Positive domain only" in round_tripped
 
 
+class TestImagesWithCaptions:
+    """Round-trip tests for images_with_captions.md.
+
+    Verifies that image alt text (stored as Notion caption) survives the round-trip.
+    images_external.md has alt text but doesn't assert it's preserved.
+    """
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "images_with_captions.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_produces_image_blocks(self, converter):
+        md = (FIXTURES_DIR / "images_with_captions.md").read_text()
+        result = converter.convert(md)
+        image_blocks = [b for b in result.blocks if b.get("type") == "image"]
+        assert len(image_blocks) >= 5, "Should produce at least 5 image blocks"
+
+    def test_alt_text_stored_as_caption(self, converter):
+        md = (FIXTURES_DIR / "images_with_captions.md").read_text()
+        result = converter.convert(md)
+        image_blocks = [b for b in result.blocks if b.get("type") == "image"]
+        captions = [b.get("image", {}).get("caption", []) for b in image_blocks]
+        assert any(len(c) > 0 for c in captions), "At least one image should have a caption"
+
+    def test_alt_text_preserved_in_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "images_with_captions.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "sunset" in round_tripped
+        assert "diagram" in round_tripped
+
+    def test_image_urls_preserved_in_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "images_with_captions.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "example.com/sunset.jpg" in round_tripped
+        assert "example.com/diagram.png" in round_tripped
+
+    def test_descriptive_alt_text_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "images_with_captions.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Eiffel Tower" in round_tripped
+
+
 class TestHeadingInlineFormatting:
     """Round-trip tests for heading_inline_formatting.md.
 
