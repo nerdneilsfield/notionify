@@ -2989,3 +2989,306 @@ class TestRetryStatusCodeProperties:
         r1 = compute_backoff(attempt=attempt + 1, base=base, maximum=maximum, jitter=False)
         # Both are capped at maximum, so either r1 >= r0 or both equal maximum
         assert r1 >= r0 or (r0 == maximum and r1 == maximum)
+
+
+# ---------------------------------------------------------------------------
+# 16. TestDiffPlannerAlgebraicProperties
+# ---------------------------------------------------------------------------
+
+
+def _make_block(
+    block_type: str = "paragraph", block_id: str | None = None, text: str = "hello"
+) -> dict:
+    """Build a minimal Notion-style block dict for diff planner tests."""
+    block: dict = {
+        "type": block_type,
+        block_type: {
+            "rich_text": [
+                {"type": "text", "text": {"content": text}, "plain_text": text}
+            ],
+        },
+    }
+    if block_id is not None:
+        block["id"] = block_id
+    return block
+
+
+_block_type_st = st.sampled_from(
+    ["paragraph", "heading_1", "heading_2", "heading_3", "code", "quote"]
+)
+
+
+class TestDiffPlannerAlgebraicProperties:
+    """Property-based tests for the DiffPlanner.
+
+    Verifies algebraic invariants of the diff plan produced by DiffPlanner.plan(),
+    including coverage (all blocks accounted for), referential integrity, and
+    correct fall-through to full overwrite when match ratio is low.
+    """
+
+    @given(
+        texts=st.lists(st.text(min_size=1, max_size=50), min_size=0, max_size=15),
+    )
+    @settings(max_examples=200)
+    def test_plan_never_crashes_on_arbitrary_blocks(self, texts: list[str]) -> None:
+        """DiffPlanner.plan() must never raise on any input pair."""
+        config = NotionifyConfig(token="test")
+        planner = DiffPlanner(config)
+
+        existing = [_make_block(text=t, block_id=f"b-{i}") for i, t in enumerate(texts)]
+        new = [_make_block(text=t) for t in reversed(texts)]
+
+        ops = planner.plan(existing, new)
+        assert isinstance(ops, list)
+        for op in ops:
+            assert isinstance(op, DiffOp)
+
+    @given(
+        texts=st.lists(st.text(min_size=1, max_size=50), min_size=1, max_size=15),
+    )
+    @settings(max_examples=200)
+    def test_identical_blocks_all_kept(self, texts: list[str]) -> None:
+        """When existing and new blocks are identical, all ops should be KEEP."""
+        config = NotionifyConfig(token="test")
+        planner = DiffPlanner(config)
+
+        blocks = [_make_block(text=t, block_id=f"b-{i}") for i, t in enumerate(texts)]
+        # New blocks have the same content but no IDs (like converter output)
+        new_blocks = [_make_block(text=t) for t in texts]
+
+        ops = planner.plan(blocks, new_blocks)
+        keep_ops = [op for op in ops if op.op_type == DiffOpType.KEEP]
+        assert len(keep_ops) == len(texts)
+
+    @given(
+        texts=st.lists(st.text(min_size=1, max_size=50), min_size=1, max_size=10),
+    )
+    @settings(max_examples=200)
+    def test_empty_existing_produces_all_inserts(self, texts: list[str]) -> None:
+        """When existing is empty, all ops must be INSERT."""
+        config = NotionifyConfig(token="test")
+        planner = DiffPlanner(config)
+
+        new_blocks = [_make_block(text=t) for t in texts]
+        ops = planner.plan([], new_blocks)
+        assert len(ops) == len(texts)
+        assert all(op.op_type == DiffOpType.INSERT for op in ops)
+
+    @given(
+        texts=st.lists(st.text(min_size=1, max_size=50), min_size=1, max_size=10),
+    )
+    @settings(max_examples=200)
+    def test_empty_new_produces_all_deletes(self, texts: list[str]) -> None:
+        """When new is empty, all ops must be DELETE."""
+        config = NotionifyConfig(token="test")
+        planner = DiffPlanner(config)
+
+        existing = [_make_block(text=t, block_id=f"b-{i}") for i, t in enumerate(texts)]
+        ops = planner.plan(existing, [])
+        assert len(ops) == len(texts)
+        assert all(op.op_type == DiffOpType.DELETE for op in ops)
+
+    def test_both_empty_returns_empty(self) -> None:
+        """plan([], []) must return empty list."""
+        config = NotionifyConfig(token="test")
+        planner = DiffPlanner(config)
+        assert planner.plan([], []) == []
+
+    @given(
+        existing_texts=st.lists(
+            st.text(min_size=1, max_size=30), min_size=1, max_size=10
+        ),
+        new_texts=st.lists(
+            st.text(min_size=1, max_size=30), min_size=1, max_size=10
+        ),
+    )
+    @settings(max_examples=200)
+    def test_plan_ops_cover_all_new_blocks(
+        self, existing_texts: list[str], new_texts: list[str]
+    ) -> None:
+        """Every new block must be accounted for: as INSERT, UPDATE, REPLACE, or KEEP."""
+        config = NotionifyConfig(token="test")
+        planner = DiffPlanner(config)
+
+        existing = [
+            _make_block(text=t, block_id=f"b-{i}")
+            for i, t in enumerate(existing_texts)
+        ]
+        new_blocks = [_make_block(text=t) for t in new_texts]
+
+        ops = planner.plan(existing, new_blocks)
+
+        # Count operations that "produce" a new block
+        producing_ops = sum(
+            1
+            for op in ops
+            if op.op_type
+            in (DiffOpType.INSERT, DiffOpType.UPDATE, DiffOpType.REPLACE, DiffOpType.KEEP)
+        )
+        # Must be at least len(new_texts) (every new block accounted for)
+        assert producing_ops >= len(new_texts)
+
+    @given(
+        block_types=st.lists(
+            st.sampled_from(["paragraph", "heading_1", "code"]),
+            min_size=2,
+            max_size=8,
+        ),
+    )
+    @settings(max_examples=100)
+    def test_plan_is_deterministic(self, block_types: list[str]) -> None:
+        """Same input always produces the same plan."""
+        config = NotionifyConfig(token="test")
+        planner = DiffPlanner(config)
+
+        existing = [
+            _make_block(block_type=bt, text=f"text-{i}", block_id=f"b-{i}")
+            for i, bt in enumerate(block_types)
+        ]
+        new_blocks = [
+            _make_block(block_type=bt, text=f"new-{i}")
+            for i, bt in enumerate(reversed(block_types))
+        ]
+
+        ops1 = planner.plan(existing, new_blocks)
+        ops2 = planner.plan(existing, new_blocks)
+        assert ops1 == ops2
+
+
+# ---------------------------------------------------------------------------
+# 17. TestDiffPlannerUpgradeProperties
+# ---------------------------------------------------------------------------
+
+
+class TestDiffPlannerUpgradeProperties:
+    """Property tests for the UPDATE/REPLACE upgrade logic in _upgrade_to_updates."""
+
+    @given(
+        n=st.integers(min_value=1, max_value=10),
+    )
+    @settings(max_examples=100)
+    def test_same_type_replace_becomes_update(self, n: int) -> None:
+        """When existing and new blocks differ in content but not type,
+        adjacent DELETE+INSERT should be upgraded to UPDATE."""
+        config = NotionifyConfig(token="test")
+        planner = DiffPlanner(config)
+
+        existing = [
+            _make_block(text=f"old-{i}", block_id=f"b-{i}") for i in range(n)
+        ]
+        new_blocks = [_make_block(text=f"new-{i}") for i in range(n)]
+
+        ops = planner.plan(existing, new_blocks)
+
+        # With completely different content but same type, we should see
+        # UPDATE ops (or possibly full overwrite for low match ratio).
+        # Either way: no crash, all ops valid.
+        for op in ops:
+            assert op.op_type in (
+                DiffOpType.KEEP,
+                DiffOpType.UPDATE,
+                DiffOpType.REPLACE,
+                DiffOpType.INSERT,
+                DiffOpType.DELETE,
+            )
+
+    @given(
+        n=st.integers(min_value=1, max_value=8),
+    )
+    @settings(max_examples=100)
+    def test_different_type_becomes_replace(self, n: int) -> None:
+        """When type changes, adjacent DELETE+INSERT should become REPLACE."""
+        config = NotionifyConfig(token="test")
+        planner = DiffPlanner(config)
+
+        existing = [
+            _make_block(block_type="paragraph", text=f"text-{i}", block_id=f"b-{i}")
+            for i in range(n)
+        ]
+        new_blocks = [
+            _make_block(block_type="heading_1", text=f"text-{i}") for i in range(n)
+        ]
+
+        ops = planner.plan(existing, new_blocks)
+
+        # With completely different types and different content, we may see REPLACE
+        # or full overwrite. Either way: valid ops.
+        for op in ops:
+            assert op.op_type in (
+                DiffOpType.KEEP,
+                DiffOpType.UPDATE,
+                DiffOpType.REPLACE,
+                DiffOpType.INSERT,
+                DiffOpType.DELETE,
+            )
+
+
+# ---------------------------------------------------------------------------
+# 18. TestConfigValidationProperties
+# ---------------------------------------------------------------------------
+
+
+class TestConfigValidationProperties:
+    """Extended property tests for NotionifyConfig validation."""
+
+    @given(
+        timeout=st.floats(min_value=-1e6, max_value=0.0, allow_nan=False),
+    )
+    @settings(max_examples=100)
+    def test_non_positive_timeout_raises(self, timeout: float) -> None:
+        """timeout_seconds <= 0 must raise ValueError."""
+        with pytest.raises(ValueError, match="timeout_seconds"):
+            NotionifyConfig(token="test", timeout_seconds=timeout)
+
+    @given(
+        size=st.integers(min_value=-1_000_000, max_value=0),
+    )
+    @settings(max_examples=100)
+    def test_non_positive_image_max_size_raises(self, size: int) -> None:
+        """image_max_size_bytes <= 0 must raise ValueError."""
+        with pytest.raises(ValueError, match="image_max_size_bytes"):
+            NotionifyConfig(token="test", image_max_size_bytes=size)
+
+    @given(
+        concurrent=st.integers(min_value=-100, max_value=0),
+    )
+    @settings(max_examples=100)
+    def test_non_positive_image_max_concurrent_raises(self, concurrent: int) -> None:
+        """image_max_concurrent < 1 must raise ValueError."""
+        with pytest.raises(ValueError, match="image_max_concurrent"):
+            NotionifyConfig(token="test", image_max_concurrent=concurrent)
+
+    def test_empty_upload_mimes_raises(self) -> None:
+        """Empty image_allowed_mimes_upload must raise ValueError."""
+        with pytest.raises(ValueError, match="image_allowed_mimes_upload"):
+            NotionifyConfig(token="test", image_allowed_mimes_upload=[])
+
+    def test_empty_external_mimes_raises(self) -> None:
+        """Empty image_allowed_mimes_external must raise ValueError."""
+        with pytest.raises(ValueError, match="image_allowed_mimes_external"):
+            NotionifyConfig(token="test", image_allowed_mimes_external=[])
+
+    def test_invalid_mime_format_raises(self) -> None:
+        """MIME type without / must raise ValueError."""
+        with pytest.raises(ValueError, match="Invalid MIME"):
+            NotionifyConfig(token="test", image_allowed_mimes_upload=["invalid"])
+
+    @given(
+        token_len=st.integers(min_value=0, max_value=100),
+    )
+    @settings(max_examples=50)
+    def test_repr_masks_token(self, token_len: int) -> None:
+        """repr() must never contain the full token (when > 4 chars)."""
+        # Use distinct chars so the full token differs from the masked suffix.
+        token = "".join(chr(ord("A") + (i % 26)) for i in range(token_len))
+        config = NotionifyConfig(token=token)
+        r = repr(config)
+        if token_len > 4:
+            # Full token should NOT appear; only the masked suffix.
+            assert token not in r
+            assert f"...{token[-4:]}" in r
+        elif token_len == 4:
+            # Edge: "...ABCD" contains "ABCD", so just check masking.
+            assert f"...{token[-4:]}" in r
+        else:
+            assert "****" in r

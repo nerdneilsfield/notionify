@@ -1237,3 +1237,194 @@ class TestAsyncPaginateEdgeCases:
             items = [item async for item in transport.paginate("/blocks/1/children")]
         assert items == [{"id": "a"}, {"id": "b"}, {"id": "c"}]
         await transport.close()
+
+
+# ---------------------------------------------------------------------------
+# Retry-After edge cases (sync transport)
+# ---------------------------------------------------------------------------
+
+class TestRetryAfterEdgeCases:
+    """Edge cases for retry behaviour around Retry-After headers and exhaustion."""
+
+    def _transport(self, **cfg_overrides) -> NotionTransport:
+        t = NotionTransport(make_config(**cfg_overrides))
+        t._bucket = _MockBucket(wait=0.0)
+        return t
+
+    def test_429_with_invalid_retry_after_falls_back_to_exponential(self):
+        """When 429 returned but Retry-After header is non-numeric, should
+        still retry using exponential backoff."""
+        transport = self._transport(retry_max_attempts=2)
+        resp_429 = make_response(
+            429, body={"message": "rate limited"}, headers={"retry-after": "invalid"},
+        )
+        resp_200 = make_response(200, body={"ok": True})
+        call_count = {"n": 0}
+
+        def side_effect(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return resp_429
+            return resp_200
+
+        with patch.object(transport._client, "request", side_effect=side_effect):
+            result = transport.request("GET", "/pages")
+        assert result == {"ok": True}
+        assert call_count["n"] == 2
+
+    def test_429_without_retry_after_header_falls_back_to_exponential(self):
+        """When 429 returned but no Retry-After header at all, should still
+        retry using exponential backoff."""
+        transport = self._transport(retry_max_attempts=2)
+        # 429 with no Retry-After header
+        resp_429 = make_response(429, body={"message": "rate limited"})
+        resp_200 = make_response(200, body={"result": "ok"})
+        call_count = {"n": 0}
+
+        def side_effect(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return resp_429
+            return resp_200
+
+        with patch.object(transport._client, "request", side_effect=side_effect):
+            result = transport.request("GET", "/databases")
+        assert result == {"result": "ok"}
+        assert call_count["n"] == 2
+
+    def test_503_transient_then_success(self):
+        """First request returns 503, second request returns 200."""
+        transport = self._transport(retry_max_attempts=3)
+        resp_503 = make_response(503, body={"message": "Service Unavailable"})
+        resp_200 = make_response(200, body={"id": "page-1"})
+        responses = iter([resp_503, resp_200])
+
+        with patch.object(
+            transport._client, "request",
+            side_effect=lambda *a, **kw: next(responses),
+        ):
+            result = transport.request("GET", "/pages/page-1")
+        assert result == {"id": "page-1"}
+
+    def test_all_attempts_exhausted_context_has_correct_attempts_count(self):
+        """The context['attempts'] in RetryExhaustedError matches max_attempts."""
+        transport = self._transport(retry_max_attempts=4)
+        resp_429 = make_response(429, body={"message": "rate limited"})
+        with (
+            patch.object(transport._client, "request", return_value=resp_429),
+            pytest.raises(NotionifyRetryExhaustedError) as exc_info,
+        ):
+            transport.request("GET", "/pages")
+        assert exc_info.value.context["attempts"] == 4
+
+    def test_all_attempts_exhausted_context_has_last_status_code(self):
+        """The context['last_status_code'] correctly contains the final status code."""
+        transport = self._transport(retry_max_attempts=2)
+        resp_502 = make_response(502, body={"message": "Bad Gateway"})
+        with (
+            patch.object(transport._client, "request", return_value=resp_502),
+            pytest.raises(NotionifyRetryExhaustedError) as exc_info,
+        ):
+            transport.request("POST", "/blocks")
+        assert exc_info.value.context["last_status_code"] == 502
+
+    def test_network_error_all_retries_exhausted_has_cause(self):
+        """When all retries fail with network error, the raised error has .cause
+        set to the original exception."""
+        transport = self._transport(retry_max_attempts=3)
+
+        original_exc = httpx.NetworkError("connection refused")
+
+        def side_effect(*args, **kwargs):
+            raise original_exc
+
+        with (
+            patch.object(transport._client, "request", side_effect=side_effect),
+            pytest.raises(NotionifyNetworkError) as exc_info,
+        ):
+            transport.request("GET", "/pages")
+        assert exc_info.value.cause is original_exc
+
+    def test_mixed_503_then_network_error_exhausts(self):
+        """First attempt gets 503, second gets network error, third also
+        network error -- should exhaust retries."""
+        transport = self._transport(retry_max_attempts=3)
+        resp_503 = make_response(503, body={"message": "Service Unavailable"})
+        call_count = {"n": 0}
+
+        def side_effect(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return resp_503
+            raise httpx.NetworkError("connection reset")
+
+        with (
+            patch.object(transport._client, "request", side_effect=side_effect),
+            pytest.raises(NotionifyNetworkError),
+        ):
+            transport.request("GET", "/pages")
+        assert call_count["n"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Async transport cancellation
+# ---------------------------------------------------------------------------
+
+class TestAsyncTransportCancellation:
+    """Verify that asyncio.CancelledError propagates correctly from the
+    async transport rather than being swallowed by retry/rate-limit logic."""
+
+    def _transport(self, **cfg_overrides) -> AsyncNotionTransport:
+        t = AsyncNotionTransport(make_config(**cfg_overrides))
+        t._bucket = _MockAsyncBucket(wait=0.0)
+        return t
+
+    async def test_cancelled_during_request_propagates(self):
+        """CancelledError during httpx request should propagate."""
+        import asyncio
+
+        transport = self._transport()
+
+        async def raise_cancelled(*args, **kwargs):
+            raise asyncio.CancelledError()
+
+        transport._client = AsyncMock(spec=httpx.AsyncClient)
+        transport._client.request = raise_cancelled
+
+        with pytest.raises(asyncio.CancelledError):
+            await transport.request("GET", "/pages")
+
+    async def test_cancelled_during_rate_limit_wait_propagates(self):
+        """CancelledError during bucket.acquire should propagate."""
+        import asyncio
+
+        transport = self._transport()
+
+        async def raise_cancelled(tokens: int = 1) -> float:
+            raise asyncio.CancelledError()
+
+        transport._bucket = MagicMock()
+        transport._bucket.acquire = raise_cancelled
+
+        with pytest.raises(asyncio.CancelledError):
+            await transport.request("GET", "/pages")
+
+    async def test_cancelled_during_retry_sleep_propagates(self):
+        """CancelledError during asyncio.sleep in retry path should propagate."""
+        import asyncio
+
+        transport = self._transport(retry_max_attempts=3)
+        # First request returns 429 to trigger retry, then sleep raises CancelledError
+        resp_429 = make_response(
+            429, body={"message": "rate limited"}, headers={"retry-after": "0"},
+        )
+
+        transport._client = AsyncMock(spec=httpx.AsyncClient)
+        transport._client.request = AsyncMock(return_value=resp_429)
+
+        sleep_patch = patch(
+            "notionify.notion_api.transport.asyncio.sleep",
+            side_effect=asyncio.CancelledError(),
+        )
+        with sleep_patch, pytest.raises(asyncio.CancelledError):
+            await transport.request("GET", "/pages")

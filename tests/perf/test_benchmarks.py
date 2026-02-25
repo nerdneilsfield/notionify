@@ -406,3 +406,27 @@ class TestMemoryUsage:
         peak_mb = peak / (1024 * 1024)
         print(f"\n  Diff plan ({len(blocks)} blocks) peak memory: {peak_mb:.2f} MiB")
         assert peak_mb < 10, f"Diff plan used too much memory: {peak_mb:.2f} MiB"
+
+    def test_diff_plan_500_differing_blocks_peak_memory_under_30mb(self):
+        """Diff planning 500 differing blocks should use under 30 MiB peak."""
+        config = NotionifyConfig(token="test")
+        converter = MarkdownToNotionConverter(config)
+        planner = DiffPlanner(config)
+
+        md_old = _make_large_markdown(50)
+        md_new = _make_large_markdown(55)
+        result_old = converter.convert(md_old)
+        result_new = converter.convert(md_new)
+        blocks_old = _simulate_notion_blocks(result_old.blocks)
+        for i, block in enumerate(blocks_old):
+            block["id"] = f"block-{i:04d}"
+
+        tracemalloc.start()
+        tracemalloc.clear_traces()
+        planner.plan(blocks_old, result_new.blocks)
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        peak_mb = peak / (1024 * 1024)
+        print(f"\n  Diff plan 500 differing blocks peak memory: {peak_mb:.2f} MiB")
+        assert peak_mb < 30, f"Diff plan used too much memory: {peak_mb:.2f} MiB"
