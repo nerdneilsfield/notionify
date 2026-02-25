@@ -172,13 +172,13 @@ class AsyncBlockAPI:
 
         See :meth:`BlockAPI.get_children` for parameter documentation.
         """
-        results: list[dict] = []
-        async for item in self._transport.paginate(
-            f"/blocks/{block_id}/children",
-            method="GET",
-        ):
-            results.append(item)
-        return results
+        return [
+            item
+            async for item in self._transport.paginate(
+                f"/blocks/{block_id}/children",
+                method="GET",
+            )
+        ]
 
     async def append_children(
         self,

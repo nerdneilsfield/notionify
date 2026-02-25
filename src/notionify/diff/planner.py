@@ -96,16 +96,11 @@ class DiffPlanner:
         self, existing: list[dict], new: list[dict]
     ) -> list[DiffOp]:
         """Delete all existing blocks and insert all new blocks."""
-        ops: list[DiffOp] = []
-        for block in existing:
-            ops.append(
-                DiffOp(
-                    op_type=DiffOpType.DELETE,
-                    existing_id=block.get("id"),
-                )
-            )
-        for block in new:
-            ops.append(DiffOp(op_type=DiffOpType.INSERT, new_block=block))
+        ops = [
+            DiffOp(op_type=DiffOpType.DELETE, existing_id=block.get("id"))
+            for block in existing
+        ]
+        ops.extend(DiffOp(op_type=DiffOpType.INSERT, new_block=block) for block in new)
         return ops
 
     def _build_ops(
@@ -204,9 +199,7 @@ class DiffPlanner:
         # Now handle unmatched existing/new blocks that share the same type
         # at the same position -- upgrade INSERTs adjacent to DELETEs to
         # UPDATEs or REPLACEs.
-        ops = self._upgrade_to_updates(ops, existing, new, existing_sigs, new_sigs)
-
-        return ops
+        return self._upgrade_to_updates(ops, existing, new, existing_sigs, new_sigs)
 
     def _upgrade_to_updates(
         self,

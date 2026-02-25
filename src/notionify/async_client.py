@@ -277,7 +277,7 @@ class AsyncNotionifyClient:
         )
 
     # ------------------------------------------------------------------
-    # Update (diff or overwrite)
+    # Update (diff or overwrite) methods
     # ------------------------------------------------------------------
 
     async def update_page_from_markdown(
@@ -308,8 +308,7 @@ class AsyncNotionifyClient:
         if strategy == "overwrite":
             return await self.overwrite_page_content(page_id, markdown)
 
-        # strategy == "diff"
-        # 1. Fetch existing blocks
+        # Diff strategy: fetch existing blocks, compute diff, apply.
         existing_blocks = await self._blocks.get_children(page_id)
 
         # 2. Convert new markdown
@@ -594,7 +593,7 @@ class AsyncNotionifyClient:
         """Read, validate, upload a local file image and replace the block."""
         base = self._config.image_base_dir
         if base is not None:
-            base_path = Path(base).resolve()
+            base_path = Path(base).resolve()  # noqa: ASYNC240 - trivial stat, not blocking I/O
             file_path = (base_path / pending.src).resolve()
             if not file_path.is_relative_to(base_path):
                 raise NotionifyImageNotFoundError(
@@ -602,7 +601,7 @@ class AsyncNotionifyClient:
                     context={"src": pending.src},
                 )
         else:
-            file_path = Path(pending.src).expanduser().resolve()
+            file_path = Path(pending.src).expanduser().resolve()  # noqa: ASYNC240
         if not file_path.is_file():
             raise NotionifyImageNotFoundError(
                 message=f"Image file not found: {pending.src}",
@@ -663,8 +662,7 @@ class AsyncNotionifyClient:
         """Choose single or multi-part upload based on data size."""
         if len(data) <= self._config.image_max_size_bytes:
             return await async_upload_single(self._files, name, mime_type, data)
-        else:
-            return await async_upload_multi(self._files, name, mime_type, data)
+        return await async_upload_multi(self._files, name, mime_type, data)
 
     def _handle_image_error(
         self,

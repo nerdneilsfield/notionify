@@ -138,8 +138,7 @@ class ASTNormalizer:
         if canonical_type == "block_code":
             raw_code = token.get("raw", "")
             # Strip trailing newline added by mistune
-            if raw_code.endswith("\n"):
-                raw_code = raw_code[:-1]
+            raw_code = raw_code.removesuffix("\n")
             result["raw"] = raw_code
             # Extract language info
             if attrs and attrs.get("info"):

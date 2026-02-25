@@ -273,7 +273,7 @@ class NotionifyClient:
         )
 
     # ------------------------------------------------------------------
-    # Update (diff or overwrite)
+    # Update (diff or overwrite) methods
     # ------------------------------------------------------------------
 
     def update_page_from_markdown(
@@ -304,8 +304,7 @@ class NotionifyClient:
         if strategy == "overwrite":
             return self.overwrite_page_content(page_id, markdown)
 
-        # strategy == "diff"
-        # 1. Fetch existing blocks
+        # Diff strategy: fetch existing blocks, compute diff, apply.
         existing_blocks = self._blocks.get_children(page_id)
 
         # 2. Convert new markdown
@@ -543,7 +542,7 @@ class NotionifyClient:
                 uploaded_count += self._process_single_image(
                     pending, conversion.blocks, conversion.warnings
                 )
-            except NotionifyImageError as exc:
+            except NotionifyImageError as exc:  # noqa: PERF203
                 self._handle_image_error(
                     pending, conversion.blocks, conversion.warnings, exc,
                     skip_sentinel=_SKIP_SENTINEL,
@@ -655,8 +654,7 @@ class NotionifyClient:
         """Choose single or multi-part upload based on data size."""
         if len(data) <= self._config.image_max_size_bytes:
             return upload_single(self._files, name, mime_type, data)
-        else:
-            return upload_multi(self._files, name, mime_type, data)
+        return upload_multi(self._files, name, mime_type, data)
 
     def _handle_image_error(
         self,

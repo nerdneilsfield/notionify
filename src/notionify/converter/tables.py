@@ -209,7 +209,7 @@ def _apply_table_fallback(
         }
         return block, warnings
 
-    # fallback == "comment" (default)
+    # Default fallback: emit as HTML comment block.
     block = {
         "object": "block",
         "type": "paragraph",

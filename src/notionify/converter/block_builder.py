@@ -332,7 +332,7 @@ def _build_block_quote(token: dict, ctx: _BuildContext) -> list[dict]:
         "object": "block",
         "type": "quote",
         "quote": {
-            "rich_text": all_rich_text if all_rich_text else [],
+            "rich_text": all_rich_text or [],
             "color": "default",
         },
     }

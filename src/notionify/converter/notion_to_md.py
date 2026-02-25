@@ -298,9 +298,7 @@ class NotionToMarkdownRenderer:
             cells = row_data.get("cells", [])
 
             # Render each cell's rich_text
-            rendered_cells: list[str] = []
-            for cell in cells:
-                rendered_cells.append(render_rich_text(cell))
+            rendered_cells = [render_rich_text(cell) for cell in cells]
 
             # Pad to col_count if needed
             while len(rendered_cells) < col_count:
@@ -521,7 +519,7 @@ class NotionToMarkdownRenderer:
                 context={"block_id": block_id, "block_type": block_type},
             )
 
-        # Default: "comment"
+        # Default policy: emit as HTML comment.
         text = _extract_plain_text(block)
         if text:
             return f"<!-- notion:{block_type} -->\n{text}\n\n"

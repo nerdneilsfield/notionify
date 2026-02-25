@@ -57,12 +57,11 @@ def _mask_token(value: str, token: str | None) -> str:
             placeholder = "<redacted>"
         value = value.replace(token, placeholder)
     # Also handle generic "Bearer <tok>" patterns that may remain.
-    value = re.sub(
+    return re.sub(
         r"(Bearer\s+)\S+",
         lambda m: f"{m.group(1)}<redacted>",
         value,
     )
-    return value
 
 
 def _estimate_data_uri_bytes(uri: str) -> int:

@@ -29,8 +29,7 @@ from notionify.models import (
 
 def _make_sync_client() -> NotionifyClient:
     """Create a NotionifyClient with a mocked transport."""
-    client = NotionifyClient(token="test-token")
-    return client
+    return NotionifyClient(token="test-token")
 
 
 def _page_create_response(page_id: str = "page-1", url: str = "https://notion.so/page-1") -> dict:
@@ -346,7 +345,7 @@ class TestPageToMarkdown:
             call_count[0] += 1
             if block_id == "page-1":
                 return [parent_block]
-            elif block_id == "p1":
+            if block_id == "p1":
                 return [child_block]
             return []
 
@@ -794,7 +793,7 @@ class TestAsyncPageToMarkdown:
         async def mock_get_children(block_id):
             if block_id == "page-1":
                 return [parent_block]
-            elif block_id == "p1":
+            if block_id == "p1":
                 return [child_block]
             return []
 

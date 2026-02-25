@@ -94,7 +94,7 @@ def build_block_math(
             block = _make_code_block(expression, language="latex")
             return [block], warnings
 
-        # overflow == "text"
+        # Overflow: render as plain text with delimiters.
         block = _make_paragraph_block(f"$${expression}$$")
         return [block], warnings
 
@@ -102,7 +102,7 @@ def build_block_math(
         block = _make_code_block(expression, language="latex")
         return [block], warnings
 
-    # strategy == "latex_text"
+    # Fallback: latex_text strategy.
     block = _make_paragraph_block(f"$${expression}$$")
     return [block], warnings
 
@@ -164,7 +164,7 @@ def build_inline_math(
             seg = _make_code_rich_text(expression)
             return seg, warnings
 
-        # overflow == "text"
+        # Overflow: render as plain text with delimiters.
         seg = _make_plain_text_rich_text(f"${expression}$")
         return seg, warnings
 
@@ -172,7 +172,7 @@ def build_inline_math(
         seg = _make_code_rich_text(expression)
         return seg, warnings
 
-    # strategy == "latex_text"
+    # Fallback: latex_text strategy.
     seg = _make_plain_text_rich_text(f"${expression}$")
     return seg, warnings
 
