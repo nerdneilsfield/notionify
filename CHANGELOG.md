@@ -5,12 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2026-02-25
+## [3.0.0] - 2026-02-26
 
 ### Added
 
 - **Bidirectional conversion** — full Markdown-to-Notion and Notion-to-Markdown
   pipelines with rich text annotations, tables, math, code, images, and more.
+- **Table `has_row_header` support** — `NotionToMarkdownRenderer` bolds the
+  first column cell of each row when the Notion table block has
+  `has_row_header: true`, matching the visual appearance in the Notion UI.
 - **Diff engine** — LCS-based incremental page updates with
   `KEEP`/`UPDATE`/`REPLACE`/`INSERT`/`DELETE` operations and configurable
   `min_match_ratio` fallback.
@@ -34,8 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Markdown strategies, image settings, retry parameters, debug flags.
 - **Security** — token redaction in all log paths, directory traversal
   prevention for local image paths, MIME allowlist enforcement.
-- **Test suite** — 1450+ unit tests, golden fixture tests, property/fuzz
-  tests, performance benchmarks, 100% line coverage, 99% branch coverage.
+- **Test suite** — 2029+ unit tests across 43 source files, 22 golden
+  round-trip fixtures, 35 property/fuzz test classes (Hypothesis), 13
+  performance benchmarks, 100% line coverage, 100% branch coverage.
 - **CI pipeline** — GitHub Actions with lint (ruff on src + tests),
   type-check (mypy strict), tests with branch coverage gate,
   security audit (pip-audit), and performance benchmarks.
