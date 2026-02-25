@@ -199,6 +199,106 @@ class TestComplexRoundTrip:
         assert "Level 1" in round_tripped
 
 
+class TestHeadingsAllLevels:
+    """Verify headings_all_levels.md round-trips correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "headings_all_levels.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 6
+        assert len(result.warnings) == 0
+
+    def test_heading_levels_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "headings_all_levels.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "# Heading Level 1" in round_tripped
+        assert "## Heading Level 2" in round_tripped
+        assert "### Heading Level 3" in round_tripped
+        # H4+ are downgraded to H3 by default
+        assert "Heading Level 4" in round_tripped
+
+
+class TestMathInline:
+    """Verify math_inline.md round-trips correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "math_inline.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 1
+
+    def test_math_expression_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "math_inline.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "E = mc^2" in round_tripped
+
+
+class TestMathBlock:
+    """Verify math_block.md round-trips correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "math_block.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 3
+
+    def test_block_equations_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "math_block.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "\\int_0^\\infty" in round_tripped or "int_0" in round_tripped
+        assert "\\sum_{n=1}" in round_tripped or "sum_{n=1}" in round_tripped
+
+
+class TestUnicodeCJK:
+    """Verify unicode_cjk.md round-trips correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "unicode_cjk.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 3
+        assert len(result.warnings) == 0
+
+    def test_cjk_content_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "unicode_cjk.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "\u4e2d\u6587\u5185\u5bb9" in round_tripped  # 中文内容
+        assert "\u65e5\u672c\u8a9e" in round_tripped  # 日本語
+        assert "\ud55c\uad6d\uc5b4" in round_tripped  # 한국어
+
+
+class TestImagesExternal:
+    """Verify images_external.md round-trips correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "images_external.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 3
+
+    def test_image_urls_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "images_external.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "https://example.com/photo.jpg" in round_tripped
+        assert "https://example.com/diagram.png" in round_tripped
+
+
+class TestEmpty:
+    """Verify empty.md converts without errors."""
+
+    def test_empty_converts_to_empty(self, converter):
+        md = (FIXTURES_DIR / "empty.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks == []
+        assert len(result.warnings) == 0
+
+
 class TestBlockCounts:
     """Verify block counts match expectations."""
 
