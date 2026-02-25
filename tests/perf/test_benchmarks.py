@@ -21,7 +21,7 @@ def _make_large_markdown(n_paragraphs: int = 100) -> str:
         if i % 5 == 0:
             lines.append(f"```python\ndef func_{i}():\n    return {i}\n```\n")
         if i % 10 == 0:
-            lines.append("> A blockquote in section {}\n".format(i))
+            lines.append(f"> A blockquote in section {i}\n")
     return "\n".join(lines)
 
 
@@ -82,7 +82,10 @@ class TestConverterPerformance:
         elapsed = time.perf_counter() - start
 
         elapsed_ms = elapsed * 1000
-        print(f"\n  Large doc convert (100 sections): {elapsed_ms:.2f}ms, {len(result.blocks)} blocks")
+        print(
+            f"\n  Large doc convert (100 sections):"
+            f" {elapsed_ms:.2f}ms, {len(result.blocks)} blocks"
+        )
         assert elapsed_ms < 1000, f"Large document conversion too slow: {elapsed_ms:.2f}ms"
 
 
@@ -139,7 +142,13 @@ class TestDiffPerformance:
                 "id": f"block-{i}",
                 "type": "paragraph",
                 "paragraph": {
-                    "rich_text": [{"type": "text", "text": {"content": f"Text {i}"}, "plain_text": f"Text {i}"}],
+                    "rich_text": [
+                        {
+                            "type": "text",
+                            "text": {"content": f"Text {i}"},
+                            "plain_text": f"Text {i}",
+                        }
+                    ],
                     "color": "default",
                 },
             }

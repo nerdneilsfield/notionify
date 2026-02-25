@@ -39,7 +39,8 @@ class TestDetectExternalURL:
         assert detect_image_source("http://example.com/img.jpg") == ImageSourceType.EXTERNAL_URL
 
     def test_url_with_query(self):
-        assert detect_image_source("https://cdn.example.com/img.png?w=300") == ImageSourceType.EXTERNAL_URL
+        url = "https://cdn.example.com/img.png?w=300"
+        assert detect_image_source(url) == ImageSourceType.EXTERNAL_URL
 
 
 # =========================================================================

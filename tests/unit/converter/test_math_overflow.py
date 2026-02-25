@@ -210,8 +210,16 @@ class TestTableFallback:
                 {
                     "type": "table_head",
                     "children": [
-                        {"type": "table_cell", "attrs": {}, "children": [{"type": "text", "raw": "Col1"}]},
-                        {"type": "table_cell", "attrs": {}, "children": [{"type": "text", "raw": "Col2"}]},
+                        {
+                            "type": "table_cell",
+                            "attrs": {},
+                            "children": [{"type": "text", "raw": "Col1"}],
+                        },
+                        {
+                            "type": "table_cell",
+                            "attrs": {},
+                            "children": [{"type": "text", "raw": "Col2"}],
+                        },
                     ],
                 },
                 {
@@ -220,8 +228,16 @@ class TestTableFallback:
                         {
                             "type": "table_row",
                             "children": [
-                                {"type": "table_cell", "attrs": {}, "children": [{"type": "text", "raw": "A"}]},
-                                {"type": "table_cell", "attrs": {}, "children": [{"type": "text", "raw": "B"}]},
+                                {
+                                    "type": "table_cell",
+                                    "attrs": {},
+                                    "children": [{"type": "text", "raw": "A"}],
+                                },
+                                {
+                                    "type": "table_cell",
+                                    "attrs": {},
+                                    "children": [{"type": "text", "raw": "B"}],
+                                },
                             ],
                         }
                     ],

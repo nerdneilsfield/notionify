@@ -261,7 +261,10 @@ class TestRedact:
         assert result["password"] == "<redacted>"
 
     def test_data_uri_replaced(self):
-        b64_data = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        b64_data = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+            "AAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        )
         payload = {"img": f"data:image/png;base64,{b64_data}"}
         result = redact(payload)
         assert "data:image/png;base64," not in result["img"]

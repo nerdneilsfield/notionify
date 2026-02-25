@@ -151,7 +151,10 @@ class TestComputeBackoff:
 
     def test_retry_after_with_jitter_scaled_between_half_and_full(self):
         retry_after = 8.0
-        results = [compute_backoff(attempt=0, retry_after=retry_after, jitter=True) for _ in range(50)]
+        results = [
+            compute_backoff(attempt=0, retry_after=retry_after, jitter=True)
+            for _ in range(50)
+        ]
         for r in results:
             assert retry_after * 0.5 <= r <= retry_after * 1.0 + 1e-9
 
@@ -206,7 +209,10 @@ class TestComputeBackoff:
     def test_jitter_true_result_in_range(self):
         # base * 2^1 = 2.0; jitter scales to [1.0, 2.0]
         delay = 2.0
-        results = [compute_backoff(attempt=1, base=1.0, maximum=60.0, jitter=True) for _ in range(100)]
+        results = [
+            compute_backoff(attempt=1, base=1.0, maximum=60.0, jitter=True)
+            for _ in range(100)
+        ]
         for r in results:
             assert delay * 0.5 <= r <= delay * 1.0 + 1e-9
 
@@ -217,7 +223,10 @@ class TestComputeBackoff:
 
     def test_jitter_randomises_output(self):
         # With jitter=True, not all results should be identical (probabilistic).
-        results = {compute_backoff(attempt=2, base=1.0, maximum=60.0, jitter=True) for _ in range(20)}
+        results = {
+            compute_backoff(attempt=2, base=1.0, maximum=60.0, jitter=True)
+            for _ in range(20)
+        }
         # With 20 samples it's astronomically unlikely all are identical.
         assert len(results) > 1
 

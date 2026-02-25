@@ -568,7 +568,13 @@ class TestPlannerEdgeCases:
     def test_existing_blocks_missing_id_field(self):
         """Blocks without 'id' should produce ops with existing_id=None."""
         existing = [
-            {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "A"}], "color": "default"}},
+            {
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"plain_text": "A"}],
+                    "color": "default",
+                },
+            },
         ]
         new = []
         ops = self._plan(existing, new)

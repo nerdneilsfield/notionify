@@ -528,7 +528,8 @@ class TestDataURISizePrecheck:
             validate_image(src, ImageSourceType.DATA_URI, None, _make_config())
         # The error should be from validate_image's post-decode check, not pre-check.
         # Post-decode errors mention "exceeds maximum", not "too large".
-        assert "exceeds" in exc_info.value.message.lower() or "too large" in exc_info.value.message.lower()
+        msg = exc_info.value.message.lower()
+        assert "exceeds" in msg or "too large" in msg
 
     def test_small_data_uri_accepted(self):
         """A small, valid data URI passes both pre-check and validation."""

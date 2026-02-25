@@ -35,7 +35,11 @@ from notionify.observability.metrics import NoopMetricsHook
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_response(status_code: int = 200, body: dict | None = None, headers: dict | None = None) -> httpx.Response:
+def _make_response(
+    status_code: int = 200,
+    body: dict | None = None,
+    headers: dict | None = None,
+) -> httpx.Response:
     import json as _json
     content = _json.dumps(body).encode() if body is not None else b""
     resp = httpx.Response(status_code, content=content, headers=headers or {})
@@ -445,8 +449,9 @@ class TestSyncDoUploadMultiPart:
         })
         client._files.send_part = MagicMock(return_value=None)
 
+        png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 200
         with patch("notionify.client.upload_multi", return_value="upload-multi-1") as mock_multi, \
-             patch("notionify.client.validate_image", return_value=("image/png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 200)):
+             patch("notionify.client.validate_image", return_value=("image/png", png_bytes)):
             pending = PendingImage(
                 src=str(img_file),
                 source_type=ImageSourceType.LOCAL_FILE,
@@ -554,7 +559,8 @@ class TestSyncTransportDebugDumpNonJsonResponseProper:
         resp = httpx.Response(200, content=original_json_content, headers={})
         resp.request = httpx.Request("GET", "https://api.notion.com/v1/test")
 
-        # Patch response.json to fail on first call (debug dump) but succeed on second (success path)
+        # Patch response.json to fail on first call (debug dump)
+        # but succeed on second (success path)
         def patched_json():
             call_count[0] += 1
             if call_count[0] == 1:

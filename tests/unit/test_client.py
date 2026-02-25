@@ -41,7 +41,11 @@ def _append_response(*block_ids: str) -> dict:
     return {"results": [{"id": bid} for bid in block_ids]}
 
 
-def _block_dict(block_type: str = "paragraph", block_id: str = "blk-1", text: str = "hello") -> dict:
+def _block_dict(
+    block_type: str = "paragraph",
+    block_id: str = "blk-1",
+    text: str = "hello",
+) -> dict:
     return {
         "id": block_id,
         "type": block_type,
@@ -411,7 +415,11 @@ class TestProcessImages:
         client = _make_sync_client()
         conversion = ConversionResult(
             blocks=[{"type": "image"}],
-            images=[PendingImage(src="https://example.com/img.png", source_type=ImageSourceType.EXTERNAL_URL, block_index=0)],
+            images=[PendingImage(
+                src="https://example.com/img.png",
+                source_type=ImageSourceType.EXTERNAL_URL,
+                block_index=0,
+            )],
             warnings=[],
         )
         count = client._process_images(conversion)
@@ -1014,7 +1022,10 @@ class TestAsyncUploadDataUri:
 
         with patch("notionify.async_client.validate_image") as mock_validate:
             mock_validate.return_value = ("image/png", png_data)
-            with patch("notionify.async_client.async_upload_single", new=AsyncMock(return_value="upload-uri")):
+            with patch(
+                "notionify.async_client.async_upload_single",
+                new=AsyncMock(return_value="upload-uri"),
+            ):
                 result = await client._process_single_image(pending, blocks, [])
 
         assert result == 1
@@ -1074,7 +1085,9 @@ class TestAsyncCreatePageMultipleBatches:
 
         # 101 paragraphs → first batch of 100, second batch of 1
         big_markdown = "\n\n".join(f"Paragraph {i}" for i in range(101))
-        result = await client.create_page_with_markdown(parent_id="p-parent", title="Big Page", markdown=big_markdown)
+        result = await client.create_page_with_markdown(
+            parent_id="p-parent", title="Big Page", markdown=big_markdown,
+        )
         assert result.page_id == "pg-1"
         client._blocks.append_children.assert_awaited_once()  # second batch
         await client.close()
