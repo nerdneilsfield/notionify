@@ -175,23 +175,20 @@ class NotionToMarkdownRenderer:
         block_data = block.get("quote", {})
         text = render_rich_text(block_data.get("rich_text", []))
         prefix = "> " * (depth + 1) if depth > 0 else "> "
-        lines = text.split("\n")
-        result = "\n".join(f"{prefix}{line}" for line in lines) + "\n\n"
+        parts: list[str] = [f"{prefix}{line}" for line in text.split("\n")]
 
         # Render nested children as deeper quotes
         children = block_data.get("children") or block.get("children")
         if children:
             child_md = self._render_block_list(children, depth + 1)
-            # Prefix each line of child content with >
-            child_lines = child_md.rstrip("\n").split("\n")
-            result = result.rstrip("\n") + "\n"
-            for line in child_lines:
+            stripped_prefix = prefix.rstrip()
+            for line in child_md.rstrip("\n").split("\n"):
                 if line.strip():
-                    result += f"{prefix}{line}\n"
+                    parts.append(f"{prefix}{line}")
                 else:
-                    result += f"{prefix.rstrip()}\n"
-            result += "\n"
-        return result
+                    parts.append(stripped_prefix)
+
+        return "\n".join(parts) + "\n\n"
 
     def _render_bulleted_list_item(self, block: dict, depth: int) -> str:
         block_data = block.get("bulleted_list_item", {})
@@ -363,23 +360,19 @@ class NotionToMarkdownRenderer:
         else:
             content = text
 
-        lines = content.split("\n")
-        result = "\n".join(f"> {line}" for line in lines) + "\n\n"
+        parts: list[str] = [f"> {line}" for line in content.split("\n")]
 
         # Render children inside the callout blockquote
         children = block_data.get("children") or block.get("children")
         if children:
             child_md = self._render_block_list(children, depth + 1)
-            child_lines = child_md.rstrip("\n").split("\n")
-            result = result.rstrip("\n") + "\n"
-            for line in child_lines:
+            for line in child_md.rstrip("\n").split("\n"):
                 if line.strip():
-                    result += f"> {line}\n"
+                    parts.append(f"> {line}")
                 else:
-                    result += ">\n"
-            result += "\n"
+                    parts.append(">")
 
-        return result
+        return "\n".join(parts) + "\n\n"
 
     def _render_toggle(self, block: dict, depth: int) -> str:
         block_data = block.get("toggle", {})
