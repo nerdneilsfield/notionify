@@ -66,7 +66,7 @@ from notionify.observability.logger import StructuredFormatter
 from notionify.observability.metrics import MetricsHook, NoopMetricsHook
 from notionify.utils.chunk import chunk_children
 from notionify.utils.hashing import hash_dict, md5_hash
-from notionify.utils.redact import _SENSITIVE_KEY_PATTERNS, redact
+from notionify.utils.redact import _SENSITIVE_KEY_PATTERNS, _looks_binary, _mask_token, redact
 from notionify.utils.text_split import split_string
 
 # ---------------------------------------------------------------------------
@@ -4724,3 +4724,62 @@ class TestExtractTextProperties:
         """Non-text tokens without children but with 'raw' use their raw value."""
         tokens = [{"type": "softline", "raw": raw}]
         assert extract_text(tokens) == raw
+
+
+# ---------------------------------------------------------------------------
+# _looks_binary properties
+# ---------------------------------------------------------------------------
+
+
+class TestLooksBinaryProperties:
+    """_looks_binary returns False for short and printable strings."""
+
+    @given(text=st.text(min_size=0, max_size=255))
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_short_strings_never_binary(self, text: str) -> None:
+        """Strings shorter than 256 chars always return False."""
+        assert _looks_binary(text) is False
+
+    @given(text=st.text(alphabet=_SAFE_TEXT, min_size=256, max_size=600))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_pure_printable_long_strings_not_binary(self, text: str) -> None:
+        """Long strings of pure printable ASCII are not considered binary."""
+        assert _looks_binary(text) is False
+
+
+# ---------------------------------------------------------------------------
+# _mask_token properties
+# ---------------------------------------------------------------------------
+
+
+class TestMaskTokenProperties:
+    """_mask_token removes the supplied token from string values."""
+
+    @given(
+        prefix=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=20),
+        suffix=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=20),
+        token=st.text(alphabet=_SAFE_TEXT, min_size=5, max_size=30),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_token_not_present_in_result(
+        self, prefix: str, suffix: str, token: str
+    ) -> None:
+        """After masking, the original token never appears in the result."""
+        value = f"{prefix}{token}{suffix}"
+        result = _mask_token(value, token)
+        assert token not in result
+
+    @given(path=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_bearer_pattern_is_redacted(self, path: str) -> None:
+        """'Bearer <token>' patterns are replaced regardless of token argument."""
+        value = f"Bearer {path}"
+        result = _mask_token(value, None)
+        assert "Bearer <redacted>" in result
+
+    @given(text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_no_bearer_no_token_unchanged(self, text: str) -> None:
+        """Strings without Bearer patterns and no token pass through unchanged."""
+        result = _mask_token(text, None)
+        assert result == text
