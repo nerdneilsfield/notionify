@@ -31,7 +31,11 @@ from notionify.converter.block_builder import (
 from notionify.converter.inline_renderer import markdown_escape, render_rich_text
 from notionify.converter.math import EQUATION_CHAR_LIMIT, build_block_math, build_inline_math
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
-from notionify.converter.notion_to_md import NotionToMarkdownRenderer
+from notionify.converter.notion_to_md import (
+    NotionToMarkdownRenderer,
+    _notion_url,
+    _sanitize_comment,
+)
 from notionify.converter.rich_text import (
     _clone_text_segment,
     _has_non_default_annotations,
@@ -4560,3 +4564,63 @@ class TestMergeAnnotationsProperties:
         result = _merge_annotations(base, unknown_key=True)
         assert "unknown_key" not in result
         assert set(result.keys()) == {"bold", "italic"}
+
+
+# ---------------------------------------------------------------------------
+# _sanitize_comment properties
+# ---------------------------------------------------------------------------
+
+
+class TestSanitizeCommentProperties:
+    """_sanitize_comment never leaves bare '--' in output."""
+
+    @given(text=st.text(min_size=0, max_size=100))
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_result_never_contains_bare_double_dash(self, text: str) -> None:
+        """Result must never contain the literal '--' sequence."""
+        result = _sanitize_comment(text)
+        assert "--" not in result
+
+    @given(text=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=50))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_text_without_dashes_unchanged(self, text: str) -> None:
+        """Text with no dashes passes through unchanged."""
+        result = _sanitize_comment(text)
+        assert result == text
+
+    @given(text=st.text(min_size=0, max_size=100))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_result_length_at_least_input_length(self, text: str) -> None:
+        """Escaping only adds characters; result is never shorter than input."""
+        result = _sanitize_comment(text)
+        assert len(result) >= len(text)
+
+
+# ---------------------------------------------------------------------------
+# _notion_url properties
+# ---------------------------------------------------------------------------
+
+
+class TestNotionUrlProperties:
+    """_notion_url always produces a well-formed Notion URL."""
+
+    @given(block_id=st.text(alphabet=_SAFE_TEXT + "-", min_size=1, max_size=40))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_url_starts_with_notion_prefix(self, block_id: str) -> None:
+        """All URLs start with 'https://notion.so/'."""
+        url = _notion_url(block_id)
+        assert url.startswith("https://notion.so/")
+
+    @given(block_id=st.text(alphabet=_SAFE_TEXT + "-", min_size=1, max_size=40))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_dashes_are_stripped_from_id(self, block_id: str) -> None:
+        """Dashes in block_id are removed from the URL path."""
+        url = _notion_url(block_id)
+        path = url[len("https://notion.so/"):]
+        assert "-" not in path
+
+    def test_uuid_formatted_id_produces_correct_url(self) -> None:
+        """Standard UUID block IDs are stripped of dashes."""
+        uuid = "550e8400-e29b-41d4-a716-446655440000"
+        url = _notion_url(uuid)
+        assert url == "https://notion.so/550e8400e29b41d4a716446655440000"
