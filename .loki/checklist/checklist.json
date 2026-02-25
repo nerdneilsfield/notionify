@@ -1,0 +1,987 @@
+{
+  "version": "3.0",
+  "prd": "./docs/prd.md",
+  "createdAt": "2026-02-25T04:40:00Z",
+  "categories": [
+    {
+      "name": "Core Infrastructure",
+      "items": [
+        {
+          "id": "CORE-001",
+          "title": "NotionifyConfig dataclass",
+          "description": "Define config with all fields from PRD \u00a79",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/config.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/config.py",
+              "pattern": "class NotionifyConfig",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/config.py",
+              "pattern": "math_strategy",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CORE-002",
+          "title": "Error taxonomy",
+          "description": "Full error hierarchy from PRD \u00a715",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/errors.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/errors.py",
+              "pattern": "class NotionifyError",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/errors.py",
+              "pattern": "class ErrorCode",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/errors.py",
+              "pattern": "NotionifyDiffConflictError",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CORE-003",
+          "title": "Result models",
+          "description": "PageCreateResult, AppendResult, UpdateResult, etc. from PRD \u00a78.3",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/models.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/models.py",
+              "pattern": "class PageCreateResult",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/models.py",
+              "pattern": "class UpdateResult",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/models.py",
+              "pattern": "class ConversionWarning",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CORE-004",
+          "title": "Package __init__.py with public exports",
+          "description": "Export NotionifyClient, AsyncNotionifyClient, all errors, all models",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/__init__.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/__init__.py",
+              "pattern": "NotionifyClient",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/__init__.py",
+              "pattern": "AsyncNotionifyClient",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CORE-005",
+          "title": "pyproject.toml with dependencies",
+          "description": "Package config with mistune, httpx, dependencies",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "pyproject.toml",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "pyproject.toml",
+              "pattern": "mistune",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "pyproject.toml",
+              "pattern": "httpx",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        }
+      ]
+    },
+    {
+      "name": "Notion API Transport",
+      "items": [
+        {
+          "id": "API-001",
+          "title": "Sync HTTP transport",
+          "description": "httpx-based sync client with auth, version header, retry, rate limit",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/notion_api/transport.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/notion_api/transport.py",
+              "pattern": "class NotionTransport",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "API-002",
+          "title": "Async HTTP transport",
+          "description": "httpx async client with same features",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/notion_api/transport.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/notion_api/transport.py",
+              "pattern": "class AsyncNotionTransport",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "API-003",
+          "title": "Token bucket rate limiter",
+          "description": "Client-side pacing per PRD \u00a716.1",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/notion_api/rate_limit.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/notion_api/rate_limit.py",
+              "pattern": "class TokenBucket",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "API-004",
+          "title": "Retry with exponential backoff",
+          "description": "Retry decision matrix, backoff, Retry-After support per PRD \u00a716.2-16.3",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/notion_api/retries.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/notion_api/retries.py",
+              "pattern": "compute_backoff",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "API-005",
+          "title": "Page API wrappers",
+          "description": "Create, retrieve, update, archive pages",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/notion_api/pages.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "API-006",
+          "title": "Block API wrappers",
+          "description": "Get, update, delete, get children, append children",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/notion_api/blocks.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "API-007",
+          "title": "File upload API wrappers",
+          "description": "Create upload, send parts, complete, retrieve",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/notion_api/files.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        }
+      ]
+    },
+    {
+      "name": "Markdown to Notion Converter",
+      "items": [
+        {
+          "id": "CONV-001",
+          "title": "AST normalizer",
+          "description": "Mistune v3 setup with plugins, canonical token mapping",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/converter/ast_normalizer.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/converter/ast_normalizer.py",
+              "pattern": "ASTNormalizer",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CONV-002",
+          "title": "Rich text builder",
+          "description": "Build rich_text arrays with annotations, links, 2000-char split",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/converter/rich_text.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/converter/rich_text.py",
+              "pattern": "split_rich_text",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CONV-003",
+          "title": "Block builder (headings, paragraphs, quotes, dividers)",
+          "description": "Basic block type conversion with heading overflow",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/converter/block_builder.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CONV-004",
+          "title": "Block builder (lists, task lists)",
+          "description": "Bulleted, numbered, to-do with nesting",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_contains",
+              "path": "src/notionify/converter/block_builder.py",
+              "pattern": "bulleted_list_item",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CONV-005",
+          "title": "Block builder (code blocks)",
+          "description": "Code with language, 2000-char content split",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_contains",
+              "path": "src/notionify/converter/block_builder.py",
+              "pattern": "code",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CONV-006",
+          "title": "Math strategy dispatcher",
+          "description": "equation/code/latex_text strategies, overflow handling",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/converter/math.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/converter/math.py",
+              "pattern": "math_strategy",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CONV-007",
+          "title": "Table builder",
+          "description": "Markdown table \u2192 Notion table block conversion",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/converter/tables.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CONV-008",
+          "title": "Top-level md_to_notion pipeline",
+          "description": "Orchestrate AST \u2192 blocks conversion, collect warnings/images",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/converter/md_to_notion.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/converter/md_to_notion.py",
+              "pattern": "class MarkdownToNotionConverter",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        }
+      ]
+    },
+    {
+      "name": "Notion to Markdown Exporter",
+      "items": [
+        {
+          "id": "EXPORT-001",
+          "title": "Inline renderer",
+          "description": "rich_text array \u2192 Markdown string with annotations, escaping",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/converter/inline_renderer.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/converter/inline_renderer.py",
+              "pattern": "render_rich_text",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "EXPORT-002",
+          "title": "Block renderers",
+          "description": "All Notion block types \u2192 Markdown per PRD \u00a711.1",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/converter/notion_to_md.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/converter/notion_to_md.py",
+              "pattern": "class NotionToMarkdownRenderer",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "EXPORT-003",
+          "title": "Unsupported block fallback",
+          "description": "comment/skip/raise policies for unsupported blocks",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_contains",
+              "path": "src/notionify/converter/notion_to_md.py",
+              "pattern": "unsupported_block_policy",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        }
+      ]
+    },
+    {
+      "name": "Diff Engine",
+      "items": [
+        {
+          "id": "DIFF-001",
+          "title": "Block signature computation",
+          "description": "BlockSignature with type, text hash, structural hash, attrs hash",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/diff/signature.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/models.py",
+              "pattern": "class BlockSignature",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/diff/signature.py",
+              "pattern": "compute_signature",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T04:40:00Z",
+          "note": "BlockSignature dataclass is defined in models.py and imported by signature.py; compute_signature() is fully implemented with rich_text, structural, and attrs hashing."
+        },
+        {
+          "id": "DIFF-002",
+          "title": "LCS matcher",
+          "description": "Longest common subsequence over block signatures",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/diff/lcs_matcher.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "DIFF-003",
+          "title": "Diff planner",
+          "description": "Produce DiffOp list (KEEP/UPDATE/REPLACE/INSERT/DELETE)",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/diff/planner.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/diff/planner.py",
+              "pattern": "class DiffPlanner",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "DIFF-004",
+          "title": "Diff executor",
+          "description": "Apply DiffOp list via Notion API, with batching",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/diff/executor.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/diff/executor.py",
+              "pattern": "class DiffExecutor",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        }
+      ]
+    },
+    {
+      "name": "Image Pipeline",
+      "items": [
+        {
+          "id": "IMG-001",
+          "title": "Source type detection",
+          "description": "Detect URL, local, data URI, unknown",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/image/detect.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "IMG-002",
+          "title": "Image validation pipeline",
+          "description": "MIME check, size check, decode",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/image/validate.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "IMG-003",
+          "title": "Single-part upload flow",
+          "description": "POST create \u2192 PUT bytes \u2192 build block",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/image/upload_single.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "IMG-004",
+          "title": "Multi-part upload flow",
+          "description": "Chunked upload with ETags",
+          "priority": "minor",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/image/upload_multi.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "IMG-005",
+          "title": "Upload state machine",
+          "description": "PENDING\u2192UPLOADING\u2192UPLOADED\u2192ATTACHED/EXPIRED/FAILED",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/image/state.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/image/state.py",
+              "pattern": "UploadStateMachine",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        }
+      ]
+    },
+    {
+      "name": "Client Facades",
+      "items": [
+        {
+          "id": "CLIENT-001",
+          "title": "Sync client (NotionifyClient)",
+          "description": "All public methods per PRD \u00a78.1",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/client.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/client.py",
+              "pattern": "class NotionifyClient",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/client.py",
+              "pattern": "create_page_with_markdown",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/client.py",
+              "pattern": "page_to_markdown",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "CLIENT-002",
+          "title": "Async client (AsyncNotionifyClient)",
+          "description": "All public methods per PRD \u00a78.2",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/async_client.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/async_client.py",
+              "pattern": "class AsyncNotionifyClient",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        }
+      ]
+    },
+    {
+      "name": "Observability",
+      "items": [
+        {
+          "id": "OBS-001",
+          "title": "Structured logger",
+          "description": "JSON structured logging with redaction",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/observability/logger.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "OBS-002",
+          "title": "Metrics hook protocol",
+          "description": "MetricsHook protocol + noop implementation",
+          "priority": "minor",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/observability/metrics.py",
+              "passed": true
+            },
+            {
+              "type": "file_contains",
+              "path": "src/notionify/observability/metrics.py",
+              "pattern": "class MetricsHook",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        }
+      ]
+    },
+    {
+      "name": "Utilities",
+      "items": [
+        {
+          "id": "UTIL-001",
+          "title": "Chunk utility",
+          "description": "Batch children into \u2264100 groups",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/utils/chunk.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "UTIL-002",
+          "title": "Text split utility",
+          "description": "Multi-byte safe string splitting at \u2264N chars",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/utils/text_split.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "UTIL-003",
+          "title": "Hash helpers",
+          "description": "MD5 helpers for block signatures",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/utils/hashing.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        },
+        {
+          "id": "UTIL-004",
+          "title": "Redact utility",
+          "description": "Token/payload redaction for logs",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "src/notionify/utils/redact.py",
+              "passed": true
+            }
+          ],
+          "verified_at": "2026-02-25T03:58:42.025770+00:00"
+        }
+      ]
+    },
+    {
+      "name": "Tests",
+      "items": [
+        {
+          "id": "TEST-001",
+          "title": "Unit tests \u2014 converter",
+          "description": "Tests U-CV-001 through U-CV-040",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "tests/unit/converter/test_md_to_notion.py",
+              "passed": true
+            },
+            {
+              "type": "command",
+              "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/unit/converter/ -q --tb=no",
+              "expect_exit": 0,
+              "passed": true,
+              "output": "366 passed in 1.34s"
+            }
+          ],
+          "verified_at": "2026-02-25T04:40:00Z"
+        },
+        {
+          "id": "TEST-002",
+          "title": "Unit tests \u2014 Notion to Markdown",
+          "description": "Tests U-NM-001 through U-NM-022",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "tests/unit/converter/test_notion_to_md.py",
+              "passed": true
+            },
+            {
+              "type": "command",
+              "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/unit/converter/test_notion_to_md.py -q --tb=no",
+              "expect_exit": 0,
+              "passed": true,
+              "output": "58 passed in 0.42s"
+            }
+          ],
+          "verified_at": "2026-02-25T04:40:00Z"
+        },
+        {
+          "id": "TEST-003",
+          "title": "Unit tests \u2014 rich text splitting",
+          "description": "Tests U-RT-001 through U-RT-008",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "tests/unit/converter/test_rich_text.py",
+              "passed": true
+            },
+            {
+              "type": "command",
+              "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/unit/converter/test_rich_text.py -q --tb=no",
+              "expect_exit": 0,
+              "passed": true,
+              "output": "36 passed in 0.36s"
+            }
+          ],
+          "verified_at": "2026-02-25T04:40:00Z"
+        },
+        {
+          "id": "TEST-004",
+          "title": "Unit tests \u2014 diff engine",
+          "description": "Tests U-DF-001 through U-DF-015",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "tests/unit/diff/test_diff.py",
+              "passed": true
+            },
+            {
+              "type": "command",
+              "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/unit/diff/ -q --tb=no",
+              "expect_exit": 0,
+              "passed": true,
+              "output": "119 passed in 0.50s"
+            }
+          ],
+          "verified_at": "2026-02-25T04:40:00Z"
+        },
+        {
+          "id": "TEST-005",
+          "title": "Unit tests \u2014 image pipeline",
+          "description": "Tests U-IM-001 through U-IM-017",
+          "priority": "major",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "file_exists",
+              "path": "tests/unit/image/test_image.py",
+              "passed": true
+            },
+            {
+              "type": "command",
+              "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/unit/image/ -q --tb=no",
+              "expect_exit": 0,
+              "passed": true,
+              "output": "57 passed in 0.38s"
+            }
+          ],
+          "verified_at": "2026-02-25T04:40:00Z"
+        },
+        {
+          "id": "TEST-006",
+          "title": "Full test suite passes",
+          "description": "All unit tests pass with 0 failures",
+          "priority": "critical",
+          "status": "verified",
+          "verification": [
+            {
+              "type": "command",
+              "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/ -q --tb=no",
+              "expect_exit": 0,
+              "passed": true,
+              "output": "1218 passed, 8 skipped in 42.37s"
+            }
+          ],
+          "verified_at": "2026-02-25T04:40:00Z"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total": 46,
+    "verified": 46,
+    "failing": 0,
+    "pending": 0
+  },
+  "last_verified_at": "2026-02-25T04:40:00Z"
+}

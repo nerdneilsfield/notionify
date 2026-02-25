@@ -1,0 +1,107 @@
+{
+  "verified_at": "2026-02-25T04:40:00Z",
+  "summary": {
+    "total": 46,
+    "verified": 46,
+    "failing": 0,
+    "pending": 0
+  },
+  "categories": [
+    {
+      "name": "Core Infrastructure",
+      "items": [
+        {"id": "CORE-001", "title": "NotionifyConfig dataclass", "priority": "critical", "status": "verified"},
+        {"id": "CORE-002", "title": "Error taxonomy", "priority": "critical", "status": "verified"},
+        {"id": "CORE-003", "title": "Result models", "priority": "critical", "status": "verified"},
+        {"id": "CORE-004", "title": "Package __init__.py with public exports", "priority": "critical", "status": "verified"},
+        {"id": "CORE-005", "title": "pyproject.toml with dependencies", "priority": "critical", "status": "verified"}
+      ]
+    },
+    {
+      "name": "Notion API Transport",
+      "items": [
+        {"id": "API-001", "title": "Sync HTTP transport", "priority": "critical", "status": "verified"},
+        {"id": "API-002", "title": "Async HTTP transport", "priority": "critical", "status": "verified"},
+        {"id": "API-003", "title": "Token bucket rate limiter", "priority": "critical", "status": "verified"},
+        {"id": "API-004", "title": "Retry with exponential backoff", "priority": "critical", "status": "verified"},
+        {"id": "API-005", "title": "Page API wrappers", "priority": "critical", "status": "verified"},
+        {"id": "API-006", "title": "Block API wrappers", "priority": "critical", "status": "verified"},
+        {"id": "API-007", "title": "File upload API wrappers", "priority": "major", "status": "verified"}
+      ]
+    },
+    {
+      "name": "Markdown to Notion Converter",
+      "items": [
+        {"id": "CONV-001", "title": "AST normalizer", "priority": "critical", "status": "verified"},
+        {"id": "CONV-002", "title": "Rich text builder", "priority": "critical", "status": "verified"},
+        {"id": "CONV-003", "title": "Block builder (headings, paragraphs, quotes, dividers)", "priority": "critical", "status": "verified"},
+        {"id": "CONV-004", "title": "Block builder (lists, task lists)", "priority": "critical", "status": "verified"},
+        {"id": "CONV-005", "title": "Block builder (code blocks)", "priority": "critical", "status": "verified"},
+        {"id": "CONV-006", "title": "Math strategy dispatcher", "priority": "major", "status": "verified"},
+        {"id": "CONV-007", "title": "Table builder", "priority": "major", "status": "verified"},
+        {"id": "CONV-008", "title": "Top-level md_to_notion pipeline", "priority": "critical", "status": "verified"}
+      ]
+    },
+    {
+      "name": "Notion to Markdown Exporter",
+      "items": [
+        {"id": "EXPORT-001", "title": "Inline renderer", "priority": "critical", "status": "verified"},
+        {"id": "EXPORT-002", "title": "Block renderers", "priority": "critical", "status": "verified"},
+        {"id": "EXPORT-003", "title": "Unsupported block fallback", "priority": "major", "status": "verified"}
+      ]
+    },
+    {
+      "name": "Diff Engine",
+      "items": [
+        {"id": "DIFF-001", "title": "Block signature computation", "priority": "major", "status": "verified", "note": "BlockSignature in models.py; compute_signature() in signature.py"},
+        {"id": "DIFF-002", "title": "LCS matcher", "priority": "major", "status": "verified"},
+        {"id": "DIFF-003", "title": "Diff planner", "priority": "major", "status": "verified"},
+        {"id": "DIFF-004", "title": "Diff executor", "priority": "major", "status": "verified"}
+      ]
+    },
+    {
+      "name": "Image Pipeline",
+      "items": [
+        {"id": "IMG-001", "title": "Source type detection", "priority": "major", "status": "verified"},
+        {"id": "IMG-002", "title": "Image validation pipeline", "priority": "major", "status": "verified"},
+        {"id": "IMG-003", "title": "Single-part upload flow", "priority": "major", "status": "verified"},
+        {"id": "IMG-004", "title": "Multi-part upload flow", "priority": "minor", "status": "verified"},
+        {"id": "IMG-005", "title": "Upload state machine", "priority": "major", "status": "verified"}
+      ]
+    },
+    {
+      "name": "Client Facades",
+      "items": [
+        {"id": "CLIENT-001", "title": "Sync client (NotionifyClient)", "priority": "critical", "status": "verified"},
+        {"id": "CLIENT-002", "title": "Async client (AsyncNotionifyClient)", "priority": "critical", "status": "verified"}
+      ]
+    },
+    {
+      "name": "Observability",
+      "items": [
+        {"id": "OBS-001", "title": "Structured logger", "priority": "major", "status": "verified"},
+        {"id": "OBS-002", "title": "Metrics hook protocol", "priority": "minor", "status": "verified"}
+      ]
+    },
+    {
+      "name": "Utilities",
+      "items": [
+        {"id": "UTIL-001", "title": "Chunk utility", "priority": "critical", "status": "verified"},
+        {"id": "UTIL-002", "title": "Text split utility", "priority": "critical", "status": "verified"},
+        {"id": "UTIL-003", "title": "Hash helpers", "priority": "major", "status": "verified"},
+        {"id": "UTIL-004", "title": "Redact utility", "priority": "major", "status": "verified"}
+      ]
+    },
+    {
+      "name": "Tests",
+      "items": [
+        {"id": "TEST-001", "title": "Unit tests — converter", "priority": "critical", "status": "verified", "result": "366 passed"},
+        {"id": "TEST-002", "title": "Unit tests — Notion to Markdown", "priority": "critical", "status": "verified", "result": "58 passed"},
+        {"id": "TEST-003", "title": "Unit tests — rich text splitting", "priority": "critical", "status": "verified", "result": "36 passed"},
+        {"id": "TEST-004", "title": "Unit tests — diff engine", "priority": "major", "status": "verified", "result": "119 passed"},
+        {"id": "TEST-005", "title": "Unit tests — image pipeline", "priority": "major", "status": "verified", "result": "57 passed"},
+        {"id": "TEST-006", "title": "Full test suite passes", "priority": "critical", "status": "verified", "result": "1218 passed, 8 skipped"}
+      ]
+    }
+  ]
+}
