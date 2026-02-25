@@ -62,16 +62,27 @@ def _block_dict(
 
 class TestNotionifyClientInit:
     def test_creates_all_components(self):
+        from notionify.config import NotionifyConfig
+        from notionify.converter.md_to_notion import MarkdownToNotionConverter
+        from notionify.converter.notion_to_md import NotionToMarkdownRenderer
+        from notionify.diff.executor import DiffExecutor
+        from notionify.diff.planner import DiffPlanner
+        from notionify.notion_api.blocks import BlockAPI
+        from notionify.notion_api.files import FileAPI
+        from notionify.notion_api.pages import PageAPI
+        from notionify.notion_api.transport import NotionTransport
+
         client = NotionifyClient(token="test-token")
+        assert isinstance(client._config, NotionifyConfig)
         assert client._config.token == "test-token"
-        assert client._transport is not None
-        assert client._pages is not None
-        assert client._blocks is not None
-        assert client._files is not None
-        assert client._converter is not None
-        assert client._renderer is not None
-        assert client._diff_planner is not None
-        assert client._diff_executor is not None
+        assert isinstance(client._transport, NotionTransport)
+        assert isinstance(client._pages, PageAPI)
+        assert isinstance(client._blocks, BlockAPI)
+        assert isinstance(client._files, FileAPI)
+        assert isinstance(client._converter, MarkdownToNotionConverter)
+        assert isinstance(client._renderer, NotionToMarkdownRenderer)
+        assert isinstance(client._diff_planner, DiffPlanner)
+        assert isinstance(client._diff_executor, DiffExecutor)
         client.close()
 
     def test_forwards_kwargs_to_config(self):
@@ -709,12 +720,23 @@ class TestFetchBlocksRecursive:
 
 class TestAsyncNotionifyClientInit:
     def test_creates_all_components(self):
+        from notionify.config import NotionifyConfig
+        from notionify.diff.executor import AsyncDiffExecutor
+        from notionify.diff.planner import DiffPlanner
+        from notionify.notion_api.blocks import AsyncBlockAPI
+        from notionify.notion_api.files import AsyncFileAPI
+        from notionify.notion_api.pages import AsyncPageAPI
+        from notionify.notion_api.transport import AsyncNotionTransport
+
         client = AsyncNotionifyClient(token="test-token")
+        assert isinstance(client._config, NotionifyConfig)
         assert client._config.token == "test-token"
-        assert client._transport is not None
-        assert client._pages is not None
-        assert client._blocks is not None
-        assert client._files is not None
+        assert isinstance(client._transport, AsyncNotionTransport)
+        assert isinstance(client._pages, AsyncPageAPI)
+        assert isinstance(client._blocks, AsyncBlockAPI)
+        assert isinstance(client._files, AsyncFileAPI)
+        assert isinstance(client._diff_planner, DiffPlanner)
+        assert isinstance(client._diff_executor, AsyncDiffExecutor)
 
     def test_forwards_kwargs_to_config(self):
         client = AsyncNotionifyClient(
