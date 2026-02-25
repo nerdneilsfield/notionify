@@ -1504,6 +1504,55 @@ class TestConsecutiveCodeBlocks:
         assert "key: value" in round_tripped
 
 
+class TestLinksComplex:
+    """Round-trip tests for links_complex.md - annotated link text and complex URLs."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "links_complex.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+
+    def test_bold_link_text_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "links_complex.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "https://example.com/bold" in round_tripped
+        assert "https://example.com/italic" in round_tripped
+
+    def test_multiple_links_in_paragraph_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "links_complex.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "https://example.com/first" in round_tripped
+        assert "https://example.com/second" in round_tripped
+        assert "https://example.com/third" in round_tripped
+
+    def test_links_in_lists_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "links_complex.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "https://docs.python.org/3/" in round_tripped
+        assert "https://doc.rust-lang.org/book/" in round_tripped
+
+    def test_query_string_urls_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "links_complex.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "example.com/search" in round_tripped
+        assert "api.example.com" in round_tripped
+
+    def test_heading_content_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "links_complex.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Linked Heading" in round_tripped
+
+
 class TestTablesWithLinks:
     """Round-trip tests for tables_with_links.md."""
 
