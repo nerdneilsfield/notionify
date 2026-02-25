@@ -120,6 +120,10 @@ class NotionifyClient:
         -------
         PageCreateResult
         """
+        if parent_type not in ("page", "database"):
+            msg = f"parent_type must be 'page' or 'database', got {parent_type!r}"
+            raise ValueError(msg)
+
         # 1. Convert markdown to blocks
         conversion = self._converter.convert(markdown)
         blocks = conversion.blocks
@@ -307,6 +311,13 @@ class NotionifyClient:
         -------
         UpdateResult
         """
+        if strategy not in ("diff", "overwrite"):
+            msg = f"strategy must be 'diff' or 'overwrite', got {strategy!r}"
+            raise ValueError(msg)
+        if on_conflict not in ("raise", "overwrite"):
+            msg = f"on_conflict must be 'raise' or 'overwrite', got {on_conflict!r}"
+            raise ValueError(msg)
+
         if strategy == "overwrite":
             return self.overwrite_page_content(page_id, markdown)
 

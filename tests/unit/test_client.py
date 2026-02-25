@@ -131,6 +131,17 @@ class TestCreatePageWithMarkdown:
         assert parent == {"database_id": "db-1"}
         client.close()
 
+    def test_invalid_parent_type_raises(self):
+        client = _make_sync_client()
+        with pytest.raises(ValueError, match="parent_type must be"):
+            client.create_page_with_markdown(
+                parent_id="p-1",
+                title="T",
+                markdown="M",
+                parent_type="invalid",
+            )
+        client.close()
+
     def test_title_from_h1(self):
         client = _make_sync_client()
         client._pages.create = MagicMock(return_value=_page_create_response())
@@ -231,6 +242,22 @@ class TestOverwritePageContent:
 
 
 class TestUpdatePageFromMarkdown:
+    def test_invalid_strategy_raises(self):
+        client = _make_sync_client()
+        with pytest.raises(ValueError, match="strategy must be"):
+            client.update_page_from_markdown(
+                page_id="p-1", markdown="M", strategy="invalid"
+            )
+        client.close()
+
+    def test_invalid_on_conflict_raises(self):
+        client = _make_sync_client()
+        with pytest.raises(ValueError, match="on_conflict must be"):
+            client.update_page_from_markdown(
+                page_id="p-1", markdown="M", on_conflict="invalid"
+            )
+        client.close()
+
     def test_overwrite_strategy_delegates(self):
         client = _make_sync_client()
         client._blocks.get_children = MagicMock(return_value=[])
@@ -699,6 +726,15 @@ class TestAsyncNotionifyClientInit:
 
 class TestAsyncCreatePageWithMarkdown:
     @pytest.mark.asyncio
+    async def test_invalid_parent_type_raises(self):
+        client = AsyncNotionifyClient(token="test-token")
+        with pytest.raises(ValueError, match="parent_type must be"):
+            await client.create_page_with_markdown(
+                parent_id="p-1", title="T", markdown="M", parent_type="bad"
+            )
+        await client.close()
+
+    @pytest.mark.asyncio
     async def test_basic_page_creation(self):
         client = AsyncNotionifyClient(token="test-token")
         client._pages.create = AsyncMock(return_value=_page_create_response())
@@ -771,6 +807,24 @@ class TestAsyncOverwritePageContent:
 
 
 class TestAsyncUpdatePageFromMarkdown:
+    @pytest.mark.asyncio
+    async def test_invalid_strategy_raises(self):
+        client = AsyncNotionifyClient(token="test-token")
+        with pytest.raises(ValueError, match="strategy must be"):
+            await client.update_page_from_markdown(
+                page_id="p-1", markdown="M", strategy="bad"
+            )
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_invalid_on_conflict_raises(self):
+        client = AsyncNotionifyClient(token="test-token")
+        with pytest.raises(ValueError, match="on_conflict must be"):
+            await client.update_page_from_markdown(
+                page_id="p-1", markdown="M", on_conflict="bad"
+            )
+        await client.close()
+
     @pytest.mark.asyncio
     async def test_diff_strategy(self):
         client = AsyncNotionifyClient(token="test-token")
