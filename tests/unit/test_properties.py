@@ -2491,6 +2491,39 @@ class TestDiffExecutorProperties:
         assert result.blocks_inserted == n_insert
         assert result.blocks_deleted == n_delete
 
+    @given(
+        op_types=st.lists(
+            st.sampled_from(list(DiffOpType)),
+            min_size=0,
+            max_size=20,
+        )
+    )
+    @settings(max_examples=200)
+    def test_emit_diff_metrics_sum_equals_op_count(
+        self, op_types: list[DiffOpType]
+    ) -> None:
+        """_emit_diff_metrics: total of all increment values equals len(ops)."""
+        from notionify.diff.executor import _emit_diff_metrics
+
+        increments: list[int] = []
+
+        class TrackingMetrics:
+            def increment(self, name: str, value: int = 1, tags=None) -> None:
+                increments.append(value)
+
+            def timing(self, name: str, ms: float, tags=None) -> None:
+                pass
+
+            def gauge(self, name: str, value: float, tags=None) -> None:
+                pass
+
+        ops = [
+            DiffOp(op_type=op_type, existing_id="x" if op_type != DiffOpType.INSERT else None)
+            for op_type in op_types
+        ]
+        _emit_diff_metrics(TrackingMetrics(), ops)
+        assert sum(increments) == len(ops)
+
 
 # ---------------------------------------------------------------------------
 # TestComputeSignatureProperties
