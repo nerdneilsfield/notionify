@@ -35,7 +35,7 @@ from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.planner import DiffPlanner
 from notionify.diff.signature import compute_signature
 from notionify.image.detect import detect_image_source, mime_to_extension
-from notionify.models import BlockSignature, DiffOpType, ImageSourceType
+from notionify.models import BlockSignature, DiffOp, DiffOpType, ImageSourceType
 from notionify.notion_api.retries import compute_backoff, should_retry
 from notionify.utils.chunk import chunk_children
 from notionify.utils.hashing import hash_dict, md5_hash
@@ -2082,3 +2082,125 @@ class TestImageMimeSniffProperties:
         from notionify.image.validate import _sniff_mime
         result = _sniff_mime(data)
         assert result is None or result.startswith("image/")
+
+
+# ---------------------------------------------------------------------------
+# TestDiffExecutorProperties
+# ---------------------------------------------------------------------------
+
+def _make_mock_block_api() -> object:
+    """Return a MagicMock that mimics BlockAPI for executor tests."""
+    from unittest.mock import MagicMock
+    api = MagicMock()
+    # append_children returns a response with results containing one block ID.
+    api.append_children.return_value = {
+        "results": [{"id": "mock-appended-id"}],
+    }
+    return api
+
+
+def _make_op(op_type: DiffOpType, eid: str | None = None, new_block: dict | None = None) -> DiffOp:
+    """Helper to construct a DiffOp."""
+    return DiffOp(op_type=op_type, existing_id=eid, new_block=new_block)
+
+
+class TestDiffExecutorProperties:
+    """Property-based tests for DiffExecutor operation counting invariants."""
+
+    _config = NotionifyConfig()
+
+    def test_empty_ops_zero_counts(self) -> None:
+        """Empty op list → all zero counts in UpdateResult."""
+        from notionify.diff.executor import DiffExecutor
+        api = _make_mock_block_api()
+        executor = DiffExecutor(api, self._config)
+        result = executor.execute("page-id", [])
+        assert result.blocks_kept == 0
+        assert result.blocks_inserted == 0
+        assert result.blocks_deleted == 0
+        assert result.blocks_replaced == 0
+
+    @given(n=st.integers(min_value=0, max_value=20))
+    @settings(max_examples=100)
+    def test_all_keep_ops_increments_kept(self, n: int) -> None:
+        """n KEEP ops → kept == n, inserted/deleted/replaced == 0."""
+        from notionify.diff.executor import DiffExecutor
+        api = _make_mock_block_api()
+        executor = DiffExecutor(api, self._config)
+        ops = [_make_op(DiffOpType.KEEP, eid=f"block-{i}") for i in range(n)]
+        result = executor.execute("page-id", ops)
+        assert result.blocks_kept == n
+        assert result.blocks_inserted == 0
+        assert result.blocks_deleted == 0
+        assert result.blocks_replaced == 0
+
+    @given(n=st.integers(min_value=0, max_value=20))
+    @settings(max_examples=100)
+    def test_all_delete_ops_increments_deleted(self, n: int) -> None:
+        """n DELETE ops → deleted == n, kept/inserted/replaced == 0."""
+        from notionify.diff.executor import DiffExecutor
+        api = _make_mock_block_api()
+        executor = DiffExecutor(api, self._config)
+        ops = [_make_op(DiffOpType.DELETE, eid=f"block-{i}") for i in range(n)]
+        result = executor.execute("page-id", ops)
+        assert result.blocks_deleted == n
+        assert result.blocks_kept == 0
+        assert result.blocks_replaced == 0
+
+    @given(n=st.integers(min_value=0, max_value=20))
+    @settings(max_examples=100)
+    def test_all_insert_ops_increments_inserted(self, n: int) -> None:
+        """n INSERT ops → inserted == n, kept/deleted/replaced == 0."""
+        from notionify.diff.executor import DiffExecutor
+        api = _make_mock_block_api()
+        executor = DiffExecutor(api, self._config)
+        ops = [
+            _make_op(DiffOpType.INSERT, new_block={"type": "paragraph"})
+            for _ in range(n)
+        ]
+        result = executor.execute("page-id", ops)
+        assert result.blocks_inserted == n
+        assert result.blocks_kept == 0
+        assert result.blocks_deleted == 0
+        assert result.blocks_replaced == 0
+
+    @given(n=st.integers(min_value=0, max_value=10))
+    @settings(max_examples=100)
+    def test_all_replace_ops_increments_replaced_and_deleted(self, n: int) -> None:
+        """n REPLACE ops → replaced == n, deleted == n, kept/inserted == 0."""
+        from notionify.diff.executor import DiffExecutor
+        api = _make_mock_block_api()
+        executor = DiffExecutor(api, self._config)
+        ops = [
+            _make_op(DiffOpType.REPLACE, eid=f"block-{i}", new_block={"type": "paragraph"})
+            for i in range(n)
+        ]
+        result = executor.execute("page-id", ops)
+        assert result.blocks_replaced == n
+        assert result.blocks_deleted == n
+        assert result.blocks_kept == 0
+        assert result.blocks_inserted == 0
+
+    @given(
+        n_keep=st.integers(min_value=0, max_value=5),
+        n_insert=st.integers(min_value=0, max_value=5),
+        n_delete=st.integers(min_value=0, max_value=5),
+    )
+    @settings(max_examples=100)
+    def test_mixed_ops_counts_are_additive(
+        self, n_keep: int, n_insert: int, n_delete: int
+    ) -> None:
+        """Mixed ops: counts are the sum of each op type."""
+        from notionify.diff.executor import DiffExecutor
+        api = _make_mock_block_api()
+        executor = DiffExecutor(api, self._config)
+        _ins = {"type": "paragraph"}
+        ops = (
+            [_make_op(DiffOpType.KEEP, eid=f"k{i}") for i in range(n_keep)]
+            + [_make_op(DiffOpType.INSERT, new_block=_ins) for _ in range(n_insert)]
+            + [_make_op(DiffOpType.DELETE, eid=f"d{i}") for i in range(n_delete)]
+        )
+        result = executor.execute("page-id", ops)
+        assert result.blocks_kept == n_keep
+        assert result.blocks_inserted == n_insert
+        assert result.blocks_deleted == n_delete
