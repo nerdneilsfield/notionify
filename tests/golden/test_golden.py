@@ -1504,6 +1504,55 @@ class TestConsecutiveCodeBlocks:
         assert "key: value" in round_tripped
 
 
+class TestOrderedListRich:
+    """Round-trip tests for ordered_list_rich.md - numbered lists with annotations."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "ordered_list_rich.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+
+    def test_produces_numbered_list_blocks(self, converter):
+        md = (FIXTURES_DIR / "ordered_list_rich.md").read_text()
+        result = converter.convert(md)
+        numbered = [b for b in result.blocks if b.get("type") == "numbered_list_item"]
+        assert len(numbered) >= 10  # multiple sequences
+
+    def test_inline_annotations_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "ordered_list_rich.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "bold text" in round_tripped
+        assert "italic emphasis" in round_tripped
+        assert "strikethrough" in round_tripped
+
+    def test_counter_reset_after_paragraph(self, converter, renderer):
+        md = (FIXTURES_DIR / "ordered_list_rich.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        # Both sequences start at 1
+        assert "1. Alpha" in round_tripped
+        assert "1. New sequence" in round_tripped
+
+    def test_double_digit_numbers_rendered(self, converter, renderer):
+        md = (FIXTURES_DIR / "ordered_list_rich.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "10. Item ten" in round_tripped
+        assert "11. Item eleven" in round_tripped
+
+    def test_nested_bullets_in_ordered_list_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "ordered_list_rich.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Nested bullet A" in round_tripped
+        assert "Another nested bullet" in round_tripped
+
+
 class TestLinksComplex:
     """Round-trip tests for links_complex.md - annotated link text and complex URLs."""
 
