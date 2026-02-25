@@ -259,6 +259,11 @@ class NotionifyConfig:
             raise ValueError(f"image_max_size_bytes must be > 0, got {self.image_max_size_bytes}")
         if self.image_max_concurrent < 1:
             raise ValueError(f"image_max_concurrent must be >= 1, got {self.image_max_concurrent}")
+        if self.retry_base_delay > self.retry_max_delay:
+            raise ValueError(
+                f"retry_base_delay ({self.retry_base_delay}) must be "
+                f"<= retry_max_delay ({self.retry_max_delay})"
+            )
 
     def __repr__(self) -> str:
         """Mask the token to prevent accidental credential leakage."""

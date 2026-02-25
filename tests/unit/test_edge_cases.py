@@ -87,6 +87,22 @@ class TestNumericConfigValidation:
         with pytest.raises(ValueError, match="image_max_concurrent"):
             NotionifyConfig(token="test", image_max_concurrent=0)
 
+    def test_retry_base_delay_exceeds_max_delay_rejected(self):
+        with pytest.raises(ValueError, match="retry_base_delay"):
+            NotionifyConfig(
+                token="test",
+                retry_base_delay=10.0,
+                retry_max_delay=5.0,
+            )
+
+    def test_retry_delays_equal_accepted(self):
+        config = NotionifyConfig(
+            token="test",
+            retry_base_delay=5.0,
+            retry_max_delay=5.0,
+        )
+        assert config.retry_base_delay == config.retry_max_delay
+
     def test_valid_numeric_config_accepted(self):
         config = NotionifyConfig(
             token="test",

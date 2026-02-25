@@ -13,6 +13,7 @@ Each transport handles the full request lifecycle described in PRD section 16.4:
 
 from __future__ import annotations
 
+import asyncio
 import json as _json
 import sys
 import time
@@ -515,8 +516,6 @@ class AsyncNotionTransport:
         semantics are identical but all blocking calls are replaced with
         async equivalents.
         """
-        import asyncio
-
         max_attempts = self._config.retry_max_attempts
         last_exception: Exception | None = None
         last_status: int | None = None
