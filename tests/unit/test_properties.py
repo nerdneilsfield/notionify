@@ -23,7 +23,8 @@ from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.converter.rich_text import split_rich_text
 from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.signature import compute_signature
-from notionify.models import BlockSignature
+from notionify.image.detect import detect_image_source, mime_to_extension
+from notionify.models import BlockSignature, ImageSourceType
 from notionify.notion_api.retries import compute_backoff, should_retry
 from notionify.utils.chunk import chunk_children
 from notionify.utils.hashing import hash_dict, md5_hash
@@ -1204,3 +1205,98 @@ class TestNotionifyConfigProperties:
         """HTTP base_url to localhost must be accepted."""
         cfg = NotionifyConfig(token="test", base_url="http://localhost:3000/v1")
         assert "localhost" in cfg.base_url
+
+
+# ---------------------------------------------------------------------------
+# 13. TestImageDetectProperties
+# ---------------------------------------------------------------------------
+
+
+class TestImageDetectProperties:
+    """Property-based tests for :func:`detect_image_source` and :func:`mime_to_extension`."""
+
+    @given(text=st.text(max_size=500))
+    @settings(max_examples=200)
+    def test_detect_never_raises(self, text: str) -> None:
+        """detect_image_source must never raise on any string input."""
+        result = detect_image_source(text)
+        assert isinstance(result, ImageSourceType)
+
+    @given(
+        suffix=st.text(
+            alphabet=st.characters(whitelist_categories=("L", "N")),
+            max_size=100,
+        )
+    )
+    @settings(max_examples=200)
+    def test_data_uri_detected(self, suffix: str) -> None:
+        """Any string starting with 'data:' must be DATA_URI."""
+        result = detect_image_source(f"data:{suffix}")
+        assert result == ImageSourceType.DATA_URI
+
+    @given(
+        host=st.from_regex(r"[a-zA-Z0-9][a-zA-Z0-9.-]{0,50}", fullmatch=True),
+        path=st.text(
+            alphabet="abcdefghijklmnopqrstuvwxyz0123456789/-_.",
+            max_size=30,
+        ),
+    )
+    @settings(max_examples=200)
+    def test_https_url_detected(self, host: str, path: str) -> None:
+        """Valid https:// URLs must be EXTERNAL_URL."""
+        result = detect_image_source(f"https://{host}/{path}")
+        assert result == ImageSourceType.EXTERNAL_URL
+
+    @given(
+        host=st.from_regex(r"[a-zA-Z0-9][a-zA-Z0-9.-]{0,50}", fullmatch=True),
+        path=st.text(
+            alphabet="abcdefghijklmnopqrstuvwxyz0123456789/-_.",
+            max_size=30,
+        ),
+    )
+    @settings(max_examples=200)
+    def test_http_url_detected(self, host: str, path: str) -> None:
+        """Valid http:// URLs must be EXTERNAL_URL."""
+        result = detect_image_source(f"http://{host}/{path}")
+        assert result == ImageSourceType.EXTERNAL_URL
+
+    @given(whitespace=st.text(alphabet=" \t\n\r", min_size=0, max_size=10))
+    @settings(max_examples=100)
+    def test_empty_or_whitespace_is_unknown(self, whitespace: str) -> None:
+        """Empty or whitespace-only strings must be UNKNOWN."""
+        assert detect_image_source(whitespace) == ImageSourceType.UNKNOWN
+
+    @given(
+        ext=st.sampled_from([
+            ".jpg", ".jpeg", ".png", ".gif", ".webp",
+            ".svg", ".bmp", ".tiff", ".tif", ".ico", ".avif",
+        ])
+    )
+    @settings(max_examples=50)
+    def test_image_extension_is_local_file(self, ext: str) -> None:
+        """A filename with a known image extension is LOCAL_FILE."""
+        result = detect_image_source(f"photo{ext}")
+        assert result == ImageSourceType.LOCAL_FILE
+
+    @given(mime=st.text(min_size=1, max_size=50))
+    @settings(max_examples=200)
+    def test_mime_to_extension_always_returns_dotted_string(
+        self, mime: str
+    ) -> None:
+        """mime_to_extension must always return a string starting with '.'."""
+        result = mime_to_extension(mime)
+        assert isinstance(result, str)
+        assert result.startswith(".")
+
+    @given(
+        mime=st.sampled_from([
+            "image/jpeg", "image/png", "image/gif", "image/webp",
+            "image/svg+xml", "image/bmp", "image/tiff",
+        ])
+    )
+    @settings(max_examples=50)
+    def test_known_mime_types_have_known_extensions(self, mime: str) -> None:
+        """Known MIME types must map to known (non-.bin) extensions."""
+        result = mime_to_extension(mime)
+        assert result != ".bin"
+        assert result.startswith(".")

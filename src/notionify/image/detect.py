@@ -45,8 +45,12 @@ def detect_image_source(src: str) -> ImageSourceType:
         return ImageSourceType.DATA_URI
 
     # URL check -- http:// or https://.
-    parsed = urlparse(src)
-    if parsed.scheme in ("http", "https"):
+    try:
+        parsed = urlparse(src)
+    except ValueError:
+        # urlparse raises ValueError for malformed URLs (e.g. invalid IPv6).
+        parsed = None
+    if parsed is not None and parsed.scheme in ("http", "https"):
         return ImageSourceType.EXTERNAL_URL
 
     # Local file check -- either absolute path, relative path with known
