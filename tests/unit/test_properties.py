@@ -3471,7 +3471,7 @@ class TestTableRendererProperties:
         self, content: str, extra_cols: list[str], has_column_header: bool
     ) -> None:
         """has_row_header=True wraps non-empty, markdown-safe first cell in **...**."""
-        row = [content] + extra_cols
+        row = [content, *extra_cols]
         block = _make_table_block([row], has_row_header=True, has_column_header=has_column_header)
         renderer = NotionToMarkdownRenderer(self._config)
         result = renderer.render_block(block)
@@ -3481,14 +3481,18 @@ class TestTableRendererProperties:
         assert f"**{content}**" in first_line
 
     @given(
-        extra_cols=st.lists(st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=30), min_size=1, max_size=5),
+        extra_cols=st.lists(
+            st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=30),
+            min_size=1,
+            max_size=5,
+        ),
     )
     @settings(max_examples=200)
     def test_has_row_header_empty_first_cell_stays_empty(
         self, extra_cols: list[str]
     ) -> None:
         """has_row_header=True with empty first cell must NOT produce ****."""
-        row = [""] + extra_cols
+        row = ["", *extra_cols]
         block = _make_table_block([row], has_row_header=True)
         renderer = NotionToMarkdownRenderer(self._config)
         result = renderer.render_block(block)
@@ -3505,7 +3509,7 @@ class TestTableRendererProperties:
         self, content: str, extra_cols: list[str]
     ) -> None:
         """has_row_header=False must not wrap the first cell in **...**."""
-        row = [content] + extra_cols
+        row = [content, *extra_cols]
         block = _make_table_block([row], has_row_header=False)
         renderer = NotionToMarkdownRenderer(self._config)
         result = renderer.render_block(block)
