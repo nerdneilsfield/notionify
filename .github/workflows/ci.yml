@@ -31,7 +31,7 @@ jobs:
         run: ruff check src/ tests/
 
       - name: Type check with mypy (strict)
-        run: mypy src/notionify
+        run: mypy src/notionify --strict
 
       - name: Security audit (dependencies)
         run: pip-audit
