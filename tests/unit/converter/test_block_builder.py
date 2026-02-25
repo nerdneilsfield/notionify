@@ -389,6 +389,14 @@ class TestNestingDepthGuard:
         depth_warnings = [w for w in warnings if w.code == "NESTING_DEPTH_EXCEEDED"]
         assert depth_warnings == []
 
+    def test_nesting_exactly_at_limit_no_warning(self):
+        """8 levels is the limit; nesting at exactly 8 should NOT warn."""
+        token = self._make_nested_list(8)
+        blocks, _, warnings = build_blocks([token], _config())
+        assert len(blocks) >= 1
+        depth_warnings = [w for w in warnings if w.code == "NESTING_DEPTH_EXCEEDED"]
+        assert depth_warnings == []
+
     def test_nesting_at_limit_emits_warning(self):
         token = self._make_nested_list(9)
         blocks, _, warnings = build_blocks([token], _config())

@@ -53,6 +53,21 @@ class TestShortTextNoSplit:
         assert len(result) == 1
         assert result[0]["text"]["content"] == text
 
+    def test_one_under_limit(self):
+        text = "x" * 1999
+        seg = _make_text_segment(text)
+        result = split_rich_text([seg])
+        assert len(result) == 1
+        assert result[0]["text"]["content"] == text
+
+    def test_one_over_limit_triggers_split(self):
+        text = "x" * 2001
+        seg = _make_text_segment(text)
+        result = split_rich_text([seg])
+        assert len(result) == 2
+        assert len(result[0]["text"]["content"]) == 2000
+        assert len(result[1]["text"]["content"]) == 1
+
 
 # =========================================================================
 # U-RT-002: Long text split at boundary

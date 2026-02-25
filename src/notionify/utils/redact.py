@@ -16,6 +16,7 @@ Before any Notion API payload is written to logs or debug artifacts the
 from __future__ import annotations
 
 import base64
+import binascii
 import copy
 import re
 from typing import Any
@@ -71,7 +72,7 @@ def _estimate_data_uri_bytes(uri: str) -> int:
         b64_part = uri.split(";base64,", 1)[1]
         # base64 decoding to get actual length.
         return len(base64.b64decode(b64_part, validate=True))
-    except Exception:
+    except (binascii.Error, IndexError, ValueError):
         # Fallback: rough estimate from base64 length.
         b64_part = uri.split(";base64,", 1)[-1]
         return len(b64_part) * 3 // 4
