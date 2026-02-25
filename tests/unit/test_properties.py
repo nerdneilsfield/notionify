@@ -6330,3 +6330,136 @@ class TestNormalizeInlineProperties2:
         """_normalize_inline always sets 'type' to the canonical type."""
         result = self._n()._normalize_inline({"type": "any"}, canonical)
         assert result["type"] == canonical
+
+
+# ---------------------------------------------------------------------------
+# NotionToMarkdownRenderer block renderer method properties
+# ---------------------------------------------------------------------------
+
+
+class TestRendererBlockMethodsProperties:
+    """Property tests for individual NotionToMarkdownRenderer._render_* methods."""
+
+    def _r(self) -> NotionToMarkdownRenderer:
+        return NotionToMarkdownRenderer(NotionifyConfig(token="test-token"))
+
+    def _rt(self, text: str) -> list[dict]:
+        return [{"type": "text", "text": {"content": text}, "plain_text": text}]
+
+    # --- _render_divider ---
+
+    def test_divider_always_returns_hr_string(self) -> None:
+        """_render_divider always returns '---\\n\\n' regardless of block/depth."""
+        r = self._r()
+        assert r._render_divider({}, 0) == "---\n\n"
+        assert r._render_divider({}, 5) == "---\n\n"
+
+    # --- _render_heading ---
+
+    @given(
+        level=st.integers(min_value=1, max_value=3),
+        text=st.text(min_size=1, max_size=50, alphabet=string.ascii_letters + " "),
+    )
+    @settings(max_examples=200)
+    def test_heading_prefix_matches_level(self, level: int, text: str) -> None:
+        """Heading prefix '#' count equals the heading level."""
+        r = self._r()
+        block = {f"heading_{level}": {"rich_text": self._rt(text)}}
+        result = r._render_heading(block, 0, level)
+        assert result.startswith("#" * level + " ")
+
+    @given(
+        level=st.integers(min_value=1, max_value=3),
+        text=st.text(min_size=1, max_size=50, alphabet=string.ascii_letters + " "),
+    )
+    @settings(max_examples=100)
+    def test_heading_ends_with_double_newline(self, level: int, text: str) -> None:
+        """Heading output always ends with '\\n\\n'."""
+        r = self._r()
+        block = {f"heading_{level}": {"rich_text": self._rt(text)}}
+        result = r._render_heading(block, 0, level)
+        assert result.endswith("\n\n")
+
+    # --- _render_equation ---
+
+    @given(expr=st.text(min_size=0, max_size=100))
+    @settings(max_examples=200)
+    def test_equation_expression_preserved_verbatim(self, expr: str) -> None:
+        """_render_equation wraps expression in $$...$$."""
+        r = self._r()
+        block = {"equation": {"expression": expr}}
+        result = r._render_equation(block, 0)
+        assert result == f"$$\n{expr}\n$$\n\n"
+
+    # --- _render_bulleted_list_item ---
+
+    @given(
+        text=st.text(min_size=1, max_size=50, alphabet=string.ascii_letters + " "),
+        depth=st.integers(min_value=0, max_value=4),
+    )
+    @settings(max_examples=200)
+    def test_bullet_has_dash_prefix_with_indent(self, text: str, depth: int) -> None:
+        """Bulleted item has '- ' prefix after depth-based indent."""
+        r = self._r()
+        block = {"bulleted_list_item": {"rich_text": self._rt(text)}}
+        result = r._render_bulleted_list_item(block, depth)
+        assert result.startswith("  " * depth + "- ")
+
+    # --- _render_to_do ---
+
+    @given(text=st.text(min_size=1, max_size=50, alphabet=string.ascii_letters + " "))
+    @settings(max_examples=200)
+    def test_to_do_checked_contains_checkmark(self, text: str) -> None:
+        """to_do checked=True → '[x]' present in output."""
+        r = self._r()
+        block = {"to_do": {"rich_text": self._rt(text), "checked": True}}
+        assert "[x]" in r._render_to_do(block, 0)
+
+    @given(text=st.text(min_size=1, max_size=50, alphabet=string.ascii_letters + " "))
+    @settings(max_examples=200)
+    def test_to_do_unchecked_contains_empty_box(self, text: str) -> None:
+        """to_do checked=False → '[ ]' present in output."""
+        r = self._r()
+        block = {"to_do": {"rich_text": self._rt(text), "checked": False}}
+        assert "[ ]" in r._render_to_do(block, 0)
+
+    # --- _render_code ---
+
+    @given(
+        lang=st.text(min_size=1, max_size=20, alphabet=string.ascii_letters),
+        code=st.text(min_size=0, max_size=100),
+    )
+    @settings(max_examples=200)
+    def test_code_wraps_in_backtick_fences(self, lang: str, code: str) -> None:
+        """Code block always wrapped in triple-backtick fences."""
+        assume(lang.lower() != "plain text")
+        assume(lang.lower() != "latex")
+        r = self._r()
+        block = {"code": {"language": lang, "rich_text": [{"plain_text": code}]}}
+        result = r._render_code(block, 0)
+        assert result.startswith("```")
+        assert result.endswith("```\n\n")
+
+    def test_code_plain_text_language_produces_empty_fence_info(self) -> None:
+        """Language 'plain text' → empty fence info (``` with no lang)."""
+        r = self._r()
+        block = {"code": {"language": "plain text", "rich_text": [{"plain_text": "x"}]}}
+        result = r._render_code(block, 0)
+        assert result.startswith("```\n")
+
+    # --- _render_numbered_list_item ---
+
+    @given(
+        text=st.text(min_size=1, max_size=50, alphabet=string.ascii_letters + " "),
+        number=st.integers(min_value=1, max_value=100),
+        depth=st.integers(min_value=0, max_value=3),
+    )
+    @settings(max_examples=200)
+    def test_numbered_item_prefix_contains_number(
+        self, text: str, number: int, depth: int
+    ) -> None:
+        """Numbered list item starts with 'indent + number + '. '."""
+        r = self._r()
+        block = {"numbered_list_item": {"rich_text": self._rt(text)}}
+        result = r._render_numbered_list_item(block, depth, number)
+        assert result.startswith("  " * depth + f"{number}. ")
