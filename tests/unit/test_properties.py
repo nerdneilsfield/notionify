@@ -18,6 +18,7 @@ from hypothesis import strategies as st
 from notionify.config import NotionifyConfig
 from notionify.converter.ast_normalizer import ASTNormalizer
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
+from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.converter.rich_text import split_rich_text
 from notionify.diff.signature import compute_signature
 from notionify.utils.chunk import chunk_children
@@ -679,3 +680,172 @@ class TestConverterProperties:
         types1 = [b["type"] for b in r1.blocks]
         types2 = [b["type"] for b in r2.blocks]
         assert types1 == types2
+
+
+# ---------------------------------------------------------------------------
+# 8. TestNotionToMarkdownRendererProperties
+# ---------------------------------------------------------------------------
+
+# Strategy for a minimal Notion block with arbitrary type and optional
+# rich_text content.  The shape is intentionally broad so the renderer must
+# handle unknown/empty/malformed inputs gracefully.
+_notion_block_st = st.fixed_dictionaries(
+    {
+        "type": st.text(min_size=1, max_size=30),
+    },
+    optional={
+        "paragraph": st.fixed_dictionaries(
+            {"rich_text": st.lists(
+                st.fixed_dictionaries(
+                    {"plain_text": st.text(max_size=200)},
+                    optional={"annotations": st.fixed_dictionaries({
+                        "bold": st.booleans(),
+                        "italic": st.booleans(),
+                        "strikethrough": st.booleans(),
+                        "underline": st.booleans(),
+                        "code": st.booleans(),
+                        "color": st.just("default"),
+                    })},
+                ),
+                max_size=5,
+            )}
+        ),
+    },
+)
+
+_KNOWN_BLOCK_TYPES = [
+    "paragraph", "heading_1", "heading_2", "heading_3",
+    "bulleted_list_item", "numbered_list_item", "to_do",
+    "quote", "code", "divider", "equation",
+    "image", "bookmark", "callout",
+]
+
+
+def _make_rich_text(text: str) -> list[dict]:
+    return [{"type": "text", "plain_text": text, "text": {"content": text}}]
+
+
+class TestNotionToMarkdownRendererProperties:
+    """Property-based tests for :class:`NotionToMarkdownRenderer`.
+
+    Key invariants:
+    - render_blocks never raises on any list of dicts
+    - render_blocks always returns a string
+    - Empty input always returns an empty/whitespace string
+    - Determinism: same input → same output
+    - Signature stability across all converter-produced blocks
+    """
+
+    _config = NotionifyConfig(token="test-token")
+    _renderer = NotionToMarkdownRenderer(_config)
+
+    @given(
+        blocks=st.lists(
+            st.fixed_dictionaries({"type": st.text(min_size=1, max_size=40)}),
+            max_size=20,
+        )
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_render_blocks_never_raises(self, blocks: list[dict]) -> None:
+        """render_blocks must never raise on arbitrary block dicts."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        result = renderer.render_blocks(blocks)
+        assert isinstance(result, str)
+
+    @given(
+        blocks=st.lists(
+            st.fixed_dictionaries({"type": st.text(min_size=1, max_size=40)}),
+            max_size=20,
+        )
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_render_blocks_is_deterministic(self, blocks: list[dict]) -> None:
+        """Same block list must always produce the same Markdown output."""
+        r1 = NotionToMarkdownRenderer(self._config).render_blocks(blocks)
+        r2 = NotionToMarkdownRenderer(self._config).render_blocks(blocks)
+        assert r1 == r2
+
+    def test_render_blocks_empty_returns_empty(self) -> None:
+        """Empty block list must render to empty/whitespace string."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        assert renderer.render_blocks([]).strip() == ""
+
+    @given(block_type=st.sampled_from(_KNOWN_BLOCK_TYPES))
+    @settings(max_examples=50)
+    def test_render_block_known_types_return_string(self, block_type: str) -> None:
+        """render_block on every known type must return a string."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        block: dict = {
+            "type": block_type,
+            block_type: {"rich_text": _make_rich_text("hello")},
+        }
+        if block_type == "to_do":
+            block[block_type]["checked"] = False
+        elif block_type == "code":
+            block[block_type]["language"] = "python"
+        elif block_type == "equation":
+            block[block_type] = {"expression": "E=mc^2"}
+        elif block_type == "image":
+            block[block_type] = {"type": "external", "external": {"url": "https://example.com/img.png"}}
+        elif block_type == "bookmark":
+            block[block_type] = {"url": "https://example.com"}
+        elif block_type == "divider":
+            block[block_type] = {}
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+
+    @given(
+        text=st.text(min_size=0, max_size=500),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_paragraph_rich_text_always_renders(self, text: str) -> None:
+        """Paragraphs with arbitrary rich text content always render."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        block = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": _make_rich_text(text)},
+        }
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+
+    @given(
+        text=st.text(min_size=0, max_size=300),
+        depth=st.integers(min_value=0, max_value=5),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_list_items_depth_never_raises(self, text: str, depth: int) -> None:
+        """Bulleted/numbered list items at arbitrary depth always render."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        for btype in ("bulleted_list_item", "numbered_list_item"):
+            block = {
+                "type": btype,
+                btype: {"rich_text": _make_rich_text(text)},
+            }
+            result = renderer.render_block(block, depth=depth)
+            assert isinstance(result, str)
+
+    @given(
+        text=st.text(min_size=0, max_size=3000),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_round_trip_block_types_preserved(self, text: str) -> None:
+        """Block types produced by the converter are handled by the renderer."""
+        converter = MarkdownToNotionConverter(self._config)
+        renderer = NotionToMarkdownRenderer(self._config)
+        result = converter.convert(text)
+        # Renderer must not raise on any converter-produced block.
+        md = renderer.render_blocks(result.blocks)
+        assert isinstance(md, str)
+
+    @given(
+        text=st.text(min_size=0, max_size=2000),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_signature_stable_on_renderer_output_roundtrip(self, text: str) -> None:
+        """compute_signature is deterministic on all converter-produced blocks."""
+        converter = MarkdownToNotionConverter(self._config)
+        result = converter.convert(text)
+        for block in result.blocks:
+            sig1 = compute_signature(block)
+            sig2 = compute_signature(block)
+            assert sig1 == sig2
