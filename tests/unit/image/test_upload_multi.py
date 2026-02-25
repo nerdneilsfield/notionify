@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from notionify.image.upload_multi import async_upload_multi, upload_multi
 
 
@@ -339,3 +341,154 @@ class TestAsyncUploadMulti:
         for i, p in enumerate(parts, start=1):
             assert p["part_number"] == i
             assert p["etag"] == "et"
+
+
+# ===========================================================================
+# Sync: failure paths
+# ===========================================================================
+
+
+class TestUploadMultiSyncFailures:
+    """Sync: API exception propagation for upload_multi."""
+
+    def _make_api(self, *, url: str = "https://s3/p1") -> MagicMock:
+        api = MagicMock()
+        api.create_upload.return_value = {
+            "id": "upload-fail",
+            "upload_urls": [{"upload_url": url}],
+        }
+        api.send_part.return_value = {}
+        api.complete_upload.return_value = {}
+        return api
+
+    def test_create_upload_exception_propagates(self):
+        api = MagicMock()
+        api.create_upload.side_effect = RuntimeError("Create failed")
+        with pytest.raises(RuntimeError, match="Create failed"):
+            upload_multi(api, "img.png", "image/png", b"data")
+
+    def test_create_upload_missing_id_raises_key_error(self):
+        api = MagicMock()
+        api.create_upload.return_value = {
+            "upload_urls": [{"upload_url": "https://s3/x"}]
+        }
+        with pytest.raises(KeyError):
+            upload_multi(api, "img.png", "image/png", b"data")
+
+    def test_send_part_exception_propagates_mid_upload(self):
+        """Exception during chunk 2 of 3 propagates; complete_upload never called."""
+        api = MagicMock()
+        api.create_upload.return_value = {
+            "id": "upload-mid",
+            "upload_urls": [
+                {"upload_url": "https://s3/r1"},
+                {"upload_url": "https://s3/r2"},
+                {"upload_url": "https://s3/r3"},
+            ],
+        }
+        api.send_part.side_effect = [{"etag": "e1"}, OSError("Chunk 2 failed"), {}]
+
+        with pytest.raises(OSError, match="Chunk 2 failed"):
+            upload_multi(api, "img.png", "image/png", b"abcdefghijklmno", chunk_size=5)
+
+        # Only 2 parts were sent before failure
+        assert api.send_part.call_count == 2
+        api.complete_upload.assert_not_called()
+
+    def test_complete_upload_exception_propagates(self):
+        """complete_upload raises after all chunks uploaded."""
+        api = self._make_api()
+        api.complete_upload.side_effect = RuntimeError("Complete failed")
+
+        with pytest.raises(RuntimeError, match="Complete failed"):
+            upload_multi(api, "img.png", "image/png", b"data")
+
+        # All parts were sent before failure
+        api.send_part.assert_called_once()
+
+    def test_zero_length_data_calls_complete_with_empty_parts(self):
+        """Empty bytes: no chunks, complete_upload called with empty parts list."""
+        api = self._make_api()
+        result = upload_multi(api, "empty.png", "image/png", b"")
+        assert result == "upload-fail"
+        api.send_part.assert_not_called()
+        args = api.complete_upload.call_args[0]
+        assert args[0] == "upload-fail"
+        assert args[1] == []
+
+
+# ===========================================================================
+# Async: failure paths
+# ===========================================================================
+
+
+class TestUploadMultiAsyncFailures:
+    """Async: API exception propagation for async_upload_multi."""
+
+    def _make_api(self, *, url: str = "https://s3/ap1") -> MagicMock:
+        api = MagicMock()
+        api.create_upload = AsyncMock(return_value={
+            "id": "upload-async-fail",
+            "upload_urls": [{"upload_url": url}],
+        })
+        api.send_part = AsyncMock(return_value={})
+        api.complete_upload = AsyncMock(return_value={})
+        return api
+
+    async def test_create_upload_exception_propagates(self):
+        api = MagicMock()
+        api.create_upload = AsyncMock(side_effect=RuntimeError("Async create failed"))
+        with pytest.raises(RuntimeError, match="Async create failed"):
+            await async_upload_multi(api, "img.png", "image/png", b"data")
+
+    async def test_create_upload_missing_id_raises_key_error(self):
+        api = MagicMock()
+        api.create_upload = AsyncMock(return_value={
+            "upload_urls": [{"upload_url": "https://s3/x"}]
+        })
+        with pytest.raises(KeyError):
+            await async_upload_multi(api, "img.png", "image/png", b"data")
+
+    async def test_send_part_exception_propagates_mid_upload(self):
+        """Async exception during chunk 2 propagates; complete_upload never called."""
+        api = MagicMock()
+        api.create_upload = AsyncMock(return_value={
+            "id": "upload-async-mid",
+            "upload_urls": [
+                {"upload_url": "https://s3/ar1"},
+                {"upload_url": "https://s3/ar2"},
+                {"upload_url": "https://s3/ar3"},
+            ],
+        })
+        api.send_part = AsyncMock(
+            side_effect=[{"etag": "e1"}, OSError("Async chunk 2 failed"), {}]
+        )
+        api.complete_upload = AsyncMock(return_value={})
+
+        with pytest.raises(OSError, match="Async chunk 2 failed"):
+            await async_upload_multi(
+                api, "img.png", "image/png", b"abcdefghijklmno", chunk_size=5
+            )
+
+        assert api.send_part.call_count == 2
+        api.complete_upload.assert_not_awaited()
+
+    async def test_complete_upload_exception_propagates(self):
+        """Async complete_upload raises after all chunks uploaded."""
+        api = self._make_api()
+        api.complete_upload.side_effect = RuntimeError("Async complete failed")
+
+        with pytest.raises(RuntimeError, match="Async complete failed"):
+            await async_upload_multi(api, "img.png", "image/png", b"data")
+
+        api.send_part.assert_awaited_once()
+
+    async def test_zero_length_data_calls_complete_with_empty_parts(self):
+        """Async empty bytes: no chunks, complete_upload called with empty parts."""
+        api = self._make_api()
+        result = await async_upload_multi(api, "empty.png", "image/png", b"")
+        assert result == "upload-async-fail"
+        api.send_part.assert_not_awaited()
+        args = api.complete_upload.call_args[0]
+        assert args[0] == "upload-async-fail"
+        assert args[1] == []
