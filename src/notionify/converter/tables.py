@@ -144,8 +144,7 @@ def _build_table_block(
     # Ensure all rows have the same width (pad with empty cells)
     for row in notion_rows:
         row_cells = row["table_row"]["cells"]
-        while len(row_cells) < table_width:
-            row_cells.append([])
+        row_cells.extend([] for _ in range(table_width - len(row_cells)))
 
     return {
         "object": "block",
