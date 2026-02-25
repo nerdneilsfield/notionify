@@ -21,7 +21,10 @@ from notionify.converter.inline_renderer import markdown_escape, render_rich_tex
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.converter.rich_text import split_rich_text
+from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.signature import compute_signature
+from notionify.models import BlockSignature
+from notionify.notion_api.retries import compute_backoff, should_retry
 from notionify.utils.chunk import chunk_children
 from notionify.utils.hashing import hash_dict, md5_hash
 from notionify.utils.redact import _SENSITIVE_KEY_PATTERNS, redact
@@ -934,3 +937,186 @@ class TestInlineRendererProperties:
         # The escaped output must contain the core text characters.
         assert isinstance(result, str)
         assert len(result) >= len(safe)
+
+
+# ---------------------------------------------------------------------------
+# 10. TestComputeBackoffProperties
+# ---------------------------------------------------------------------------
+
+
+class TestComputeBackoffProperties:
+    """Property-based tests for :func:`compute_backoff` and :func:`should_retry`."""
+
+    @given(
+        attempt=st.integers(min_value=0, max_value=20),
+        base=st.floats(min_value=0.01, max_value=10.0, allow_nan=False),
+        maximum=st.floats(min_value=0.1, max_value=3600.0, allow_nan=False),
+    )
+    @settings(max_examples=200)
+    def test_backoff_without_jitter_never_exceeds_maximum(
+        self, attempt: int, base: float, maximum: float
+    ) -> None:
+        """Without jitter, compute_backoff must never exceed maximum."""
+        delay = compute_backoff(attempt, base=base, maximum=maximum, jitter=False)
+        assert delay <= maximum + 1e-9  # float tolerance
+
+    @given(
+        attempt=st.integers(min_value=0, max_value=20),
+        base=st.floats(min_value=0.01, max_value=10.0, allow_nan=False),
+        maximum=st.floats(min_value=0.1, max_value=3600.0, allow_nan=False),
+    )
+    @settings(max_examples=200)
+    def test_backoff_is_non_negative(
+        self, attempt: int, base: float, maximum: float
+    ) -> None:
+        """compute_backoff must always return a non-negative value."""
+        delay = compute_backoff(attempt, base=base, maximum=maximum, jitter=True)
+        assert delay >= 0.0
+
+    @given(
+        retry_after=st.floats(min_value=0.0, max_value=600.0, allow_nan=False),
+    )
+    @settings(max_examples=200)
+    def test_retry_after_overrides_exponential(self, retry_after: float) -> None:
+        """When retry_after is supplied without jitter, it is returned exactly."""
+        delay = compute_backoff(
+            attempt=5, base=1.0, maximum=60.0, jitter=False, retry_after=retry_after
+        )
+        assert delay == retry_after
+
+    @given(
+        attempt=st.integers(min_value=0, max_value=5),
+        max_attempts=st.integers(min_value=1, max_value=10),
+    )
+    @settings(max_examples=200)
+    def test_should_retry_never_retries_after_exhaustion(
+        self, attempt: int, max_attempts: int
+    ) -> None:
+        """should_retry must return False when attempt >= max_attempts - 1."""
+        if attempt + 1 >= max_attempts:
+            assert not should_retry(500, None, attempt, max_attempts)
+        # When below the limit with a retryable status, it should retry.
+        elif attempt + 1 < max_attempts:
+            assert should_retry(500, None, attempt, max_attempts)
+
+    @given(
+        status_code=st.integers(min_value=200, max_value=499).filter(
+            lambda s: s != 429
+        ),
+        attempt=st.integers(min_value=0, max_value=3),
+    )
+    @settings(max_examples=200)
+    def test_non_retryable_status_codes_not_retried(
+        self, status_code: int, attempt: int
+    ) -> None:
+        """2xx and 4xx (except 429) status codes must not trigger retry."""
+        assert not should_retry(status_code, None, attempt, max_attempts=10)
+
+
+# ---------------------------------------------------------------------------
+# 11. TestLCSMatcherProperties
+# ---------------------------------------------------------------------------
+
+
+def _make_sig(block_type: str, text: str) -> BlockSignature:
+    """Create a minimal BlockSignature for property tests."""
+    from notionify.utils.hashing import md5_hash
+    return BlockSignature(
+        block_type=block_type,
+        rich_text_hash=md5_hash(text),
+        structural_hash=md5_hash("0"),
+        attrs_hash=md5_hash("{}"),
+        nesting_depth=0,
+    )
+
+
+_sig_st = st.builds(
+    _make_sig,
+    block_type=st.sampled_from(["paragraph", "heading_1", "code", "divider"]),
+    text=st.text(min_size=0, max_size=50),
+)
+
+
+class TestLCSMatcherProperties:
+    """Property-based tests for :func:`lcs_match`."""
+
+    @given(sigs=st.lists(_sig_st, max_size=20))
+    @settings(max_examples=200)
+    def test_identical_sequences_fully_matched(
+        self, sigs: list[BlockSignature]
+    ) -> None:
+        """lcs_match of identical lists must return n matched pairs."""
+        pairs = lcs_match(sigs, sigs)
+        assert len(pairs) == len(sigs)
+        for i, (ei, ni) in enumerate(pairs):
+            assert ei == i
+            assert ni == i
+
+    @given(sigs=st.lists(_sig_st, max_size=20))
+    @settings(max_examples=200)
+    def test_empty_existing_returns_no_pairs(
+        self, sigs: list[BlockSignature]
+    ) -> None:
+        """lcs_match with empty existing always returns empty list."""
+        assert lcs_match([], sigs) == []
+
+    @given(sigs=st.lists(_sig_st, max_size=20))
+    @settings(max_examples=200)
+    def test_empty_new_returns_no_pairs(
+        self, sigs: list[BlockSignature]
+    ) -> None:
+        """lcs_match with empty new always returns empty list."""
+        assert lcs_match(sigs, []) == []
+
+    @given(
+        existing=st.lists(_sig_st, max_size=15),
+        new=st.lists(_sig_st, max_size=15),
+    )
+    @settings(max_examples=200)
+    def test_pairs_length_bounded_by_min(
+        self, existing: list[BlockSignature], new: list[BlockSignature]
+    ) -> None:
+        """Number of matched pairs cannot exceed min(len(existing), len(new))."""
+        pairs = lcs_match(existing, new)
+        assert len(pairs) <= min(len(existing), len(new))
+
+    @given(
+        existing=st.lists(_sig_st, max_size=15),
+        new=st.lists(_sig_st, max_size=15),
+    )
+    @settings(max_examples=200)
+    def test_pairs_indices_in_range(
+        self, existing: list[BlockSignature], new: list[BlockSignature]
+    ) -> None:
+        """All returned indices must be valid positions in the respective lists."""
+        pairs = lcs_match(existing, new)
+        for ei, ni in pairs:
+            assert 0 <= ei < len(existing)
+            assert 0 <= ni < len(new)
+
+    @given(
+        existing=st.lists(_sig_st, min_size=1, max_size=15),
+        new=st.lists(_sig_st, min_size=1, max_size=15),
+    )
+    @settings(max_examples=200)
+    def test_pairs_are_strictly_increasing(
+        self, existing: list[BlockSignature], new: list[BlockSignature]
+    ) -> None:
+        """Returned pairs must be strictly increasing in both indices."""
+        pairs = lcs_match(existing, new)
+        for k in range(1, len(pairs)):
+            assert pairs[k][0] > pairs[k - 1][0]
+            assert pairs[k][1] > pairs[k - 1][1]
+
+    @given(
+        existing=st.lists(_sig_st, max_size=15),
+        new=st.lists(_sig_st, max_size=15),
+    )
+    @settings(max_examples=200)
+    def test_matched_signatures_are_equal(
+        self, existing: list[BlockSignature], new: list[BlockSignature]
+    ) -> None:
+        """Each matched pair must reference equal signatures."""
+        pairs = lcs_match(existing, new)
+        for ei, ni in pairs:
+            assert existing[ei] == new[ni]
