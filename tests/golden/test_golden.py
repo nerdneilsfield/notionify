@@ -201,6 +201,34 @@ class TestHeadingsAllLevels:
         # H4+ are downgraded to H3 by default
         assert "Heading Level 4" in round_tripped
 
+    def test_h4_downgraded_to_heading_3_block(self, converter):
+        """H4 with default heading_overflow='downgrade' must produce heading_3 block."""
+        md = (FIXTURES_DIR / "headings_all_levels.md").read_text()
+        result = converter.convert(md)
+        types = [b["type"] for b in result.blocks]
+        # Should have exactly one heading_1, one heading_2, one heading_3
+        assert types.count("heading_1") == 1
+        assert types.count("heading_2") == 1
+        # H3, H4, H5, H6 all become heading_3 with downgrade strategy
+        assert types.count("heading_3") == 4
+
+    def test_h4_content_intact_after_downgrade(self, converter, renderer):
+        """H4+ content must survive the downgrade round-trip with no truncation."""
+        md = (FIXTURES_DIR / "headings_all_levels.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Heading Level 4" in round_tripped
+        assert "Heading Level 5" in round_tripped
+        assert "Heading Level 6" in round_tripped
+
+    def test_no_paragraph_blocks_for_headings(self, converter):
+        """With heading_overflow='downgrade', no heading becomes a paragraph."""
+        md = (FIXTURES_DIR / "headings_all_levels.md").read_text()
+        result = converter.convert(md)
+        types = [b["type"] for b in result.blocks]
+        assert "paragraph" not in types
+
 
 class TestMathInline:
     """Verify math_inline.md round-trips correctly."""
