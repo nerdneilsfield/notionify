@@ -309,9 +309,9 @@ class NotionToMarkdownRenderer:
         # Get URL from the appropriate sub-object
         url = ""
         if image_type == "external":
-            url = block_data.get("external", {}).get("url", "")
+            url = (block_data.get("external") or {}).get("url", "")
         elif image_type == "file":
-            url = block_data.get("file", {}).get("url", "")
+            url = (block_data.get("file") or {}).get("url", "")
 
         # Caption from rich_text in the image's caption field
         caption_segments = block_data.get("caption", [])
@@ -322,7 +322,7 @@ class NotionToMarkdownRenderer:
 
         # Optional expiry warning for Notion-hosted (file) images
         if image_type == "file" and self._config.image_expiry_warnings:
-            expiry_time = block_data.get("file", {}).get("expiry_time", "")
+            expiry_time = (block_data.get("file") or {}).get("expiry_time", "")
             if expiry_time:
                 result += f"\n<!-- notion-image-expiry: {_sanitize_comment(expiry_time)} -->"
                 self.warnings.append(
@@ -353,7 +353,7 @@ class NotionToMarkdownRenderer:
             if icon_type == "emoji":
                 icon_str = icon.get("emoji", "")
             elif icon_type == "external":
-                icon_str = icon.get("external", {}).get("url", "")
+                icon_str = (icon.get("external") or {}).get("url", "")
 
         if icon_str:
             content = f"{icon_str} {text}"
@@ -438,9 +438,9 @@ class NotionToMarkdownRenderer:
 
         url = ""
         if file_type == "external":
-            url = block_data.get("external", {}).get("url", "")
+            url = (block_data.get("external") or {}).get("url", "")
         elif file_type == "file":
-            url = block_data.get("file", {}).get("url", "")
+            url = (block_data.get("file") or {}).get("url", "")
 
         # Try to get a filename from the caption or name field
         name = block_data.get("name", "")
@@ -460,9 +460,9 @@ class NotionToMarkdownRenderer:
 
         url = ""
         if media_type == "external":
-            url = block_data.get("external", {}).get("url", "")
+            url = (block_data.get("external") or {}).get("url", "")
         elif media_type == "file":
-            url = block_data.get("file", {}).get("url", "")
+            url = (block_data.get("file") or {}).get("url", "")
 
         label = _MEDIA_TYPES.get(block_type, block_type.capitalize())
         escaped_url = markdown_escape(url, "url")
