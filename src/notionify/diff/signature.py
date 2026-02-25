@@ -45,7 +45,7 @@ def _extract_plain_text(block: dict, block_type: str) -> str:
     for rt in rich_text:
         text = rt.get("plain_text", "")
         if not text:
-            text = rt.get("text", {}).get("content", "")
+            text = rt.get("text", {}).get("content") or ""
         parts.append(text)
     return "".join(parts)
 
@@ -63,7 +63,7 @@ def _normalize_rich_text(block: dict, block_type: str) -> list[dict]:
     for rt in rich_text:
         text = rt.get("plain_text", "")
         if not text:
-            text = rt.get("text", {}).get("content", "")
+            text = rt.get("text", {}).get("content") or ""
         segment: dict = {"text": text}
         annotations = rt.get("annotations")
         if annotations:
