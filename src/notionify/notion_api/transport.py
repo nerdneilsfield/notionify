@@ -62,7 +62,7 @@ def _raise_for_status(response: httpx.Response, method: str, path: str) -> None:
     status = response.status_code
     try:
         body = response.json()
-    except (ValueError, KeyError):
+    except ValueError:
         body = {}
 
     notion_message = body.get("message", response.text[:500])
@@ -197,7 +197,7 @@ def _emit_debug_dump(
         return
     try:
         resp_body = response.json()
-    except (ValueError, KeyError):
+    except ValueError:
         resp_body = response.text[:1000]
     _dump_payload(
         method, str(response.url), json_payload,

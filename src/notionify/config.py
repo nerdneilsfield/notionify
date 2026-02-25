@@ -46,6 +46,17 @@ DEFAULT_EXTERNAL_MIMES: list[str] = [
 # Configuration dataclass
 # ---------------------------------------------------------------------------
 
+def _validate_mime_list(label: str, mimes: list[str]) -> None:
+    """Validate that a MIME allowlist is non-empty and well-formed."""
+    if not mimes:
+        raise ValueError(f"{label} must not be empty")
+    for mime in mimes:
+        if "/" not in mime:
+            raise ValueError(
+                f"Invalid MIME type in {label}: {mime!r} (expected 'type/subtype')"
+            )
+
+
 @dataclass
 class NotionifyConfig:
     """Complete configuration for a notionify client.
@@ -264,6 +275,10 @@ class NotionifyConfig:
                 f"retry_base_delay ({self.retry_base_delay}) must be "
                 f"<= retry_max_delay ({self.retry_max_delay})"
             )
+
+        # MIME allowlist validation
+        _validate_mime_list("image_allowed_mimes_upload", self.image_allowed_mimes_upload)
+        _validate_mime_list("image_allowed_mimes_external", self.image_allowed_mimes_external)
 
     def __repr__(self) -> str:
         """Mask the token to prevent accidental credential leakage."""

@@ -117,6 +117,31 @@ class TestNumericConfigValidation:
         assert config.retry_max_attempts == 3
         assert config.rate_limit_rps == 5.0
 
+    def test_empty_upload_mimes_rejected(self):
+        with pytest.raises(ValueError, match="image_allowed_mimes_upload must not be empty"):
+            NotionifyConfig(token="test", image_allowed_mimes_upload=[])
+
+    def test_empty_external_mimes_rejected(self):
+        with pytest.raises(ValueError, match="image_allowed_mimes_external must not be empty"):
+            NotionifyConfig(token="test", image_allowed_mimes_external=[])
+
+    def test_invalid_mime_format_upload_rejected(self):
+        with pytest.raises(ValueError, match=r"Invalid MIME type.*image_allowed_mimes_upload"):
+            NotionifyConfig(token="test", image_allowed_mimes_upload=["png"])
+
+    def test_invalid_mime_format_external_rejected(self):
+        with pytest.raises(ValueError, match=r"Invalid MIME type.*image_allowed_mimes_external"):
+            NotionifyConfig(token="test", image_allowed_mimes_external=["jpeg"])
+
+    def test_custom_valid_mimes_accepted(self):
+        config = NotionifyConfig(
+            token="test",
+            image_allowed_mimes_upload=["image/png"],
+            image_allowed_mimes_external=["image/jpeg"],
+        )
+        assert config.image_allowed_mimes_upload == ["image/png"]
+        assert config.image_allowed_mimes_external == ["image/jpeg"]
+
 
 # ── Notion→MD: table rendering edge cases ─────────────────────────────
 
