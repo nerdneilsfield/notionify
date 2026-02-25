@@ -2,6 +2,8 @@
 
 Run with: pytest tests/perf/ -v -s
 """
+import subprocess
+import sys
 import time
 
 from notionify.config import NotionifyConfig
@@ -39,6 +41,37 @@ def _simulate_notion_blocks(blocks: list[dict]) -> list[dict]:
             # Add fake block id for signatures
             block["id"] = f"block-{id(block)}"
     return result
+
+
+class TestImportPerformance:
+    """Benchmark package import time (NFR-9: < 500ms)."""
+
+    def test_import_time_under_500ms(self):
+        """Import 'notionify' in a fresh subprocess and check it takes < 500ms."""
+        code = (
+            "import time; "
+            "t0 = time.perf_counter(); "
+            "import notionify; "
+            "elapsed = (time.perf_counter() - t0) * 1000; "
+            "print(f'{elapsed:.2f}')"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        assert result.returncode == 0, f"Import failed: {result.stderr}"
+        elapsed_ms = float(result.stdout.strip())
+        print(f"\n  Package import time: {elapsed_ms:.2f}ms")
+        assert elapsed_ms < 500, f"Import too slow: {elapsed_ms:.2f}ms (limit: 500ms)"
+
+    def test_version_accessible(self):
+        """Verify __version__ is accessible after import."""
+        import notionify
+
+        assert hasattr(notionify, "__version__")
+        assert notionify.__version__ == "3.0.0"
 
 
 class TestConverterPerformance:

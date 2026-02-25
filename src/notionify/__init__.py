@@ -22,6 +22,8 @@ Usage::
 
 from __future__ import annotations
 
+__version__ = "3.0.0"
+
 from notionify.async_client import AsyncNotionifyClient
 
 # ── Clients ────────────────────────────────────────────────────────────
@@ -84,6 +86,8 @@ from notionify.models import (
 # ── Public surface ──────────────────────────────────────────────────────
 
 __all__ = [
+    # Version
+    "__version__",
     # Clients
     "NotionifyClient",
     "AsyncNotionifyClient",
