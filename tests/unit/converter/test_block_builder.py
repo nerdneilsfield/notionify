@@ -587,3 +587,100 @@ class TestBlockBuilderBranchCoverage:
         assert len(blocks) == 1
         assert blocks[0]["type"] == "image"
         assert "caption" not in blocks[0]["image"]
+
+
+# =========================================================================
+# Image source classification edge cases
+# =========================================================================
+
+class TestImageSourceEdgeCases:
+    """Edge cases for _classify_image_source via build_blocks."""
+
+    def test_empty_image_url_produces_unknown(self):
+        """Empty URL is classified as UNKNOWN and triggers fallback."""
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": ""},
+                "children": [{"type": "text", "raw": "alt"}],
+            }],
+        }
+        blocks, images, _ = build_blocks([token], _config())
+        # With empty URL, image is treated as unknown source type
+        assert len(images) == 0
+
+    def test_ftp_url_produces_unknown(self):
+        """FTP URLs are not supported and classified as UNKNOWN."""
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "ftp://server.com/image.png"},
+                "children": [],
+            }],
+        }
+        blocks, images, _ = build_blocks([token], _config())
+        assert len(images) == 0
+
+    def test_file_url_with_remote_netloc_is_unknown(self):
+        """file:// URLs with a non-localhost netloc are classified as UNKNOWN."""
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "file://remote-server/share/img.png"},
+                "children": [],
+            }],
+        }
+        blocks, images, _ = build_blocks([token], _config())
+        assert len(images) == 0
+
+
+# =========================================================================
+# Heading overflow edge cases
+# =========================================================================
+
+class TestHeadingOverflowEdgeCases:
+    """Additional heading level edge cases."""
+
+    def test_heading_level_5_downgrade(self):
+        """H5 is downgraded to heading_3 in downgrade mode."""
+        blocks, _, _ = build_blocks(
+            [_ast_heading(5, "H5")], _config(heading_overflow="downgrade"),
+        )
+        assert blocks[0]["type"] == "heading_3"
+
+    def test_heading_level_6_paragraph(self):
+        """H6 becomes a bold paragraph in paragraph mode."""
+        blocks, _, _ = build_blocks(
+            [_ast_heading(6, "H6")], _config(heading_overflow="paragraph"),
+        )
+        assert blocks[0]["type"] == "paragraph"
+        rt = blocks[0]["paragraph"]["rich_text"]
+        assert rt[0].get("annotations", {}).get("bold") is True
+
+
+# =========================================================================
+# HTML block edge cases
+# =========================================================================
+
+class TestHtmlBlockEdgeCases:
+    """HTML block handling edge cases."""
+
+    def test_html_block_long_raw_truncated_in_warning(self):
+        """Long HTML raw content is truncated to 200 chars in warning context."""
+        long_html = "<div>" + "x" * 500 + "</div>"
+        token = {"type": "html_block", "raw": long_html}
+        blocks, _, warnings = build_blocks([token], _config())
+        assert len(blocks) == 0
+        assert len(warnings) == 1
+        assert len(warnings[0].context["raw"]) == 200
+
+    def test_html_block_empty_raw(self):
+        """HTML block with empty raw string still produces a warning."""
+        token = {"type": "html_block", "raw": ""}
+        blocks, _, warnings = build_blocks([token], _config())
+        assert len(blocks) == 0
+        assert len(warnings) == 1
+        assert warnings[0].context["raw"] == ""
