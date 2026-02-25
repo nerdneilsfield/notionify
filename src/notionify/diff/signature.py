@@ -7,6 +7,8 @@ diff planner.
 
 from __future__ import annotations
 
+from typing import Any
+
 from notionify.models import BlockSignature
 from notionify.utils.hashing import hash_dict, md5_hash
 
@@ -33,7 +35,7 @@ _ATTRS_EXTRACTORS: dict[str, list[str]] = {
 }
 
 
-def _extract_plain_text(block: dict, block_type: str) -> str:
+def _extract_plain_text(block: dict[str, Any], block_type: str) -> str:
     """Extract the concatenated plain_text from a block's rich_text array.
 
     Handles both Notion API responses (which have ``plain_text``) and
@@ -50,7 +52,7 @@ def _extract_plain_text(block: dict, block_type: str) -> str:
     return "".join(parts)
 
 
-def _normalize_rich_text(block: dict, block_type: str) -> list[dict]:
+def _normalize_rich_text(block: dict[str, Any], block_type: str) -> list[dict[str, Any]]:
     """Build a normalized representation of rich_text including annotations.
 
     Two blocks with the same plain text but different annotations (e.g. bold
@@ -59,12 +61,12 @@ def _normalize_rich_text(block: dict, block_type: str) -> list[dict]:
     """
     type_data = block.get(block_type, {})
     rich_text = type_data.get("rich_text", [])
-    segments: list[dict] = []
+    segments: list[dict[str, Any]] = []
     for rt in rich_text:
         text = rt.get("plain_text", "")
         if not text:
             text = rt.get("text", {}).get("content") or ""
-        segment: dict = {"text": text}
+        segment: dict[str, Any] = {"text": text}
         annotations = rt.get("annotations")
         if annotations:
             segment["annotations"] = annotations
@@ -75,7 +77,7 @@ def _normalize_rich_text(block: dict, block_type: str) -> list[dict]:
     return segments
 
 
-def _extract_children_info(block: dict) -> dict:
+def _extract_children_info(block: dict[str, Any]) -> dict[str, Any]:
     """Build a dict summarising child blocks for structural hashing."""
     children = block.get("children", [])
     if not children:
@@ -89,11 +91,11 @@ def _extract_children_info(block: dict) -> dict:
     }
 
 
-def _extract_type_attrs(block: dict, block_type: str) -> dict:
+def _extract_type_attrs(block: dict[str, Any], block_type: str) -> dict[str, Any]:
     """Extract type-specific attributes for the attrs hash."""
     type_data = block.get(block_type, {})
     keys = _ATTRS_EXTRACTORS.get(block_type, [])
-    attrs: dict = {}
+    attrs: dict[str, Any] = {}
     for key in keys:
         if key in type_data:
             attrs[key] = type_data[key]
@@ -117,7 +119,7 @@ def _extract_type_attrs(block: dict, block_type: str) -> dict:
     return attrs
 
 
-def compute_signature(block: dict, depth: int = 0) -> BlockSignature:
+def compute_signature(block: dict[str, Any], depth: int = 0) -> BlockSignature:
     """Compute a structural signature for a Notion block dict.
 
     Used for diff matching -- same content produces the same signature.

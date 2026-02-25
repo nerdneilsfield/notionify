@@ -116,9 +116,9 @@ def _redact_value(value: Any, token: str | None) -> Any:
     return value
 
 
-def _redact_dict(d: dict, token: str | None) -> dict:
+def _redact_dict(d: dict[str, Any], token: str | None) -> dict[str, Any]:
     """Recursively redact a dictionary."""
-    result: dict = {}
+    result: dict[str, Any] = {}
     for key, value in d.items():
         key_lower = key.lower() if isinstance(key, str) else ""
         if any(pat in key_lower for pat in _SENSITIVE_KEY_PATTERNS):
@@ -131,7 +131,7 @@ def _redact_dict(d: dict, token: str | None) -> dict:
     return result
 
 
-def redact(payload: dict, token: str | None = None) -> dict:
+def redact(payload: dict[str, Any], token: str | None = None) -> dict[str, Any]:
     """Return a deep copy of *payload* with sensitive data redacted.
 
     Redaction rules

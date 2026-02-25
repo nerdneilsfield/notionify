@@ -35,7 +35,7 @@ class FileAPI:
         name: str,
         content_type: str,
         mode: str = "single_part",
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Create a new file upload.
 
         Parameters
@@ -64,7 +64,7 @@ class FileAPI:
         upload_url: str,
         data: bytes,
         content_type: str,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Upload raw bytes to an upload URL.
 
         For single-part uploads the *upload_url* is the URL returned by
@@ -97,8 +97,8 @@ class FileAPI:
     def complete_upload(
         self,
         upload_id: str,
-        parts: list[dict],
-    ) -> dict:
+        parts: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Complete a multi-part upload.
 
         Parameters
@@ -121,7 +121,7 @@ class FileAPI:
             json=body,
         )
 
-    def retrieve_upload(self, upload_id: str) -> dict:
+    def retrieve_upload(self, upload_id: str) -> dict[str, Any]:
         """Retrieve the current status of a file upload.
 
         Parameters
@@ -156,7 +156,7 @@ class AsyncFileAPI:
         name: str,
         content_type: str,
         mode: str = "single_part",
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Create a new file upload (async).
 
         See :meth:`FileAPI.create_upload` for parameter documentation.
@@ -173,7 +173,7 @@ class AsyncFileAPI:
         upload_url: str,
         data: bytes,
         content_type: str,
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Upload raw bytes to an upload URL (async).
 
         See :meth:`FileAPI.send_part` for parameter documentation.
@@ -188,8 +188,8 @@ class AsyncFileAPI:
     async def complete_upload(
         self,
         upload_id: str,
-        parts: list[dict],
-    ) -> dict:
+        parts: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Complete a multi-part upload (async).
 
         See :meth:`FileAPI.complete_upload` for parameter documentation.
@@ -201,7 +201,7 @@ class AsyncFileAPI:
             json=body,
         )
 
-    async def retrieve_upload(self, upload_id: str) -> dict:
+    async def retrieve_upload(self, upload_id: str) -> dict[str, Any]:
         """Retrieve the current status of a file upload (async).
 
         See :meth:`FileAPI.retrieve_upload` for parameter documentation.

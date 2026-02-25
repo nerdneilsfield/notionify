@@ -8,11 +8,12 @@ to detect concurrent modifications.  Used by the client to enforce the
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from notionify.models import PageSnapshot
 
 
-def take_snapshot(page_id: str, page: dict, blocks: list[dict]) -> PageSnapshot:
+def take_snapshot(page_id: str, page: dict[str, Any], blocks: list[dict[str, Any]]) -> PageSnapshot:
     """Build a snapshot from a fetched page object and its children.
 
     Parameters

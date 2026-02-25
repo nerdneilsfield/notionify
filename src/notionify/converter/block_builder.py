@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable as _Callable
+from typing import Any
 from urllib.parse import urlparse
 
 from notionify.config import NotionifyConfig
@@ -140,9 +141,9 @@ def _classify_image_source(url: str) -> ImageSourceType:
 # ---------------------------------------------------------------------------
 
 def build_blocks(
-    tokens: list[dict],
+    tokens: list[dict[str, Any]],
     config: NotionifyConfig,
-) -> tuple[list[dict], list[PendingImage], list[ConversionWarning]]:
+) -> tuple[list[dict[str, Any]], list[PendingImage], list[ConversionWarning]]:
     """Convert normalized AST tokens to Notion block dicts.
 
     Parameters
@@ -169,11 +170,11 @@ class _BuildContext:
 
     def __init__(self, config: NotionifyConfig) -> None:
         self.config = config
-        self.blocks: list[dict] = []
+        self.blocks: list[dict[str, Any]] = []
         self.images: list[PendingImage] = []
         self.warnings: list[ConversionWarning] = []
 
-    def add_block(self, block: dict) -> int:
+    def add_block(self, block: dict[str, Any]) -> int:
         """Append a block and return its index."""
         idx = len(self.blocks)
         self.blocks.append(block)
@@ -194,20 +195,20 @@ class _BuildContext:
 # Token dispatch
 # ---------------------------------------------------------------------------
 
-def _process_tokens(tokens: list[dict], ctx: _BuildContext) -> list[dict]:
+def _process_tokens(tokens: list[dict[str, Any]], ctx: _BuildContext) -> list[dict[str, Any]]:
     """Process a list of tokens and return the blocks produced.
 
     The blocks are also added to ctx.blocks.  The return value is the
     subset of blocks produced by *this* call (useful for nesting).
     """
-    produced: list[dict] = []
+    produced: list[dict[str, Any]] = []
     for token in tokens:
         new_blocks = _process_token(token, ctx)
         produced.extend(new_blocks)
     return produced
 
 
-def _process_token(token: dict, ctx: _BuildContext) -> list[dict]:
+def _process_token(token: dict[str, Any], ctx: _BuildContext) -> list[dict[str, Any]]:
     """Process a single token and return the block(s) produced."""
     token_type = token.get("type", "")
     handler = _BLOCK_HANDLERS.get(token_type)
@@ -226,7 +227,7 @@ def _process_token(token: dict, ctx: _BuildContext) -> list[dict]:
 # Block builders
 # ---------------------------------------------------------------------------
 
-def _build_heading(token: dict, ctx: _BuildContext) -> list[dict]:
+def _build_heading(token: dict[str, Any], ctx: _BuildContext) -> list[dict[str, Any]]:
     """Build a Notion heading block."""
     level = token.get("attrs", {}).get("level", 1)
     children = token.get("children", [])
@@ -277,7 +278,7 @@ def _build_heading(token: dict, ctx: _BuildContext) -> list[dict]:
     return [block]
 
 
-def _build_paragraph(token: dict, ctx: _BuildContext) -> list[dict]:
+def _build_paragraph(token: dict[str, Any], ctx: _BuildContext) -> list[dict[str, Any]]:
     """Build a Notion paragraph block, or an image block if the paragraph
     contains only a single image token.
     """
@@ -306,7 +307,7 @@ def _build_paragraph(token: dict, ctx: _BuildContext) -> list[dict]:
     return [block]
 
 
-def _build_block_quote(token: dict, ctx: _BuildContext) -> list[dict]:
+def _build_block_quote(token: dict[str, Any], ctx: _BuildContext) -> list[dict[str, Any]]:
     """Build a Notion quote block.
 
     Notion quote blocks support children, so we recursively process
@@ -317,8 +318,8 @@ def _build_block_quote(token: dict, ctx: _BuildContext) -> list[dict]:
 
     # Collect all inline content from paragraph children for the quote's rich_text,
     # and any non-paragraph children as nested blocks.
-    all_rich_text: list[dict] = []
-    nested_blocks: list[dict] = []
+    all_rich_text: list[dict[str, Any]] = []
+    nested_blocks: list[dict[str, Any]] = []
 
     for child in children:
         child_type = child.get("type", "")
@@ -342,7 +343,7 @@ def _build_block_quote(token: dict, ctx: _BuildContext) -> list[dict]:
 
     all_rich_text = split_rich_text(all_rich_text)
 
-    block: dict = {
+    block: dict[str, Any] = {
         "object": "block",
         "type": "quote",
         "quote": {
@@ -362,7 +363,7 @@ _MAX_NESTING_DEPTH = 8
 """Practical nesting limit for Notion blocks (PRD 5.1)."""
 
 
-def _build_list(token: dict, ctx: _BuildContext, depth: int = 0) -> list[dict]:
+def _build_list(token: dict[str, Any], ctx: _BuildContext, depth: int = 0) -> list[dict[str, Any]]:
     """Build list item blocks from a list token.
 
     In Notion, there are no "list" wrapper blocks.  Each item is a
@@ -371,7 +372,7 @@ def _build_list(token: dict, ctx: _BuildContext, depth: int = 0) -> list[dict]:
     """
     ordered = token.get("attrs", {}).get("ordered", False)
     items = token.get("children", [])
-    blocks: list[dict] = []
+    blocks: list[dict[str, Any]] = []
 
     for item in items:
         item_type = item.get("type", "")
@@ -387,11 +388,11 @@ def _build_list(token: dict, ctx: _BuildContext, depth: int = 0) -> list[dict]:
 
 
 def _build_list_item(
-    token: dict,
+    token: dict[str, Any],
     ordered: bool,
     ctx: _BuildContext,
     depth: int = 0,
-) -> dict:
+) -> dict[str, Any]:
     """Build a single bulleted/numbered list item block."""
     children = token.get("children", [])
     block_type = "numbered_list_item" if ordered else "bulleted_list_item"
@@ -399,8 +400,8 @@ def _build_list_item(
     # Separate inline content (from paragraph/block_text) and nested blocks.
     # Nested blocks must NOT be added to the top-level ctx.blocks — they
     # belong only as children of this list item.
-    rich_text: list[dict] = []
-    nested_blocks: list[dict] = []
+    rich_text: list[dict[str, Any]] = []
+    nested_blocks: list[dict[str, Any]] = []
 
     for child in children:
         child_type = child.get("type", "")
@@ -433,7 +434,7 @@ def _build_list_item(
 
     rich_text = split_rich_text(rich_text)
 
-    block: dict = {
+    block: dict[str, Any] = {
         "object": "block",
         "type": block_type,
         block_type: {
@@ -450,14 +451,14 @@ def _build_list_item(
 
 
 def _build_task_list_item(
-    token: dict, ctx: _BuildContext, depth: int = 0,
-) -> dict:
+    token: dict[str, Any], ctx: _BuildContext, depth: int = 0,
+) -> dict[str, Any]:
     """Build a Notion to_do block from a task list item."""
     children = token.get("children", [])
     checked = token.get("attrs", {}).get("checked", False)
 
-    rich_text: list[dict] = []
-    nested_blocks: list[dict] = []
+    rich_text: list[dict[str, Any]] = []
+    nested_blocks: list[dict[str, Any]] = []
 
     for child in children:
         child_type = child.get("type", "")
@@ -487,7 +488,7 @@ def _build_task_list_item(
 
     rich_text = split_rich_text(rich_text)
 
-    block: dict = {
+    block: dict[str, Any] = {
         "object": "block",
         "type": "to_do",
         "to_do": {
@@ -504,7 +505,7 @@ def _build_task_list_item(
     return block
 
 
-def _build_code_block(token: dict, ctx: _BuildContext) -> list[dict]:
+def _build_code_block(token: dict[str, Any], ctx: _BuildContext) -> list[dict[str, Any]]:
     """Build a Notion code block."""
     raw = token.get("raw", "")
     info = token.get("attrs", {}).get("info")
@@ -528,7 +529,7 @@ def _build_code_block(token: dict, ctx: _BuildContext) -> list[dict]:
     return [block]
 
 
-def _build_divider(token: dict, ctx: _BuildContext) -> list[dict]:
+def _build_divider(token: dict[str, Any], ctx: _BuildContext) -> list[dict[str, Any]]:
     """Build a Notion divider block."""
     block = {
         "object": "block",
@@ -539,7 +540,7 @@ def _build_divider(token: dict, ctx: _BuildContext) -> list[dict]:
     return [block]
 
 
-def _build_table(token: dict, ctx: _BuildContext) -> list[dict]:
+def _build_table(token: dict[str, Any], ctx: _BuildContext) -> list[dict[str, Any]]:
     """Build a Notion table block by delegating to tables.py."""
     block, warnings = build_table(token, ctx.config)
     ctx.warnings.extend(warnings)
@@ -549,7 +550,7 @@ def _build_table(token: dict, ctx: _BuildContext) -> list[dict]:
     return []
 
 
-def _build_block_math(token: dict, ctx: _BuildContext) -> list[dict]:
+def _build_block_math(token: dict[str, Any], ctx: _BuildContext) -> list[dict[str, Any]]:
     """Build Notion block(s) for block-level math."""
     expression = token.get("raw", "")
     blocks, warnings = build_block_math(expression, ctx.config)
@@ -559,7 +560,7 @@ def _build_block_math(token: dict, ctx: _BuildContext) -> list[dict]:
     return blocks
 
 
-def _build_image_block(token: dict, ctx: _BuildContext) -> list[dict]:
+def _build_image_block(token: dict[str, Any], ctx: _BuildContext) -> list[dict[str, Any]]:
     """Build a Notion image block or register a PendingImage.
 
     For external URLs, creates an immediate image block.
@@ -573,7 +574,7 @@ def _build_image_block(token: dict, ctx: _BuildContext) -> list[dict]:
     source_type = _classify_image_source(url)
 
     if source_type == ImageSourceType.EXTERNAL_URL:
-        image_data: dict = {
+        image_data: dict[str, Any] = {
             "type": "external",
             "external": {"url": url},
         }
@@ -581,14 +582,14 @@ def _build_image_block(token: dict, ctx: _BuildContext) -> list[dict]:
             image_data["caption"] = [
                 {"type": "text", "text": {"content": alt_text}},
             ]
-        block: dict = {"object": "block", "type": "image", "image": image_data}
+        block: dict[str, Any] = {"object": "block", "type": "image", "image": image_data}
         ctx.add_block(block)
         return [block]
 
     if source_type in (ImageSourceType.LOCAL_FILE, ImageSourceType.DATA_URI):
         if ctx.config.image_upload:
             # Create a placeholder block that will be patched by the upload pipeline
-            placeholder_data: dict = {
+            placeholder_data: dict[str, Any] = {
                 "type": "external",
                 "external": {"url": "https://placeholder.notionify.invalid"},
             }
@@ -611,7 +612,7 @@ def _apply_image_fallback(
     url: str,
     alt_text: str,
     ctx: _BuildContext,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Apply the image_fallback config when an image cannot be processed."""
     fallback = ctx.config.image_fallback
 
@@ -658,7 +659,7 @@ def _apply_image_fallback(
 # Block handler dispatch table
 # ---------------------------------------------------------------------------
 
-def _handle_html_block(token: dict, ctx: _BuildContext) -> list[dict]:
+def _handle_html_block(token: dict[str, Any], ctx: _BuildContext) -> list[dict[str, Any]]:
     """Handle HTML blocks by emitting a warning and skipping."""
     ctx.add_warning(
         "HTML_BLOCK_SKIPPED",
@@ -668,13 +669,13 @@ def _handle_html_block(token: dict, ctx: _BuildContext) -> list[dict]:
     return []
 
 
-_BlockHandler = _Callable[[dict, _BuildContext], list[dict]]
+_BlockHandler = _Callable[[dict[str, Any], _BuildContext], list[dict[str, Any]]]
 
 _BLOCK_HANDLERS: dict[str, _BlockHandler] = {
     "heading": _build_heading,
     "paragraph": _build_paragraph,
     "block_quote": _build_block_quote,
-    "list": _build_list,  # type: ignore[dict-item]
+    "list": _build_list,
     "block_code": _build_code_block,
     "thematic_break": _build_divider,
     "table": _build_table,

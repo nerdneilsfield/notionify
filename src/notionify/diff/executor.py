@@ -135,7 +135,7 @@ class DiffExecutor:
         self, page_id: str, ops: list[DiffOp], start: int, state: _ExecState,
     ) -> int:
         """Batch consecutive INSERT ops into append_children calls. Returns new index."""
-        insert_blocks: list[dict] = []
+        insert_blocks: list[dict[str, Any]] = []
         i = start
         while i < len(ops) and ops[i].op_type == DiffOpType.INSERT:
             block = ops[i].new_block
@@ -258,7 +258,7 @@ class AsyncDiffExecutor:
         self, page_id: str, ops: list[DiffOp], start: int, state: _ExecState,
     ) -> int:
         """Batch consecutive INSERT ops into append_children calls. Returns new index."""
-        insert_blocks: list[dict] = []
+        insert_blocks: list[dict[str, Any]] = []
         i = start
         while i < len(ops) and ops[i].op_type == DiffOpType.INSERT:
             block = ops[i].new_block

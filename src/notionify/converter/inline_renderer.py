@@ -11,6 +11,7 @@ Annotation combination order follows PRD section 11.2.
 from __future__ import annotations
 
 import re
+from typing import Any
 
 # Characters that must be escaped in inline Markdown context.
 ESCAPE_CHARS = r'\`*_{}[]()#+-.!|'
@@ -53,7 +54,7 @@ _ANNOTATION_WRAPPERS = [
 ]
 
 
-def render_rich_text(segments: list[dict]) -> str:
+def render_rich_text(segments: list[dict[str, Any]]) -> str:
     """Render a Notion rich_text array to a Markdown string.
 
     Each *segment* is a Notion rich_text object.  The function handles

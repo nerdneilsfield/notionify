@@ -102,7 +102,7 @@ class AsyncNotionifyClient:
         title: str,
         markdown: str,
         parent_type: str = "page",
-        properties: dict | None = None,
+        properties: dict[str, Any] | None = None,
         title_from_h1: bool = False,
     ) -> PageCreateResult:
         """Create a new Notion page from Markdown content.
@@ -655,7 +655,7 @@ class AsyncNotionifyClient:
     async def _process_single_image(
         self,
         pending: PendingImage,
-        blocks: list[dict],
+        blocks: list[dict[str, Any]],
         warnings: list[ConversionWarning],
     ) -> int:
         """Process a single pending image.  Returns 1 if uploaded, 0 otherwise."""
@@ -676,7 +676,7 @@ class AsyncNotionifyClient:
     async def _upload_local_file(
         self,
         pending: PendingImage,
-        blocks: list[dict],
+        blocks: list[dict[str, Any]],
         warnings: list[ConversionWarning],
     ) -> int:
         """Read, validate, upload a local file image and replace the block."""
@@ -723,7 +723,7 @@ class AsyncNotionifyClient:
     async def _upload_data_uri(
         self,
         pending: PendingImage,
-        blocks: list[dict],
+        blocks: list[dict[str, Any]],
         warnings: list[ConversionWarning],
     ) -> int:
         """Decode, validate, upload a data-URI image and replace the block."""
@@ -764,10 +764,10 @@ class AsyncNotionifyClient:
     def _handle_image_error(
         self,
         pending: PendingImage,
-        blocks: list[dict],
+        blocks: list[dict[str, Any]],
         warnings: list[ConversionWarning],
         exc: NotionifyImageError,
-        skip_sentinel: dict | None = None,
+        skip_sentinel: dict[str, Any] | None = None,
     ) -> None:
         """Apply the configured image_fallback policy on error."""
         self._metrics.increment(
@@ -816,7 +816,7 @@ class AsyncNotionifyClient:
 
     async def _fetch_blocks_recursive(
         self,
-        blocks: list[dict],
+        blocks: list[dict[str, Any]],
         current_depth: int,
         max_depth: int | None,
     ) -> None:

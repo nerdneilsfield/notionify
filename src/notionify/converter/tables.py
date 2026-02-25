@@ -60,6 +60,8 @@ The resulting Notion block::
 
 from __future__ import annotations
 
+from typing import Any
+
 from notionify.config import NotionifyConfig
 from notionify.converter.rich_text import build_rich_text, extract_text, split_rich_text
 from notionify.errors import NotionifyConversionError
@@ -67,9 +69,9 @@ from notionify.models import ConversionWarning
 
 
 def build_table(
-    token: dict,
+    token: dict[str, Any],
     config: NotionifyConfig,
-) -> tuple[dict | None, list[ConversionWarning]]:
+) -> tuple[dict[str, Any] | None, list[ConversionWarning]]:
     """Build Notion table block from table AST token.
 
     Parameters
@@ -107,13 +109,13 @@ def build_table(
 
 
 def _build_table_block(
-    token: dict,
+    token: dict[str, Any],
     config: NotionifyConfig,
     warnings: list[ConversionWarning],
-) -> dict:
+) -> dict[str, Any]:
     """Internal: build the Notion table block from the AST."""
     children = token.get("children", [])
-    notion_rows: list[dict] = []
+    notion_rows: list[dict[str, Any]] = []
     table_width = 0
 
     for child in children:
@@ -159,11 +161,11 @@ def _build_table_block(
 
 
 def _build_row_cells(
-    cells: list[dict],
+    cells: list[dict[str, Any]],
     config: NotionifyConfig,
-) -> list[list[dict]]:
+) -> list[list[dict[str, Any]]]:
     """Build a list of cell rich_text arrays from table_cell tokens."""
-    result: list[list[dict]] = []
+    result: list[list[dict[str, Any]]] = []
     for cell in cells:
         if cell.get("type") != "table_cell":
             result.append([])
@@ -176,10 +178,10 @@ def _build_row_cells(
 
 
 def _apply_table_fallback(
-    token: dict,
+    token: dict[str, Any],
     config: NotionifyConfig,
     warnings: list[ConversionWarning],
-) -> tuple[dict | None, list[ConversionWarning]]:
+) -> tuple[dict[str, Any] | None, list[ConversionWarning]]:
     """Apply the configured table_fallback strategy."""
     fallback = config.table_fallback
 
@@ -223,7 +225,7 @@ def _apply_table_fallback(
     return block, warnings
 
 
-def _table_to_plain_text(token: dict, config: NotionifyConfig) -> str:
+def _table_to_plain_text(token: dict[str, Any], config: NotionifyConfig) -> str:
     """Extract plain text from a table token for the paragraph fallback."""
     rows: list[str] = []
     for child in token.get("children", []):
@@ -241,7 +243,7 @@ def _table_to_plain_text(token: dict, config: NotionifyConfig) -> str:
     return " | ".join(rows) if rows else "[table]"
 
 
-def _cells_to_text(cells: list[dict]) -> str:
+def _cells_to_text(cells: list[dict[str, Any]]) -> str:
     """Extract plain text from a list of table_cell tokens."""
     parts: list[str] = []
     for cell in cells:

@@ -12,6 +12,7 @@ naturally to JSON and can be matched with simple ``==`` comparisons.
 from __future__ import annotations
 
 from enum import Enum
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Error code enum
@@ -67,12 +68,12 @@ class NotionifyError(Exception):
         self,
         code: str,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         self.code: str = code
         self.message: str = message
-        self.context: dict = context or {}
+        self.context: dict[str, Any] = context or {}
         self.cause: Exception | None = cause
         super().__init__(message)
         if cause is not None:
@@ -96,7 +97,7 @@ class NotionifyValidationError(NotionifyError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -116,7 +117,7 @@ class NotionifyAuthError(NotionifyError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -136,7 +137,7 @@ class NotionifyPermissionError(NotionifyError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -156,7 +157,7 @@ class NotionifyNotFoundError(NotionifyError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -176,7 +177,7 @@ class NotionifyRateLimitError(NotionifyError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -196,7 +197,7 @@ class NotionifyRetryExhaustedError(NotionifyError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -216,7 +217,7 @@ class NotionifyNetworkError(NotionifyError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -241,7 +242,7 @@ class NotionifyConversionError(NotionifyError):
         self,
         code: str = ErrorCode.CONVERSION_ERROR,
         message: str = "Conversion error",
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -262,7 +263,7 @@ class NotionifyUnsupportedBlockError(NotionifyConversionError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -283,7 +284,7 @@ class NotionifyTextOverflowError(NotionifyConversionError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -303,7 +304,7 @@ class NotionifyMathOverflowError(NotionifyConversionError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -328,7 +329,7 @@ class NotionifyImageError(NotionifyError):
         self,
         code: str = ErrorCode.IMAGE_ERROR,
         message: str = "Image error",
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -348,7 +349,7 @@ class NotionifyImageNotFoundError(NotionifyImageError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -368,7 +369,7 @@ class NotionifyImageTypeError(NotionifyImageError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -388,7 +389,7 @@ class NotionifyImageSizeError(NotionifyImageError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -408,7 +409,7 @@ class NotionifyImageParseError(NotionifyImageError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -433,7 +434,7 @@ class NotionifyUploadError(NotionifyError):
         self,
         code: str = ErrorCode.UPLOAD_ERROR,
         message: str = "Upload error",
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -454,7 +455,7 @@ class NotionifyUploadExpiredError(NotionifyUploadError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -474,7 +475,7 @@ class NotionifyUploadTransportError(NotionifyUploadError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(
@@ -499,7 +500,7 @@ class NotionifyDiffConflictError(NotionifyError):
     def __init__(
         self,
         message: str,
-        context: dict | None = None,
+        context: dict[str, Any] | None = None,
         cause: Exception | None = None,
     ) -> None:
         super().__init__(

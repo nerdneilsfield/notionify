@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -97,7 +98,7 @@ class ConversionWarning:
 
     code: str
     message: str
-    context: dict = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +144,7 @@ class ConversionResult:
         Non-fatal issues discovered during conversion.
     """
 
-    blocks: list[dict] = field(default_factory=list)
+    blocks: list[dict[str, Any]] = field(default_factory=list)
     images: list[PendingImage] = field(default_factory=list)
     warnings: list[ConversionWarning] = field(default_factory=list)
 
@@ -175,7 +176,7 @@ class DiffOp:
 
     op_type: DiffOpType
     existing_id: str | None = None
-    new_block: dict | None = None
+    new_block: dict[str, Any] | None = None
     position_after: str | None = None
     depth: int = 0
 

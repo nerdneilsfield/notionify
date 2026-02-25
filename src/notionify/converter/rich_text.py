@@ -24,6 +24,8 @@ at the top level.
 
 from __future__ import annotations
 
+from typing import Any
+
 from notionify.config import NotionifyConfig
 from notionify.models import ConversionWarning
 from notionify.utils.text_split import split_string
@@ -32,7 +34,7 @@ from notionify.utils.text_split import split_string
 # Annotation defaults
 # ---------------------------------------------------------------------------
 
-def _default_annotations() -> dict:
+def _default_annotations() -> dict[str, Any]:
     """Return a fresh default Notion annotations dict."""
     return {
         "bold": False,
@@ -44,7 +46,7 @@ def _default_annotations() -> dict:
     }
 
 
-def _merge_annotations(base: dict, **overrides: bool) -> dict:
+def _merge_annotations(base: dict[str, Any], **overrides: bool) -> dict[str, Any]:
     """Merge annotation overrides into a copy of *base*."""
     merged = dict(base)
     for key, value in overrides.items():
@@ -60,11 +62,11 @@ def _merge_annotations(base: dict, **overrides: bool) -> dict:
 
 def _make_text_segment(
     content: str,
-    annotations: dict,
+    annotations: dict[str, Any],
     href: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Create a single Notion rich_text text segment."""
-    seg: dict = {
+    seg: dict[str, Any] = {
         "type": "text",
         "text": {"content": content},
     }
@@ -76,7 +78,7 @@ def _make_text_segment(
     return seg
 
 
-def _has_non_default_annotations(annotations: dict) -> bool:
+def _has_non_default_annotations(annotations: dict[str, Any]) -> bool:
     """Check if any annotation deviates from default values."""
     return bool(
         annotations.get("bold", False)
@@ -88,9 +90,9 @@ def _has_non_default_annotations(annotations: dict) -> bool:
     )
 
 
-def _clone_text_segment(segment: dict, new_content: str) -> dict:
+def _clone_text_segment(segment: dict[str, Any], new_content: str) -> dict[str, Any]:
     """Clone a text segment with new content, preserving annotations and href."""
-    new_seg: dict = {
+    new_seg: dict[str, Any] = {
         "type": "text",
         "text": {"content": new_content},
     }
@@ -101,7 +103,7 @@ def _clone_text_segment(segment: dict, new_content: str) -> dict:
     return new_seg
 
 
-def extract_text(children: list[dict]) -> str:
+def extract_text(children: list[dict[str, Any]]) -> str:
     """Recursively extract plain text from inline tokens.
 
     This is the canonical implementation shared by ``block_builder``,
@@ -126,10 +128,10 @@ def extract_text(children: list[dict]) -> str:
 # and returns a list of Notion rich_text segment dicts.
 
 def _handle_text(
-    token: dict, config: NotionifyConfig,
-    annotations: dict, href: str | None,
+    token: dict[str, Any], config: NotionifyConfig,
+    annotations: dict[str, Any], href: str | None,
     warnings: list[ConversionWarning] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     raw = token.get("raw", "")
     if not raw:
         return []
@@ -137,10 +139,10 @@ def _handle_text(
 
 
 def _handle_strong(
-    token: dict, config: NotionifyConfig,
-    annotations: dict, href: str | None,
+    token: dict[str, Any], config: NotionifyConfig,
+    annotations: dict[str, Any], href: str | None,
     warnings: list[ConversionWarning] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     child_annots = _merge_annotations(annotations, bold=True)
     return build_rich_text(
         token.get("children", []), config,
@@ -149,10 +151,10 @@ def _handle_strong(
 
 
 def _handle_emphasis(
-    token: dict, config: NotionifyConfig,
-    annotations: dict, href: str | None,
+    token: dict[str, Any], config: NotionifyConfig,
+    annotations: dict[str, Any], href: str | None,
     warnings: list[ConversionWarning] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     child_annots = _merge_annotations(annotations, italic=True)
     return build_rich_text(
         token.get("children", []), config,
@@ -161,10 +163,10 @@ def _handle_emphasis(
 
 
 def _handle_strikethrough(
-    token: dict, config: NotionifyConfig,
-    annotations: dict, href: str | None,
+    token: dict[str, Any], config: NotionifyConfig,
+    annotations: dict[str, Any], href: str | None,
     warnings: list[ConversionWarning] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     child_annots = _merge_annotations(annotations, strikethrough=True)
     return build_rich_text(
         token.get("children", []), config,
@@ -173,20 +175,20 @@ def _handle_strikethrough(
 
 
 def _handle_codespan(
-    token: dict, config: NotionifyConfig,
-    annotations: dict, href: str | None,
+    token: dict[str, Any], config: NotionifyConfig,
+    annotations: dict[str, Any], href: str | None,
     warnings: list[ConversionWarning] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     raw = token.get("raw", "")
     child_annots = _merge_annotations(annotations, code=True)
     return [_make_text_segment(raw, child_annots, href)]
 
 
 def _handle_link(
-    token: dict, config: NotionifyConfig,
-    annotations: dict, href: str | None,
+    token: dict[str, Any], config: NotionifyConfig,
+    annotations: dict[str, Any], href: str | None,
     warnings: list[ConversionWarning] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     link_url = token.get("attrs", {}).get("url", "")
     return build_rich_text(
         token.get("children", []), config,
@@ -195,10 +197,10 @@ def _handle_link(
 
 
 def _handle_image(
-    token: dict, config: NotionifyConfig,
-    annotations: dict, href: str | None,
+    token: dict[str, Any], config: NotionifyConfig,
+    annotations: dict[str, Any], href: str | None,
     warnings: list[ConversionWarning] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     alt = extract_text(token.get("children", []))
     url = token.get("attrs", {}).get("url", "")
     if alt and url:
@@ -213,10 +215,10 @@ def _handle_image(
 
 
 def _handle_inline_math(
-    token: dict, config: NotionifyConfig,
-    annotations: dict, href: str | None,
+    token: dict[str, Any], config: NotionifyConfig,
+    annotations: dict[str, Any], href: str | None,
     warnings: list[ConversionWarning] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     from notionify.converter.math import build_inline_math
     expression = token.get("raw", "")
     math_segs, math_warnings = build_inline_math(expression, config)
@@ -226,26 +228,26 @@ def _handle_inline_math(
 
 
 def _handle_softbreak(
-    token: dict, config: NotionifyConfig,
-    annotations: dict, href: str | None,
+    token: dict[str, Any], config: NotionifyConfig,
+    annotations: dict[str, Any], href: str | None,
     warnings: list[ConversionWarning] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     return [_make_text_segment(" ", annotations, href)]
 
 
 def _handle_linebreak(
-    token: dict, config: NotionifyConfig,
-    annotations: dict, href: str | None,
+    token: dict[str, Any], config: NotionifyConfig,
+    annotations: dict[str, Any], href: str | None,
     warnings: list[ConversionWarning] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     return [_make_text_segment("\n", annotations, href)]
 
 
 def _handle_html_inline(
-    token: dict, config: NotionifyConfig,
-    annotations: dict, href: str | None,
+    token: dict[str, Any], config: NotionifyConfig,
+    annotations: dict[str, Any], href: str | None,
     warnings: list[ConversionWarning] | None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     raw = token.get("raw", "")
     if not raw:
         return []
@@ -273,13 +275,13 @@ _INLINE_HANDLERS = {
 # ---------------------------------------------------------------------------
 
 def build_rich_text(
-    children: list[dict],
+    children: list[dict[str, Any]],
     config: NotionifyConfig,
     *,
-    annotations: dict | None = None,
+    annotations: dict[str, Any] | None = None,
     href: str | None = None,
     warnings: list[ConversionWarning] | None = None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Convert inline AST tokens to Notion rich_text array.
 
     Handles: text, strong, emphasis, codespan, strikethrough, link, image
@@ -308,7 +310,7 @@ def build_rich_text(
     if annotations is None:
         annotations = _default_annotations()
 
-    segments: list[dict] = []
+    segments: list[dict[str, Any]] = []
 
     for token in children:
         handler = _INLINE_HANDLERS.get(token.get("type", ""))
@@ -318,7 +320,7 @@ def build_rich_text(
     return segments
 
 
-def split_rich_text(segments: list[dict], limit: int = 2000) -> list[dict]:
+def split_rich_text(segments: list[dict[str, Any]], limit: int = 2000) -> list[dict[str, Any]]:
     """Split any rich_text segment with content > limit into multiple segments.
 
     Preserves annotations on each split segment.  Never splits multi-byte
@@ -337,7 +339,7 @@ def split_rich_text(segments: list[dict], limit: int = 2000) -> list[dict]:
     list[dict]
         A new list where every segment's content is at most *limit* chars.
     """
-    output: list[dict] = []
+    output: list[dict[str, Any]] = []
 
     for segment in segments:
         seg_type = segment.get("type", "text")

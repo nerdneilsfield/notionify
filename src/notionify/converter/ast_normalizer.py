@@ -15,6 +15,8 @@ Canonical inline tokens:
 
 from __future__ import annotations
 
+from typing import Any
+
 import mistune
 
 # ---------------------------------------------------------------------------
@@ -73,23 +75,23 @@ class ASTNormalizer:
             ],
         )
 
-    def parse(self, markdown: str) -> list[dict]:
+    def parse(self, markdown: str) -> list[dict[str, Any]]:
         """Parse markdown and return normalized AST token list."""
         raw_tokens = self._parser(markdown)
         if isinstance(raw_tokens, str):
             return []
         return self._normalize_tokens(raw_tokens)
 
-    def _normalize_tokens(self, tokens: list[dict]) -> list[dict]:
+    def _normalize_tokens(self, tokens: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Walk the token tree and normalize every node."""
-        result: list[dict] = []
+        result: list[dict[str, Any]] = []
         for token in tokens:
             normalized = self._normalize_token(token)
             if normalized is not None:
                 result.append(normalized)
         return result
 
-    def _normalize_token(self, token: dict) -> dict | None:
+    def _normalize_token(self, token: dict[str, Any]) -> dict[str, Any] | None:
         """Normalize a single token, returning None if it should be skipped."""
         raw_type = token.get("type", "")
 
@@ -125,9 +127,9 @@ class ASTNormalizer:
         # Unknown token: pass through so block_builder can emit a warning.
         return {"type": raw_type, "raw": token.get("raw", "")}
 
-    def _normalize_block(self, token: dict, canonical_type: str) -> dict:
+    def _normalize_block(self, token: dict[str, Any], canonical_type: str) -> dict[str, Any]:
         """Normalize a block-level token."""
-        result: dict = {"type": canonical_type}
+        result: dict[str, Any] = {"type": canonical_type}
 
         # Copy attrs
         attrs = token.get("attrs")
@@ -166,9 +168,9 @@ class ASTNormalizer:
 
         return result
 
-    def _normalize_inline(self, token: dict, canonical_type: str) -> dict:
+    def _normalize_inline(self, token: dict[str, Any], canonical_type: str) -> dict[str, Any]:
         """Normalize an inline-level token."""
-        result: dict = {"type": canonical_type}
+        result: dict[str, Any] = {"type": canonical_type}
 
         # text, softbreak, linebreak have no children
         if canonical_type in ("text", "softbreak", "linebreak"):
@@ -203,9 +205,9 @@ class ASTNormalizer:
 
         return result
 
-    def _normalize_table_part(self, token: dict) -> dict:
+    def _normalize_table_part(self, token: dict[str, Any]) -> dict[str, Any]:
         """Normalize table sub-structure tokens (head, body, row, cell)."""
-        result: dict = {"type": token["type"]}
+        result: dict[str, Any] = {"type": token["type"]}
 
         attrs = token.get("attrs")
         if attrs:

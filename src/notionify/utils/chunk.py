@@ -7,8 +7,10 @@ batches so callers never have to worry about the limit.
 
 from __future__ import annotations
 
+from typing import Any
 
-def chunk_children(blocks: list[dict], size: int = 100) -> list[list[dict]]:
+
+def chunk_children(blocks: list[dict[str, Any]], size: int = 100) -> list[list[dict[str, Any]]]:
     """Split a list of Notion block dicts into batches of at most ``size``.
 
     Parameters

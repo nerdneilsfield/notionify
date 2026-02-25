@@ -7,8 +7,10 @@ or a previously uploaded file.
 
 from __future__ import annotations
 
+from typing import Any
 
-def build_image_block_external(url: str) -> dict:
+
+def build_image_block_external(url: str) -> dict[str, Any]:
     """Build a Notion image block dict for an external URL.
 
     Parameters
@@ -32,7 +34,7 @@ def build_image_block_external(url: str) -> dict:
     }
 
 
-def build_image_block_uploaded(upload_id: str) -> dict:
+def build_image_block_uploaded(upload_id: str) -> dict[str, Any]:
     """Build a Notion image block dict referencing an uploaded file.
 
     The ``upload_id`` must correspond to a completed upload that has not

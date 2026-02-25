@@ -28,10 +28,10 @@ class PageAPI:
 
     def create(
         self,
-        parent: dict,
-        properties: dict,
-        children: list[dict] | None = None,
-    ) -> dict:
+        parent: dict[str, Any],
+        properties: dict[str, Any],
+        children: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Create a new page.
 
         Parameters
@@ -62,7 +62,7 @@ class PageAPI:
             body["children"] = children
         return self._transport.request("POST", "/pages", json=body)
 
-    def retrieve(self, page_id: str) -> dict:
+    def retrieve(self, page_id: str) -> dict[str, Any]:
         """Retrieve a page by its ID.
 
         Parameters
@@ -80,9 +80,9 @@ class PageAPI:
     def update(
         self,
         page_id: str,
-        properties: dict | None = None,
+        properties: dict[str, Any] | None = None,
         archived: bool | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Update a page's properties or archive status.
 
         Parameters
@@ -125,10 +125,10 @@ class AsyncPageAPI:
 
     async def create(
         self,
-        parent: dict,
-        properties: dict,
-        children: list[dict] | None = None,
-    ) -> dict:
+        parent: dict[str, Any],
+        properties: dict[str, Any],
+        children: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Create a new page (async).
 
         See :meth:`PageAPI.create` for parameter documentation.
@@ -141,7 +141,7 @@ class AsyncPageAPI:
             body["children"] = children
         return await self._transport.request("POST", "/pages", json=body)
 
-    async def retrieve(self, page_id: str) -> dict:
+    async def retrieve(self, page_id: str) -> dict[str, Any]:
         """Retrieve a page by its ID (async).
 
         See :meth:`PageAPI.retrieve` for parameter documentation.
@@ -151,9 +151,9 @@ class AsyncPageAPI:
     async def update(
         self,
         page_id: str,
-        properties: dict | None = None,
+        properties: dict[str, Any] | None = None,
         archived: bool | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Update a page's properties or archive status (async).
 
         See :meth:`PageAPI.update` for parameter documentation.

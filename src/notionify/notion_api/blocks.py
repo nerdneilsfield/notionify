@@ -14,7 +14,7 @@ from typing import Any
 from .transport import AsyncNotionTransport, NotionTransport
 
 
-def extract_block_ids(response: dict) -> list[str]:
+def extract_block_ids(response: dict[str, Any]) -> list[str]:
     """Extract block IDs from an ``append_children`` API response.
 
     Parameters
@@ -44,7 +44,7 @@ class BlockAPI:
     def __init__(self, transport: NotionTransport) -> None:
         self._transport = transport
 
-    def retrieve(self, block_id: str) -> dict:
+    def retrieve(self, block_id: str) -> dict[str, Any]:
         """Retrieve a single block by its ID.
 
         Parameters
@@ -59,7 +59,7 @@ class BlockAPI:
         """
         return self._transport.request("GET", f"/blocks/{block_id}")
 
-    def update(self, block_id: str, payload: dict) -> dict:
+    def update(self, block_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         """Update a block's content.
 
         Parameters
@@ -77,7 +77,7 @@ class BlockAPI:
         """
         return self._transport.request("PATCH", f"/blocks/{block_id}", json=payload)
 
-    def delete(self, block_id: str) -> dict:
+    def delete(self, block_id: str) -> dict[str, Any]:
         """Delete (archive) a block.
 
         Parameters
@@ -92,7 +92,7 @@ class BlockAPI:
         """
         return self._transport.request("DELETE", f"/blocks/{block_id}")
 
-    def get_children(self, block_id: str) -> list[dict]:
+    def get_children(self, block_id: str) -> list[dict[str, Any]]:
         """Retrieve all children of a block, auto-paginating.
 
         Issues as many ``GET /blocks/{block_id}/children`` requests as
@@ -119,9 +119,9 @@ class BlockAPI:
     def append_children(
         self,
         block_id: str,
-        children: list[dict],
+        children: list[dict[str, Any]],
         after: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Append child blocks to a parent block or page.
 
         Parameters
@@ -164,28 +164,28 @@ class AsyncBlockAPI:
     def __init__(self, transport: AsyncNotionTransport) -> None:
         self._transport = transport
 
-    async def retrieve(self, block_id: str) -> dict:
+    async def retrieve(self, block_id: str) -> dict[str, Any]:
         """Retrieve a single block by its ID (async).
 
         See :meth:`BlockAPI.retrieve` for parameter documentation.
         """
         return await self._transport.request("GET", f"/blocks/{block_id}")
 
-    async def update(self, block_id: str, payload: dict) -> dict:
+    async def update(self, block_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         """Update a block's content (async).
 
         See :meth:`BlockAPI.update` for parameter documentation.
         """
         return await self._transport.request("PATCH", f"/blocks/{block_id}", json=payload)
 
-    async def delete(self, block_id: str) -> dict:
+    async def delete(self, block_id: str) -> dict[str, Any]:
         """Delete (archive) a block (async).
 
         See :meth:`BlockAPI.delete` for parameter documentation.
         """
         return await self._transport.request("DELETE", f"/blocks/{block_id}")
 
-    async def get_children(self, block_id: str) -> list[dict]:
+    async def get_children(self, block_id: str) -> list[dict[str, Any]]:
         """Retrieve all children of a block, auto-paginating (async).
 
         See :meth:`BlockAPI.get_children` for parameter documentation.
@@ -201,9 +201,9 @@ class AsyncBlockAPI:
     async def append_children(
         self,
         block_id: str,
-        children: list[dict],
+        children: list[dict[str, Any]],
         after: str | None = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Append child blocks to a parent block or page (async).
 
         See :meth:`BlockAPI.append_children` for parameter documentation.

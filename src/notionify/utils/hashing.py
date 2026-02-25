@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from typing import Any
 
 
 def md5_hash(data: str) -> str:
@@ -34,7 +35,7 @@ def md5_hash(data: str) -> str:
     return hashlib.md5(data.encode("utf-8")).hexdigest()
 
 
-def hash_dict(d: dict) -> str:
+def hash_dict(d: dict[str, Any]) -> str:
     """Return the hex-encoded MD5 of a JSON-serialized dict.
 
     The dictionary is serialized with **sorted keys** and

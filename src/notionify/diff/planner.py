@@ -8,6 +8,8 @@ fewest API calls possible.
 
 from __future__ import annotations
 
+from typing import Any
+
 from notionify.config import NotionifyConfig
 from notionify.models import BlockSignature, DiffOp, DiffOpType
 
@@ -28,7 +30,7 @@ class DiffPlanner:
         self._config = config
         self._min_match_ratio: float = 0.3
 
-    def plan(self, existing: list[dict], new: list[dict]) -> list[DiffOp]:
+    def plan(self, existing: list[dict[str, Any]], new: list[dict[str, Any]]) -> list[DiffOp]:
         """Compute minimal diff operations to transform *existing* into *new*.
 
         Operation types:
@@ -93,7 +95,7 @@ class DiffPlanner:
         return self._build_ops(existing, new, existing_sigs, new_sigs, matched_pairs)
 
     def _full_overwrite(
-        self, existing: list[dict], new: list[dict]
+        self, existing: list[dict[str, Any]], new: list[dict[str, Any]]
     ) -> list[DiffOp]:
         """Delete all existing blocks and insert all new blocks."""
         ops = [
@@ -105,8 +107,8 @@ class DiffPlanner:
 
     def _build_ops(
         self,
-        existing: list[dict],
-        new: list[dict],
+        existing: list[dict[str, Any]],
+        new: list[dict[str, Any]],
         existing_sigs: list[BlockSignature],
         new_sigs: list[BlockSignature],
         matched_pairs: list[tuple[int, int]],
@@ -204,8 +206,8 @@ class DiffPlanner:
     def _upgrade_to_updates(
         self,
         ops: list[DiffOp],
-        existing: list[dict],
-        new: list[dict],
+        existing: list[dict[str, Any]],
+        new: list[dict[str, Any]],
         existing_sigs: list[BlockSignature],
         new_sigs: list[BlockSignature],
     ) -> list[DiffOp]:

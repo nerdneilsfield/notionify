@@ -17,6 +17,7 @@ Usage::
 from __future__ import annotations
 
 from collections.abc import Callable as _Callable
+from typing import Any
 
 from notionify.config import NotionifyConfig
 from notionify.errors import NotionifyUnsupportedBlockError
@@ -69,7 +70,7 @@ class NotionToMarkdownRenderer:
     # Public API
     # ------------------------------------------------------------------
 
-    def render_blocks(self, blocks: list[dict], depth: int = 0) -> str:
+    def render_blocks(self, blocks: list[dict[str, Any]], depth: int = 0) -> str:
         """Render a list of Notion blocks to a Markdown string.
 
         Parameters
@@ -87,7 +88,7 @@ class NotionToMarkdownRenderer:
         self.warnings = []
         return self._render_block_list(blocks, depth)
 
-    def render_block(self, block: dict, depth: int = 0) -> str:
+    def render_block(self, block: dict[str, Any], depth: int = 0) -> str:
         """Render a single Notion block to Markdown.
 
         Parameters
@@ -108,7 +109,7 @@ class NotionToMarkdownRenderer:
     # Internal: dispatch and list iteration
     # ------------------------------------------------------------------
 
-    def _render_block_list(self, blocks: list[dict], depth: int) -> str:
+    def _render_block_list(self, blocks: list[dict[str, Any]], depth: int) -> str:
         """Render an ordered list of blocks, handling numbered-list numbering."""
         parts: list[str] = []
         numbered_counter = 0
@@ -125,7 +126,7 @@ class NotionToMarkdownRenderer:
 
         return "".join(parts)
 
-    def _dispatch(self, block: dict, depth: int) -> str:
+    def _dispatch(self, block: dict[str, Any], depth: int) -> str:
         """Route a block to the appropriate type-specific renderer."""
         block_type = block.get("type", "")
 
@@ -153,13 +154,13 @@ class NotionToMarkdownRenderer:
     # Block type renderers
     # ------------------------------------------------------------------
 
-    def _render_heading(self, block: dict, depth: int, level: int) -> str:
+    def _render_heading(self, block: dict[str, Any], depth: int, level: int) -> str:
         block_data = block.get(f"heading_{level}", {})
         text = render_rich_text(block_data.get("rich_text", []))
         prefix = "#" * level
         return f"{prefix} {text}\n\n"
 
-    def _render_paragraph(self, block: dict, depth: int) -> str:
+    def _render_paragraph(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("paragraph", {})
         text = render_rich_text(block_data.get("rich_text", []))
         indent = "  " * depth
@@ -171,7 +172,7 @@ class NotionToMarkdownRenderer:
             result += self._render_block_list(children, depth + 1)
         return result
 
-    def _render_quote(self, block: dict, depth: int) -> str:
+    def _render_quote(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("quote", {})
         text = render_rich_text(block_data.get("rich_text", []))
         prefix = "> " * (depth + 1) if depth > 0 else "> "
@@ -190,7 +191,7 @@ class NotionToMarkdownRenderer:
 
         return "\n".join(parts) + "\n\n"
 
-    def _render_bulleted_list_item(self, block: dict, depth: int) -> str:
+    def _render_bulleted_list_item(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("bulleted_list_item", {})
         text = render_rich_text(block_data.get("rich_text", []))
         indent = "  " * depth
@@ -203,7 +204,7 @@ class NotionToMarkdownRenderer:
         return result
 
     def _render_numbered_list_item(
-        self, block: dict, depth: int, number: int
+        self, block: dict[str, Any], depth: int, number: int
     ) -> str:
         block_data = block.get("numbered_list_item", {})
         text = render_rich_text(block_data.get("rich_text", []))
@@ -216,7 +217,7 @@ class NotionToMarkdownRenderer:
             result += self._render_block_list(children, depth + 1)
         return result
 
-    def _render_to_do(self, block: dict, depth: int) -> str:
+    def _render_to_do(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("to_do", {})
         text = render_rich_text(block_data.get("rich_text", []))
         checked = block_data.get("checked", False)
@@ -229,7 +230,7 @@ class NotionToMarkdownRenderer:
             result += self._render_block_list(children, depth + 1)
         return result
 
-    def _render_code(self, block: dict, depth: int) -> str:
+    def _render_code(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("code", {})
         language = block_data.get("language", "")
         # Notion uses "plain text" for unspecified language
@@ -249,15 +250,15 @@ class NotionToMarkdownRenderer:
 
         return f"```{language}\n{code_text}\n```\n\n"
 
-    def _render_divider(self, block: dict, depth: int) -> str:
+    def _render_divider(self, block: dict[str, Any], depth: int) -> str:
         return "---\n\n"
 
-    def _render_equation(self, block: dict, depth: int) -> str:
+    def _render_equation(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("equation") or {}
         expression = block_data.get("expression") or ""
         return f"$$\n{expression}\n$$\n\n"
 
-    def _render_table(self, block: dict, depth: int) -> str:
+    def _render_table(self, block: dict[str, Any], depth: int) -> str:
         """Render a Notion table block to GFM table syntax.
 
         Implements the algorithm from PRD section 11.3.
@@ -302,7 +303,7 @@ class NotionToMarkdownRenderer:
 
         return "\n".join(lines) + "\n\n"
 
-    def _render_image(self, block: dict, depth: int) -> str:
+    def _render_image(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("image", {})
         image_type = block_data.get("type", "")
 
@@ -341,7 +342,7 @@ class NotionToMarkdownRenderer:
 
         return result + "\n\n"
 
-    def _render_callout(self, block: dict, depth: int) -> str:
+    def _render_callout(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("callout", {})
         text = render_rich_text(block_data.get("rich_text", []))
 
@@ -374,7 +375,7 @@ class NotionToMarkdownRenderer:
 
         return "\n".join(parts) + "\n\n"
 
-    def _render_toggle(self, block: dict, depth: int) -> str:
+    def _render_toggle(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("toggle", {})
         text = render_rich_text(block_data.get("rich_text", []))
         indent = "  " * depth
@@ -385,7 +386,7 @@ class NotionToMarkdownRenderer:
             result += self._render_block_list(children, depth + 1)
         return result
 
-    def _render_child_page(self, block: dict, depth: int) -> str:
+    def _render_child_page(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("child_page", {})
         title = block_data.get("title", "Untitled")
         block_id = block.get("id", "")
@@ -394,7 +395,7 @@ class NotionToMarkdownRenderer:
         escaped_title = markdown_escape(title)
         return f"[Page: {escaped_title}]({url})\n\n"
 
-    def _render_child_database(self, block: dict, depth: int) -> str:
+    def _render_child_database(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("child_database", {})
         title = block_data.get("title", "Untitled")
         block_id = block.get("id", "")
@@ -402,13 +403,13 @@ class NotionToMarkdownRenderer:
         escaped_title = markdown_escape(title)
         return f"[Database: {escaped_title}]({url})\n\n"
 
-    def _render_embed(self, block: dict, depth: int) -> str:
+    def _render_embed(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("embed", {})
         url = block_data.get("url", "")
         escaped_url = markdown_escape(url, "url")
         return f"[Embed]({escaped_url})\n\n"
 
-    def _render_bookmark(self, block: dict, depth: int) -> str:
+    def _render_bookmark(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("bookmark", {})
         url = block_data.get("url", "")
         escaped_url = markdown_escape(url, "url")
@@ -426,13 +427,13 @@ class NotionToMarkdownRenderer:
 
         return result + "\n\n"
 
-    def _render_link_preview(self, block: dict, depth: int) -> str:
+    def _render_link_preview(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("link_preview", {})
         url = block_data.get("url", "")
         escaped_url = markdown_escape(url, "url")
         return f"[{url}]({escaped_url})\n\n"
 
-    def _render_file(self, block: dict, depth: int) -> str:
+    def _render_file(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("file", {})
         file_type = block_data.get("type", "")
 
@@ -453,7 +454,7 @@ class NotionToMarkdownRenderer:
         escaped_url = markdown_escape(url, "url")
         return f"[{name}]({escaped_url})\n\n"
 
-    def _render_media(self, block: dict, depth: int, block_type: str) -> str:
+    def _render_media(self, block: dict[str, Any], depth: int, block_type: str) -> str:
         """Render video/audio/pdf blocks as [Label](url)."""
         block_data = block.get(block_type, {})
         media_type = block_data.get("type", "")
@@ -468,7 +469,7 @@ class NotionToMarkdownRenderer:
         escaped_url = markdown_escape(url, "url")
         return f"[{label}]({escaped_url})\n\n"
 
-    def _render_passthrough(self, block: dict, depth: int) -> str:
+    def _render_passthrough(self, block: dict[str, Any], depth: int) -> str:
         """Render layout wrappers by concatenating their children."""
         block_type = block.get("type", "")
         block_data = block.get(block_type, {})
@@ -481,7 +482,7 @@ class NotionToMarkdownRenderer:
     # Unsupported block fallback (PRD section 11.6)
     # ------------------------------------------------------------------
 
-    def _render_unsupported(self, block: dict) -> str:
+    def _render_unsupported(self, block: dict[str, Any]) -> str:
         """Handle block types with no Markdown equivalent.
 
         Behaviour is governed by ``config.unsupported_block_policy``:
@@ -515,11 +516,11 @@ class NotionToMarkdownRenderer:
 # Block renderer dispatch table
 # ------------------------------------------------------------------
 
-_BlockRenderer = _Callable[["NotionToMarkdownRenderer", dict, int], str]
+_BlockRenderer = _Callable[["NotionToMarkdownRenderer", dict[str, Any], int], str]
 
 def _make_heading_renderer(level: int) -> _BlockRenderer:
     """Create a heading renderer for the given level (1-3)."""
-    def _render(self: NotionToMarkdownRenderer, block: dict, depth: int) -> str:
+    def _render(self: NotionToMarkdownRenderer, block: dict[str, Any], depth: int) -> str:
         return self._render_heading(block, depth, level)
     return _render
 
@@ -564,7 +565,7 @@ def _notion_url(block_id: str) -> str:
     return f"https://notion.so/{clean_id}"
 
 
-def _extract_plain_text(block: dict) -> str:
+def _extract_plain_text(block: dict[str, Any]) -> str:
     """Best-effort extraction of plain text from any block.
 
     Looks for ``rich_text`` in the type-specific data, or falls back

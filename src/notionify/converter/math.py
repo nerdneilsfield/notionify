@@ -27,6 +27,8 @@ The Notion API equation limit is 1000 characters.
 
 from __future__ import annotations
 
+from typing import Any
+
 from notionify.config import NotionifyConfig
 from notionify.converter.rich_text import split_rich_text
 from notionify.models import ConversionWarning
@@ -42,7 +44,7 @@ EQUATION_CHAR_LIMIT: int = 1000
 def build_block_math(
     expression: str,
     config: NotionifyConfig,
-) -> tuple[list[dict], list[ConversionWarning]]:
+) -> tuple[list[dict[str, Any]], list[ConversionWarning]]:
     """Build Notion block(s) for block-level math.
 
     Returns a *list* of blocks because overflow with ``"split"`` strategy
@@ -57,7 +59,7 @@ def build_block_math(
 
     Returns
     -------
-    tuple[list[dict], list[ConversionWarning]]
+    tuple[list[dict[str, Any]], list[ConversionWarning]]
         (blocks, warnings)
     """
     strategy = config.math_strategy
@@ -114,7 +116,7 @@ def build_block_math(
 def build_inline_math(
     expression: str,
     config: NotionifyConfig,
-) -> tuple[list[dict], list[ConversionWarning]]:
+) -> tuple[list[dict[str, Any]], list[ConversionWarning]]:
     """Build rich_text segment(s) for inline math.
 
     Parameters
@@ -126,7 +128,7 @@ def build_inline_math(
 
     Returns
     -------
-    tuple[list[dict], list[ConversionWarning]]
+    tuple[list[dict[str, Any]], list[ConversionWarning]]
         A list of rich_text segment dicts, plus any warnings.
     """
     strategy = config.math_strategy
@@ -180,7 +182,7 @@ def build_inline_math(
 # Factory helpers — blocks
 # ---------------------------------------------------------------------------
 
-def _make_equation_block(expression: str) -> dict:
+def _make_equation_block(expression: str) -> dict[str, Any]:
     """Create a Notion equation block."""
     return {
         "object": "block",
@@ -191,7 +193,7 @@ def _make_equation_block(expression: str) -> dict:
     }
 
 
-def _make_code_block(code: str, *, language: str = "plain text") -> dict:
+def _make_code_block(code: str, *, language: str = "plain text") -> dict[str, Any]:
     """Create a Notion code block, splitting rich_text if > 2000 chars."""
     rich_text = [{"type": "text", "text": {"content": code}}]
     return {
@@ -205,7 +207,7 @@ def _make_code_block(code: str, *, language: str = "plain text") -> dict:
     }
 
 
-def _make_paragraph_block(text: str) -> dict:
+def _make_paragraph_block(text: str) -> dict[str, Any]:
     """Create a Notion paragraph block, splitting rich_text if > 2000 chars."""
     rich_text = [{"type": "text", "text": {"content": text}}]
     return {
@@ -222,7 +224,7 @@ def _make_paragraph_block(text: str) -> dict:
 # Factory helpers — rich_text segments
 # ---------------------------------------------------------------------------
 
-def _make_equation_rich_text(expression: str) -> dict:
+def _make_equation_rich_text(expression: str) -> dict[str, Any]:
     """Create a Notion rich_text equation segment."""
     return {
         "type": "equation",
@@ -230,7 +232,7 @@ def _make_equation_rich_text(expression: str) -> dict:
     }
 
 
-def _make_code_rich_text(text: str) -> dict:
+def _make_code_rich_text(text: str) -> dict[str, Any]:
     """Create a Notion rich_text text segment with code annotation."""
     return {
         "type": "text",
@@ -246,7 +248,7 @@ def _make_code_rich_text(text: str) -> dict:
     }
 
 
-def _make_plain_text_rich_text(text: str) -> dict:
+def _make_plain_text_rich_text(text: str) -> dict[str, Any]:
     """Create a plain Notion rich_text text segment."""
     return {
         "type": "text",

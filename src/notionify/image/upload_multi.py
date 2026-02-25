@@ -49,7 +49,7 @@ def upload_multi(
     upload_id: str = upload["id"]
 
     # Split data into chunks and upload each part.
-    parts: list[dict] = []
+    parts: list[dict[str, Any]] = []
     part_number = 1
     offset = 0
 
@@ -117,7 +117,7 @@ async def async_upload_multi(
     )
     upload_id: str = upload["id"]
 
-    parts: list[dict] = []
+    parts: list[dict[str, Any]] = []
     part_number = 1
     offset = 0
 

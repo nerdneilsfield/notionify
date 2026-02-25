@@ -108,7 +108,7 @@ def _raise_for_status(response: httpx.Response, method: str, path: str) -> None:
 def _dump_payload(
     method: str,
     url: str,
-    payload: dict | None,
+    payload: dict[str, Any] | None,
     response_status: int | None,
     response_body: Any | None,
     token: str | None = None,
@@ -241,7 +241,7 @@ class NotionTransport:
 
     # -- public API --------------------------------------------------------
 
-    def request(self, method: str, path: str, **kwargs: Any) -> dict:
+    def request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         """Execute an HTTP request against the Notion API.
 
         Handles the full lifecycle: rate-limit pacing, sending, retries on
@@ -331,7 +331,7 @@ class NotionTransport:
                 # Some endpoints return 204 with no body.
                 if response.status_code == 204 or not response.content:
                     return {}
-                result: dict = response.json()
+                result: dict[str, Any] = response.json()
                 return result
 
             # 3b. Is this a retryable status code?
@@ -407,7 +407,7 @@ class NotionTransport:
             context=ctx,
         )
 
-    def paginate(self, path: str, **kwargs: Any) -> Iterator[dict]:
+    def paginate(self, path: str, **kwargs: Any) -> Iterator[dict[str, Any]]:
         """Auto-paginate a Notion list endpoint, yielding each result item.
 
         Issues repeated ``POST`` requests (or ``GET`` if ``method`` is
@@ -435,7 +435,7 @@ class NotionTransport:
         while True:
             # Merge pagination params into the correct location.
             if method.upper() in ("POST", "PATCH"):
-                json_body: dict = kwargs.get("json", {}) or {}
+                json_body: dict[str, Any] = kwargs.get("json", {}) or {}
                 json_body["page_size"] = 100
                 if cursor is not None:
                     json_body["start_cursor"] = cursor
@@ -443,7 +443,7 @@ class NotionTransport:
                     json_body.pop("start_cursor", None)
                 kwargs["json"] = json_body
             else:
-                params: dict = kwargs.get("params", {}) or {}
+                params: dict[str, Any] = kwargs.get("params", {}) or {}
                 params["page_size"] = 100
                 if cursor is not None:
                     params["start_cursor"] = cursor
@@ -509,7 +509,7 @@ class AsyncNotionTransport:
 
     # -- public API --------------------------------------------------------
 
-    async def request(self, method: str, path: str, **kwargs: Any) -> dict:
+    async def request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         """Execute an HTTP request against the Notion API (async).
 
         See :meth:`NotionTransport.request` for full documentation; the
@@ -566,7 +566,7 @@ class AsyncNotionTransport:
             if 200 <= response.status_code < 300:
                 if response.status_code == 204 or not response.content:
                     return {}
-                result: dict = response.json()
+                result: dict[str, Any] = response.json()
                 return result
 
             # 3b. Is this a retryable status code?
@@ -642,7 +642,7 @@ class AsyncNotionTransport:
             context=ctx,
         )
 
-    async def paginate(self, path: str, **kwargs: Any) -> AsyncIterator[dict]:
+    async def paginate(self, path: str, **kwargs: Any) -> AsyncIterator[dict[str, Any]]:
         """Auto-paginate a Notion list endpoint, yielding each result item.
 
         Async equivalent of :meth:`NotionTransport.paginate`.
@@ -652,7 +652,7 @@ class AsyncNotionTransport:
 
         while True:
             if method.upper() in ("POST", "PATCH"):
-                json_body: dict = kwargs.get("json", {}) or {}
+                json_body: dict[str, Any] = kwargs.get("json", {}) or {}
                 json_body["page_size"] = 100
                 if cursor is not None:
                     json_body["start_cursor"] = cursor
@@ -660,7 +660,7 @@ class AsyncNotionTransport:
                     json_body.pop("start_cursor", None)
                 kwargs["json"] = json_body
             else:
-                params: dict = kwargs.get("params", {}) or {}
+                params: dict[str, Any] = kwargs.get("params", {}) or {}
                 params["page_size"] = 100
                 if cursor is not None:
                     params["start_cursor"] = cursor
