@@ -66,7 +66,13 @@ from notionify.observability.logger import StructuredFormatter
 from notionify.observability.metrics import MetricsHook, NoopMetricsHook
 from notionify.utils.chunk import chunk_children
 from notionify.utils.hashing import hash_dict, md5_hash
-from notionify.utils.redact import _SENSITIVE_KEY_PATTERNS, _looks_binary, _mask_token, redact
+from notionify.utils.redact import (
+    _SENSITIVE_KEY_PATTERNS,
+    _looks_binary,
+    _mask_token,
+    _redact_value,
+    redact,
+)
 from notionify.utils.text_split import split_string
 
 # ---------------------------------------------------------------------------
@@ -4819,3 +4825,45 @@ class TestEstimateDataUriBytesProperties:
         from notionify.utils.redact import _estimate_data_uri_bytes
 
         assert _estimate_data_uri_bytes("") == 0
+
+
+# ---------------------------------------------------------------------------
+# _redact_value properties
+# ---------------------------------------------------------------------------
+
+
+class TestRedactValueProperties:
+    """_redact_value structural invariants for bytes, lists, and dicts."""
+
+    @given(data=st.binary(min_size=0, max_size=100))
+    @settings(max_examples=200)
+    def test_bytes_become_binary_placeholder(self, data: bytes) -> None:
+        """bytes input is always replaced with a '<binary:N_bytes>' string."""
+        result = _redact_value(data, None)
+        assert isinstance(result, str)
+        assert result.startswith("<binary:")
+        assert result.endswith("_bytes>")
+
+    @given(data=st.binary(min_size=0, max_size=100))
+    @settings(max_examples=200)
+    def test_binary_placeholder_contains_correct_byte_count(self, data: bytes) -> None:
+        """The byte count in the placeholder matches len(data)."""
+        result = _redact_value(data, None)
+        assert f"<binary:{len(data)}_bytes>" == result
+
+    @given(
+        items=st.lists(st.integers(min_value=0, max_value=100), min_size=0, max_size=5)
+    )
+    @settings(max_examples=200)
+    def test_list_length_preserved(self, items: list[int]) -> None:
+        """List input length is preserved after redaction."""
+        result = _redact_value(items, None)
+        assert isinstance(result, list)
+        assert len(result) == len(items)
+
+    @given(value=st.integers())
+    @settings(max_examples=200)
+    def test_non_string_non_bytes_passthrough(self, value: int) -> None:
+        """Non-string, non-bytes, non-dict, non-list values pass through."""
+        result = _redact_value(value, None)
+        assert result == value
