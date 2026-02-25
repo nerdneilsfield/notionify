@@ -159,15 +159,6 @@ class NotionToMarkdownRenderer:
         prefix = "#" * level
         return f"{prefix} {text}\n\n"
 
-    def _render_heading_1(self, block: dict, depth: int) -> str:
-        return self._render_heading(block, depth, 1)
-
-    def _render_heading_2(self, block: dict, depth: int) -> str:
-        return self._render_heading(block, depth, 2)
-
-    def _render_heading_3(self, block: dict, depth: int) -> str:
-        return self._render_heading(block, depth, 3)
-
     def _render_paragraph(self, block: dict, depth: int) -> str:
         block_data = block.get("paragraph", {})
         text = render_rich_text(block_data.get("rich_text", []))
@@ -533,9 +524,10 @@ class NotionToMarkdownRenderer:
 _BlockRenderer = _Callable[["NotionToMarkdownRenderer", dict, int], str]
 
 _BLOCK_RENDERERS: dict[str, _BlockRenderer] = {
-    "heading_1": NotionToMarkdownRenderer._render_heading_1,
-    "heading_2": NotionToMarkdownRenderer._render_heading_2,
-    "heading_3": NotionToMarkdownRenderer._render_heading_3,
+    **{
+        f"heading_{i}": lambda self, b, d, level=i: self._render_heading(b, d, level)
+        for i in (1, 2, 3)
+    },
     "paragraph": NotionToMarkdownRenderer._render_paragraph,
     "quote": NotionToMarkdownRenderer._render_quote,
     "bulleted_list_item": NotionToMarkdownRenderer._render_bulleted_list_item,
