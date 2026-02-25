@@ -222,6 +222,14 @@ class DiffPlanner:
         pair becomes a single UPDATE.  If types differ, the pair becomes
         a REPLACE.
         """
+        # Build an ID→type mapping once to avoid O(n) linear scans per pair.
+        id_to_type: dict[str, str] = {}
+        for block in existing:
+            bid = block.get("id")
+            btype = block.get("type")
+            if bid and btype:
+                id_to_type[bid] = btype
+
         result: list[DiffOp] = []
         i = 0
         while i < len(ops):
@@ -234,7 +242,11 @@ class DiffPlanner:
                 insert_op = ops[i + 1]
 
                 # Find the block type of the deleted block.
-                deleted_type = self._block_type_by_id(existing, delete_op.existing_id)
+                deleted_type = (
+                    id_to_type.get(delete_op.existing_id)
+                    if delete_op.existing_id
+                    else None
+                )
                 inserted_type = (insert_op.new_block or {}).get("type", "")
 
                 if deleted_type and deleted_type == inserted_type:
@@ -261,13 +273,3 @@ class DiffPlanner:
                 i += 1
 
         return result
-
-    @staticmethod
-    def _block_type_by_id(blocks: list[dict], block_id: str | None) -> str | None:
-        """Look up a block's type by its ID."""
-        if block_id is None:
-            return None
-        for block in blocks:
-            if block.get("id") == block_id:
-                return block.get("type")
-        return None

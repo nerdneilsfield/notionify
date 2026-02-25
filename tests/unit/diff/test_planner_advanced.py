@@ -582,18 +582,6 @@ class TestPlannerEdgeCases:
         assert ops[0].op_type == DiffOpType.DELETE
         assert ops[0].existing_id is None
 
-    def test_block_type_by_id_returns_none_for_unknown_id(self):
-        """_block_type_by_id with unknown ID returns None."""
-        result = DiffPlanner._block_type_by_id(
-            [_para("A", "e1")], "nonexistent-id"
-        )
-        assert result is None
-
-    def test_block_type_by_id_returns_none_for_none(self):
-        """_block_type_by_id with None ID returns None."""
-        result = DiffPlanner._block_type_by_id([_para("A", "e1")], None)
-        assert result is None
-
     def test_upgrade_delete_insert_with_mismatched_types(self):
         """DELETE paragraph + INSERT heading → REPLACE (type differs)."""
         existing = [

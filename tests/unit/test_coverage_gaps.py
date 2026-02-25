@@ -14,7 +14,6 @@ from notionify.async_client import AsyncNotionifyClient
 from notionify.client import NotionifyClient
 from notionify.config import NotionifyConfig
 from notionify.diff.executor import AsyncDiffExecutor, DiffExecutor
-from notionify.diff.planner import DiffPlanner
 from notionify.errors import (
     NotionifyImageNotFoundError,
     NotionifyImageParseError,
@@ -154,30 +153,6 @@ class TestAstNormalizerHtmlInline:
 
 
 # ===========================================================================
-# diff/planner.py -- lines 269, 273: _block_type_by_id edge cases
-# ===========================================================================
-
-class TestPlannerBlockTypeById:
-    """Covers DiffPlanner._block_type_by_id (lines 269, 273)."""
-
-    def test_block_id_none_returns_none(self):
-        """Line 269: block_id is None -> return None immediately."""
-        result = DiffPlanner._block_type_by_id([], None)
-        assert result is None
-
-    def test_block_id_not_found_returns_none(self):
-        """Line 273: block not found in list -> return None."""
-        blocks = [{"id": "blk-1", "type": "paragraph"}]
-        result = DiffPlanner._block_type_by_id(blocks, "nonexistent-id")
-        assert result is None
-
-    def test_block_id_found_returns_type(self):
-        """Happy path: block found -> return type."""
-        blocks = [{"id": "blk-1", "type": "heading_1"}]
-        result = DiffPlanner._block_type_by_id(blocks, "blk-1")
-        assert result == "heading_1"
-
-
 # ===========================================================================
 # diff/executor.py -- line 125: unknown op type in sync DiffExecutor
 # ===========================================================================
