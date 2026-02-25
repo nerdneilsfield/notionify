@@ -448,7 +448,7 @@ class NotionToMarkdownRenderer:
         if caption_segments:
             name = render_rich_text(caption_segments)
         if not name:
-            name = url.rsplit("/", 1)[-1].split("?")[0] if url else "File"
+            name = (url.rsplit("/", 1)[-1].split("?")[0] or "File") if url else "File"
 
         escaped_url = markdown_escape(url, "url")
         return f"[{name}]({escaped_url})\n\n"

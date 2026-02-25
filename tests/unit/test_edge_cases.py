@@ -357,6 +357,20 @@ class TestFileRendering:
         result = r._render_file(block, 0)
         assert "doc.xlsx" in result
 
+    def test_file_url_trailing_slash_defaults_to_file(self):
+        """URL with trailing slash should default to 'File' label."""
+        r = _make_renderer()
+        block = {
+            "type": "file",
+            "file": {
+                "type": "external",
+                "external": {"url": "https://cdn.example.com/"},
+            },
+        }
+        result = r._render_file(block, 0)
+        assert "[File]" in result
+        assert "cdn.example.com" in result
+
     def test_file_with_caption(self):
         r = _make_renderer()
         block = {
