@@ -29,7 +29,17 @@ from notionify.converter.block_builder import (
     _normalize_language,
 )
 from notionify.converter.inline_renderer import markdown_escape, render_rich_text
-from notionify.converter.math import EQUATION_CHAR_LIMIT, build_block_math, build_inline_math
+from notionify.converter.math import (
+    EQUATION_CHAR_LIMIT,
+    _make_code_block,
+    _make_code_rich_text,
+    _make_equation_block,
+    _make_equation_rich_text,
+    _make_paragraph_block,
+    _make_plain_text_rich_text,
+    build_block_math,
+    build_inline_math,
+)
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import (
     NotionToMarkdownRenderer,
@@ -4867,3 +4877,127 @@ class TestRedactValueProperties:
         """Non-string, non-bytes, non-dict, non-list values pass through."""
         result = _redact_value(value, None)
         assert result == value
+
+
+class TestMathBlockFactoryProperties:
+    """Property tests for math.py block and rich_text factory helpers."""
+
+    # --- _make_equation_block ---
+
+    @given(expression=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_equation_block_type_is_equation(self, expression: str) -> None:
+        """_make_equation_block always returns a block of type 'equation'."""
+        result = _make_equation_block(expression)
+        assert result["object"] == "block"
+        assert result["type"] == "equation"
+
+    @given(expression=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_equation_block_expression_preserved(self, expression: str) -> None:
+        """_make_equation_block stores the expression verbatim."""
+        result = _make_equation_block(expression)
+        assert result["equation"]["expression"] == expression
+
+    # --- _make_code_block ---
+
+    @given(code=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_code_block_type_is_code(self, code: str) -> None:
+        """_make_code_block always returns a block of type 'code'."""
+        result = _make_code_block(code)
+        assert result["object"] == "block"
+        assert result["type"] == "code"
+
+    @given(code=st.text(min_size=0, max_size=50), language=st.text(min_size=1, max_size=30))
+    @settings(max_examples=200)
+    def test_code_block_language_preserved(self, code: str, language: str) -> None:
+        """_make_code_block stores the given language."""
+        result = _make_code_block(code, language=language)
+        assert result["code"]["language"] == language
+
+    @given(code=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_code_block_default_language_is_plain_text(self, code: str) -> None:
+        """_make_code_block uses 'plain text' as the default language."""
+        result = _make_code_block(code)
+        assert result["code"]["language"] == "plain text"
+
+    @given(code=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_code_block_caption_is_empty(self, code: str) -> None:
+        """_make_code_block always produces an empty caption."""
+        result = _make_code_block(code)
+        assert result["code"]["caption"] == []
+
+    # --- _make_paragraph_block ---
+
+    @given(text=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_paragraph_block_type_is_paragraph(self, text: str) -> None:
+        """_make_paragraph_block always returns a block of type 'paragraph'."""
+        result = _make_paragraph_block(text)
+        assert result["object"] == "block"
+        assert result["type"] == "paragraph"
+
+    @given(text=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_paragraph_block_color_is_default(self, text: str) -> None:
+        """_make_paragraph_block always uses color 'default'."""
+        result = _make_paragraph_block(text)
+        assert result["paragraph"]["color"] == "default"
+
+    # --- _make_equation_rich_text ---
+
+    @given(expression=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_equation_rich_text_type_is_equation(self, expression: str) -> None:
+        """_make_equation_rich_text produces a segment of type 'equation'."""
+        seg = _make_equation_rich_text(expression)
+        assert seg["type"] == "equation"
+
+    @given(expression=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_equation_rich_text_expression_preserved(self, expression: str) -> None:
+        """_make_equation_rich_text stores the expression verbatim."""
+        seg = _make_equation_rich_text(expression)
+        assert seg["equation"]["expression"] == expression
+
+    # --- _make_code_rich_text ---
+
+    @given(text=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_code_rich_text_type_is_text(self, text: str) -> None:
+        """_make_code_rich_text produces a segment of type 'text'."""
+        seg = _make_code_rich_text(text)
+        assert seg["type"] == "text"
+
+    @given(text=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_code_rich_text_has_code_annotation_true(self, text: str) -> None:
+        """_make_code_rich_text always sets annotations.code == True."""
+        seg = _make_code_rich_text(text)
+        assert seg["annotations"]["code"] is True
+
+    @given(text=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_code_rich_text_content_preserved(self, text: str) -> None:
+        """_make_code_rich_text stores the text content verbatim."""
+        seg = _make_code_rich_text(text)
+        assert seg["text"]["content"] == text
+
+    # --- _make_plain_text_rich_text ---
+
+    @given(text=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_plain_text_rich_text_type_is_text(self, text: str) -> None:
+        """_make_plain_text_rich_text produces a segment of type 'text'."""
+        seg = _make_plain_text_rich_text(text)
+        assert seg["type"] == "text"
+
+    @given(text=st.text(min_size=0, max_size=200))
+    @settings(max_examples=200)
+    def test_plain_text_rich_text_content_preserved(self, text: str) -> None:
+        """_make_plain_text_rich_text stores the text content verbatim."""
+        seg = _make_plain_text_rich_text(text)
+        assert seg["text"]["content"] == text
