@@ -324,7 +324,7 @@ class NotionToMarkdownRenderer:
         if image_type == "file" and self._config.image_expiry_warnings:
             expiry_time = block_data.get("file", {}).get("expiry_time", "")
             if expiry_time:
-                result += f"\n<!-- notion-image-expiry: {expiry_time} -->"
+                result += f"\n<!-- notion-image-expiry: {_sanitize_comment(expiry_time)} -->"
                 self.warnings.append(
                     ConversionWarning(
                         code="IMAGE_EXPIRY",
@@ -505,9 +505,10 @@ class NotionToMarkdownRenderer:
 
         # Default policy: emit as HTML comment.
         text = _extract_plain_text(block)
+        safe_type = _sanitize_comment(block_type)
         if text:
-            return f"<!-- notion:{block_type} -->\n{text}\n\n"
-        return f"<!-- notion:{block_type} -->\n\n"
+            return f"<!-- notion:{safe_type} -->\n{text}\n\n"
+        return f"<!-- notion:{safe_type} -->\n\n"
 
 
 # ------------------------------------------------------------------
@@ -550,6 +551,11 @@ _BLOCK_RENDERERS: dict[str, _BlockRenderer] = {
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
+
+def _sanitize_comment(text: str) -> str:
+    """Escape text for safe inclusion inside an HTML comment."""
+    return text.replace("--", "&#45;&#45;")
 
 
 def _notion_url(block_id: str) -> str:

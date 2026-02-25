@@ -440,6 +440,17 @@ class TestUnsupportedBlockPolicy:
         result = r.render_blocks(blocks)
         assert result.strip() == ""
 
+    def test_unsupported_block_comment_sanitized(self):
+        """Block types containing '--' are escaped in HTML comments."""
+        config = NotionifyConfig(token="test", unsupported_block_policy="comment")
+        r = NotionToMarkdownRenderer(config)
+        blocks = [{"type": "evil-->hack", "evil-->hack": {}, "id": "x"}]
+        result = r.render_blocks(blocks)
+        # The inner content between <!-- and --> must not contain raw "--"
+        inner = result.split("<!--")[1].split("-->")[0]
+        assert "--" not in inner
+        assert "&#45;&#45;" in inner
+
 
 # ── Diff executor edge cases ──────────────────────────────────────────
 
