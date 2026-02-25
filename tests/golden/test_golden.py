@@ -10,6 +10,9 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 
+from notionify.config import NotionifyConfig
+from notionify.converter.md_to_notion import MarkdownToNotionConverter
+
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
@@ -228,6 +231,40 @@ class TestHeadingsAllLevels:
         result = converter.convert(md)
         types = [b["type"] for b in result.blocks]
         assert "paragraph" not in types
+
+
+class TestHeadingOverflowParagraph:
+    """Verify heading_overflow='paragraph' converts H4+ to paragraph blocks (U-CV-003)."""
+
+    _cfg = NotionifyConfig(token="test", heading_overflow="paragraph")
+    _conv = MarkdownToNotionConverter(_cfg)
+
+    def test_h4_becomes_paragraph(self) -> None:
+        """H4 with heading_overflow='paragraph' must produce a paragraph block."""
+        md = (FIXTURES_DIR / "headings_all_levels.md").read_text()
+        result = self._conv.convert(md)
+        types = [b["type"] for b in result.blocks]
+        # H4, H5, H6 all become paragraphs
+        assert types.count("paragraph") == 3
+
+    def test_h1_h2_h3_still_headings(self) -> None:
+        """H1-H3 must still produce heading_1/2/3 even with paragraph overflow."""
+        md = (FIXTURES_DIR / "headings_all_levels.md").read_text()
+        result = self._conv.convert(md)
+        types = [b["type"] for b in result.blocks]
+        assert "heading_1" in types
+        assert "heading_2" in types
+        assert "heading_3" in types
+
+    def test_h4_content_preserved_as_paragraph(self, renderer) -> None:
+        """H4 text content must survive as paragraph text with paragraph overflow."""
+        md = (FIXTURES_DIR / "headings_all_levels.md").read_text()
+        result = self._conv.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Heading Level 4" in round_tripped
+        assert "Heading Level 5" in round_tripped
+        assert "Heading Level 6" in round_tripped
 
 
 class TestMathInline:
