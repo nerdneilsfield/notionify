@@ -113,7 +113,11 @@ def _classify_image_source(url: str) -> ImageSourceType:
         return ImageSourceType.UNKNOWN
     if url.startswith("data:"):
         return ImageSourceType.DATA_URI
-    parsed = urlparse(url)
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        # urlparse raises ValueError for malformed URLs (e.g. invalid IPv6).
+        return ImageSourceType.UNKNOWN
     if parsed.scheme in ("http", "https"):
         return ImageSourceType.EXTERNAL_URL
     if parsed.scheme in ("file", "") and (not parsed.netloc or parsed.netloc == "localhost"):
