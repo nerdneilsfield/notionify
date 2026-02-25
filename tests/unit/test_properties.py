@@ -1096,6 +1096,42 @@ class TestInlineRendererProperties:
         result = markdown_escape(input_text, context="inline")
         assert len(result) > len(text)  # at minimum the * is escaped to \*
 
+    @given(
+        expression=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50),
+    )
+    @settings(max_examples=200)
+    def test_equation_segment_renders_as_dollar_expression(
+        self, expression: str
+    ) -> None:
+        """Equation segments render as $expression$."""
+        seg = {
+            "type": "equation",
+            "equation": {"expression": expression},
+        }
+        result = render_rich_text([seg])
+        assert result == f"${expression}$"
+
+    @given(
+        text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50),
+        url=st.from_regex(r"https://[a-z]{3,10}\.com/[a-z]{0,10}", fullmatch=True),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_href_produces_markdown_link(self, text: str, url: str) -> None:
+        """A text segment with href renders as [text](url)."""
+        seg = {
+            "type": "text",
+            "plain_text": text,
+            "text": {"content": text},
+            "href": url,
+            "annotations": {
+                "bold": False, "italic": False, "strikethrough": False,
+                "underline": False, "code": False, "color": "default",
+            },
+        }
+        result = render_rich_text([seg])
+        assert f"[{text}]" in result
+        assert url in result
+
 
 # ---------------------------------------------------------------------------
 # 10. TestComputeBackoffProperties
