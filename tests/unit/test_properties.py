@@ -2204,3 +2204,105 @@ class TestDiffExecutorProperties:
         assert result.blocks_kept == n_keep
         assert result.blocks_inserted == n_insert
         assert result.blocks_deleted == n_delete
+
+
+# ---------------------------------------------------------------------------
+# TestComputeSignatureProperties
+# ---------------------------------------------------------------------------
+
+# Strategy for a minimal Notion block dict.
+_sig_block_st = st.fixed_dictionaries({
+    "type": st.sampled_from(
+        ["paragraph", "heading_1", "heading_2", "bulleted_list_item",
+         "numbered_list_item", "code", "equation", "divider", "quote"]
+    ),
+}).flatmap(lambda b: st.fixed_dictionaries({
+    "type": st.just(b["type"]),
+    b["type"]: st.fixed_dictionaries({
+        "rich_text": st.lists(
+            st.fixed_dictionaries({
+                "type": st.just("text"),
+                "text": st.fixed_dictionaries({"content": st.text(max_size=50)}),
+            }),
+            max_size=3,
+        ),
+    }),
+}))
+
+
+class TestComputeSignatureProperties:
+    """Property-based tests for compute_signature invariants."""
+
+    @given(block=_sig_block_st)
+    @settings(max_examples=200)
+    def test_deterministic(self, block: dict) -> None:
+        """compute_signature is deterministic: same input → same output."""
+        sig1 = compute_signature(block)
+        sig2 = compute_signature(block)
+        assert sig1 == sig2
+
+    @given(block=_sig_block_st)
+    @settings(max_examples=200)
+    def test_block_type_captured(self, block: dict) -> None:
+        """sig.block_type matches block['type']."""
+        sig = compute_signature(block)
+        assert sig.block_type == block["type"]
+
+    @given(
+        block=_sig_block_st,
+        depth=st.integers(min_value=0, max_value=10),
+    )
+    @settings(max_examples=200)
+    def test_nesting_depth_captured(self, block: dict, depth: int) -> None:
+        """sig.nesting_depth matches the depth argument."""
+        sig = compute_signature(block, depth=depth)
+        assert sig.nesting_depth == depth
+
+    @given(block=_sig_block_st)
+    @settings(max_examples=200)
+    def test_never_raises(self, block: dict) -> None:
+        """compute_signature never raises on arbitrary block dicts."""
+        sig = compute_signature(block)
+        assert isinstance(sig, BlockSignature)
+
+    @given(
+        block_type=st.sampled_from(["paragraph", "heading_1", "code"]),
+        text_a=st.text(min_size=1, max_size=50),
+        text_b=st.text(min_size=1, max_size=50),
+    )
+    @settings(max_examples=200)
+    def test_different_text_different_rich_text_hash(
+        self, block_type: str, text_a: str, text_b: str
+    ) -> None:
+        """Blocks differing only in text content produce different rich_text_hash."""
+        assume(text_a != text_b)
+
+        def _make_text_block(txt: str) -> dict:
+            return {"type": block_type, block_type: {
+                "rich_text": [{"type": "text", "text": {"content": txt}}],
+            }}
+
+        sig_a = compute_signature(_make_text_block(text_a))
+        sig_b = compute_signature(_make_text_block(text_b))
+        assert sig_a.rich_text_hash != sig_b.rich_text_hash
+
+    @given(
+        text=st.text(max_size=30),
+        type_a=st.sampled_from(["paragraph", "heading_1", "code"]),
+        type_b=st.sampled_from(["quote", "heading_2", "numbered_list_item"]),
+    )
+    @settings(max_examples=200)
+    def test_different_type_different_signature(
+        self, text: str, type_a: str, type_b: str
+    ) -> None:
+        """Blocks with different types always produce different signatures."""
+        assume(type_a != type_b)
+
+        def _make_typed_block(btype: str) -> dict:
+            return {"type": btype, btype: {
+                "rich_text": [{"type": "text", "text": {"content": text}}],
+            }}
+
+        sig_a = compute_signature(_make_typed_block(type_a))
+        sig_b = compute_signature(_make_typed_block(type_b))
+        assert sig_a != sig_b
