@@ -28,11 +28,13 @@ from notionify.converter.block_builder import (
     _apply_image_fallback,
     _build_divider,
     _build_heading,
+    _build_image_block,
     _build_list,
     _build_list_item,
     _build_task_list_item,
     _BuildContext,
     _classify_image_source,
+    _handle_html_block,
     _normalize_language,
     _process_token,
     _process_tokens,
@@ -6123,6 +6125,8 @@ class TestBuildListAndDispatchProperties:
     @settings(max_examples=200)
     def test_process_token_unknown_type_returns_empty(self, token_type: str) -> None:
         """An unknown token type produces no blocks."""
+        from notionify.converter.block_builder import _BLOCK_HANDLERS
+        assume(token_type not in _BLOCK_HANDLERS)
         ctx = self._ctx()
         result = _process_token({"type": token_type}, ctx)
         assert result == []
@@ -7396,3 +7400,112 @@ class TestApplyImageFallbackProperties:
         result = _apply_image_fallback(url, alt, ctx)
         assert len(result) == 1
         assert result[0]["type"] == "paragraph"
+
+
+# ---------------------------------------------------------------------------
+# _build_image_block
+# ---------------------------------------------------------------------------
+
+class TestBuildImageBlockBuilderProperties:
+    """_build_image_block branches: external URL, local/data-uri, unknown."""
+
+    def _ctx(self, **kwargs: object) -> _BuildContext:
+        cfg = NotionifyConfig(token="test-token", **kwargs)  # type: ignore[arg-type]
+        return _BuildContext(cfg)
+
+    def test_external_url_produces_image_block(self) -> None:
+        """EXTERNAL_URL token produces a Notion image block."""
+        ctx = self._ctx()
+        token = {"attrs": {"url": "https://example.com/img.jpg"}, "children": []}
+        result = _build_image_block(token, ctx)
+        assert len(result) == 1
+        assert result[0]["type"] == "image"
+
+    def test_external_url_image_type_is_external(self) -> None:
+        """External URL image block has image.type='external'."""
+        ctx = self._ctx()
+        token = {"attrs": {"url": "https://example.com/img.png"}, "children": []}
+        result = _build_image_block(token, ctx)
+        assert result[0]["image"]["type"] == "external"
+
+    def test_external_url_stored_in_image_data(self) -> None:
+        """The URL is stored in image.external.url."""
+        url = "https://example.com/photo.webp"
+        ctx = self._ctx()
+        token = {"attrs": {"url": url}, "children": []}
+        result = _build_image_block(token, ctx)
+        assert result[0]["image"]["external"]["url"] == url
+
+    def test_external_url_with_alt_adds_caption(self) -> None:
+        """Alt text children produce a caption on the image block."""
+        ctx = self._ctx()
+        token = {
+            "attrs": {"url": "https://example.com/img.jpg"},
+            "children": [{"type": "text", "raw": "My Alt"}],
+        }
+        result = _build_image_block(token, ctx)
+        assert "caption" in result[0]["image"]
+
+    def test_local_file_with_upload_enabled_creates_placeholder(self) -> None:
+        """LOCAL_FILE with image_upload=True creates a placeholder image block."""
+        ctx = self._ctx(image_upload=True)
+        token = {"attrs": {"url": "/path/to/image.jpg"}, "children": []}
+        result = _build_image_block(token, ctx)
+        assert len(result) == 1
+        assert result[0]["type"] == "image"
+        # Placeholder URL indicates pending upload
+        assert "placeholder" in result[0]["image"]["external"]["url"]
+
+    def test_local_file_with_upload_disabled_applies_fallback(self) -> None:
+        """LOCAL_FILE with image_upload=False delegates to _apply_image_fallback."""
+        ctx = self._ctx(image_upload=False, image_fallback="skip")
+        token = {"attrs": {"url": "/path/to/image.jpg"}, "children": []}
+        result = _build_image_block(token, ctx)
+        assert result == []  # skip fallback returns empty
+
+    def test_external_block_registered_in_context(self) -> None:
+        """External image block is added to ctx.blocks."""
+        ctx = self._ctx()
+        token = {"attrs": {"url": "https://example.com/img.gif"}, "children": []}
+        _build_image_block(token, ctx)
+        assert len(ctx.blocks) == 1
+
+
+# ---------------------------------------------------------------------------
+# _handle_html_block
+# ---------------------------------------------------------------------------
+
+class TestHandleHtmlBlockProperties:
+    """_handle_html_block always skips with a warning."""
+
+    def _ctx(self) -> _BuildContext:
+        return _BuildContext(NotionifyConfig(token="test-token"))
+
+    def test_always_returns_empty_list(self) -> None:
+        """_handle_html_block always returns []."""
+        ctx = self._ctx()
+        result = _handle_html_block({"raw": "<p>test</p>"}, ctx)
+        assert result == []
+
+    def test_adds_html_block_skipped_warning(self) -> None:
+        """A HTML_BLOCK_SKIPPED warning is always added."""
+        ctx = self._ctx()
+        _handle_html_block({"raw": "<div>content</div>"}, ctx)
+        assert any(w.code == "HTML_BLOCK_SKIPPED" for w in ctx.warnings)
+
+    @given(raw=st.text(min_size=0, max_size=300))
+    @settings(max_examples=100)
+    def test_never_raises_for_any_raw_content(self, raw: str) -> None:
+        """_handle_html_block never raises, regardless of raw HTML content."""
+        ctx = self._ctx()
+        result = _handle_html_block({"raw": raw}, ctx)
+        assert result == []
+        assert len(ctx.warnings) == 1
+
+    def test_raw_content_truncated_in_warning(self) -> None:
+        """The warning contains a truncated version of the raw HTML."""
+        ctx = self._ctx()
+        long_raw = "<p>" + "x" * 500 + "</p>"
+        _handle_html_block({"raw": long_raw}, ctx)
+        # The warning extra contains the raw content (truncated to 200 chars)
+        assert len(ctx.warnings) == 1
