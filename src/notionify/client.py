@@ -149,8 +149,7 @@ class NotionifyClient:
                 rich_text = first.get("heading_1", {}).get("rich_text", [])
                 if rich_text:
                     effective_title = "".join(
-                        seg.get("plain_text", "")
-                        or seg.get("text", {}).get("content", "")
+                        seg.get("plain_text") or seg.get("text", {}).get("content") or ""
                         for seg in rich_text
                     )
                 blocks = blocks[1:]
