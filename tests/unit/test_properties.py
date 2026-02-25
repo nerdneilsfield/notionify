@@ -10,6 +10,8 @@ from __future__ import annotations
 import copy
 import re
 import string
+from datetime import datetime
+from datetime import timezone as _tz
 
 import pytest
 from hypothesis import HealthCheck, assume, given, settings
@@ -28,6 +30,7 @@ from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.converter.rich_text import split_rich_text
 from notionify.converter.tables import build_table
+from notionify.diff.conflict import detect_conflict, take_snapshot
 from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.signature import compute_signature
 from notionify.image.detect import detect_image_source, mime_to_extension
@@ -1570,3 +1573,113 @@ class TestNormalizeLanguageProperties:
         """Language matching is case-insensitive."""
         assert _normalize_language(lang.upper()) == lang
         assert _normalize_language(lang.capitalize()) == lang
+
+
+# ---------------------------------------------------------------------------
+# 17. TestConflictDetectionProperties
+# ---------------------------------------------------------------------------
+
+_dt_st = st.datetimes(
+    min_value=datetime(2020, 1, 1),
+    max_value=datetime(2030, 12, 31),
+    timezones=st.just(_tz.utc),
+)
+_etags_st = st.dictionaries(
+    keys=st.from_regex(r"[a-f0-9\-]{8,36}", fullmatch=True),
+    values=st.from_regex(r"20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", fullmatch=True),
+    max_size=10,
+)
+
+
+def _make_snapshot(page_id: str, last_edited: datetime, block_etags: dict):
+    from notionify.models import PageSnapshot
+    return PageSnapshot(
+        page_id=page_id,
+        last_edited=last_edited,
+        block_etags=block_etags,
+    )
+
+
+class TestConflictDetectionProperties:
+    """Property-based tests for :func:`detect_conflict` and :func:`take_snapshot`."""
+
+    @given(
+        page_id=st.text(min_size=1, max_size=36),
+        last_edited=_dt_st,
+        block_etags=_etags_st,
+    )
+    @settings(max_examples=200)
+    def test_snapshot_vs_itself_no_conflict(
+        self, page_id: str, last_edited: datetime, block_etags: dict
+    ) -> None:
+        """A snapshot compared against itself must never indicate a conflict."""
+        snapshot = _make_snapshot(page_id, last_edited, block_etags)
+        assert not detect_conflict(snapshot, snapshot)
+
+    @given(
+        page_id=st.text(min_size=1, max_size=36),
+        t1=_dt_st,
+        t2=_dt_st,
+        etags=_etags_st,
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_different_timestamps_always_conflict(
+        self, page_id: str, t1: datetime, t2: datetime, etags: dict
+    ) -> None:
+        """Different last_edited timestamps must always indicate a conflict."""
+        assume(t1 != t2)
+        s1 = _make_snapshot(page_id, t1, etags)
+        s2 = _make_snapshot(page_id, t2, etags)
+        assert detect_conflict(s1, s2)
+
+    @given(
+        page_id=st.text(min_size=1, max_size=36),
+        page=st.fixed_dictionaries({
+            "last_edited_time": st.one_of(
+                st.just(""),
+                st.from_regex(
+                    r"20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", fullmatch=True
+                ),
+            )
+        }),
+        blocks=st.lists(
+            st.fixed_dictionaries({
+                "id": st.text(min_size=1, max_size=36),
+                "last_edited_time": st.from_regex(
+                    r"20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", fullmatch=True
+                ),
+            }),
+            max_size=10,
+        ),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_take_snapshot_never_raises(
+        self, page_id: str, page: dict, blocks: list[dict]
+    ) -> None:
+        """take_snapshot must never raise on valid inputs."""
+        from notionify.models import PageSnapshot
+        snapshot = take_snapshot(page_id, page, blocks)
+        assert isinstance(snapshot, PageSnapshot)
+        assert snapshot.page_id == page_id
+
+    @given(
+        page_id=st.text(min_size=1, max_size=36),
+        t=_dt_st,
+        etags=_etags_st,
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_changed_block_etag_triggers_conflict(
+        self,
+        page_id: str,
+        t: datetime,
+        etags: dict,
+    ) -> None:
+        """Any change in block ETags triggers conflict detection."""
+        assume(len(etags) > 0)
+        # Create snapshot with original ETags.
+        s1 = _make_snapshot(page_id, t, etags)
+        # Modify the first block's etag.
+        first_key = next(iter(etags))
+        modified = {**etags, first_key: etags[first_key] + "_modified"}
+        s2 = _make_snapshot(page_id, t, modified)
+        assert detect_conflict(s1, s2)

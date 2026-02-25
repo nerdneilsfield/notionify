@@ -30,11 +30,13 @@ def take_snapshot(page_id: str, page: dict, blocks: list[dict]) -> PageSnapshot:
     PageSnapshot
     """
     last_edited_str = page.get("last_edited_time", "")
-    last_edited = (
-        datetime.fromisoformat(last_edited_str.replace("Z", "+00:00"))
-        if last_edited_str
-        else datetime.min
-    )
+    if last_edited_str:
+        try:
+            last_edited = datetime.fromisoformat(last_edited_str.replace("Z", "+00:00"))
+        except ValueError:
+            last_edited = datetime.min
+    else:
+        last_edited = datetime.min
     block_etags: dict[str, str] = {}
     for block in blocks:
         block_id = block.get("id", "")
