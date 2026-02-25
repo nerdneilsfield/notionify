@@ -53,9 +53,13 @@ from notionify.converter.rich_text import (
     _clone_text_segment,
     _default_annotations,
     _handle_codespan,
+    _handle_emphasis,
     _handle_html_inline,
+    _handle_image,
     _handle_linebreak,
     _handle_softbreak,
+    _handle_strikethrough,
+    _handle_strong,
     _handle_text,
     _has_non_default_annotations,
     _make_text_segment,
@@ -5559,3 +5563,106 @@ class TestInlineHandlerProperties:
         """_handle_html_inline with empty raw returns an empty list."""
         result = _handle_html_inline({"raw": ""}, self._CONFIG, self._anns(), None, None)
         assert result == []
+
+
+class TestAnnotationHandlerProperties:
+    """Property tests for the annotation-merging inline handler functions."""
+
+    _CONFIG = NotionifyConfig(token="test-token")
+
+    @staticmethod
+    def _text_child(raw: str) -> dict:
+        return {"type": "text", "raw": raw}
+
+    @staticmethod
+    def _base_anns() -> dict:
+        return {"bold": False, "italic": False, "strikethrough": False,
+                "underline": False, "code": False, "color": "default"}
+
+    # --- _handle_strong ---
+
+    @given(raw=st.text(min_size=1, max_size=100))
+    @settings(max_examples=200)
+    def test_handle_strong_sets_bold(self, raw: str) -> None:
+        """_handle_strong always produces segments with bold=True."""
+        token = {"children": [self._text_child(raw)]}
+        result = _handle_strong(token, self._CONFIG, self._base_anns(), None, None)
+        assert all(seg.get("annotations", {}).get("bold") is True for seg in result)
+
+    def test_handle_strong_empty_children_returns_empty(self) -> None:
+        """_handle_strong with no children returns an empty list."""
+        result = _handle_strong({"children": []}, self._CONFIG, self._base_anns(), None, None)
+        assert result == []
+
+    # --- _handle_emphasis ---
+
+    @given(raw=st.text(min_size=1, max_size=100))
+    @settings(max_examples=200)
+    def test_handle_emphasis_sets_italic(self, raw: str) -> None:
+        """_handle_emphasis always produces segments with italic=True."""
+        token = {"children": [self._text_child(raw)]}
+        result = _handle_emphasis(token, self._CONFIG, self._base_anns(), None, None)
+        assert all(seg.get("annotations", {}).get("italic") is True for seg in result)
+
+    def test_handle_emphasis_empty_children_returns_empty(self) -> None:
+        """_handle_emphasis with no children returns an empty list."""
+        result = _handle_emphasis(
+            {"children": []}, self._CONFIG, self._base_anns(), None, None
+        )
+        assert result == []
+
+    # --- _handle_strikethrough ---
+
+    @given(raw=st.text(min_size=1, max_size=100))
+    @settings(max_examples=200)
+    def test_handle_strikethrough_sets_annotation(self, raw: str) -> None:
+        """_handle_strikethrough always produces segments with strikethrough=True."""
+        token = {"children": [self._text_child(raw)]}
+        result = _handle_strikethrough(token, self._CONFIG, self._base_anns(), None, None)
+        assert all(
+            seg.get("annotations", {}).get("strikethrough") is True for seg in result
+        )
+
+    def test_handle_strikethrough_empty_children_returns_empty(self) -> None:
+        """_handle_strikethrough with no children returns an empty list."""
+        result = _handle_strikethrough(
+            {"children": []}, self._CONFIG, self._base_anns(), None, None
+        )
+        assert result == []
+
+    # --- _handle_image ---
+
+    @given(
+        alt=st.text(min_size=1, max_size=50),
+        url=st.text(min_size=1, max_size=100),
+    )
+    @settings(max_examples=200)
+    def test_handle_image_alt_and_url_produces_markdown_link(
+        self, alt: str, url: str
+    ) -> None:
+        """With both alt and url, the segment text is '[alt](url)'."""
+        token = {
+            "attrs": {"url": url},
+            "children": [{"type": "text", "raw": alt}],
+        }
+        result = _handle_image(token, self._CONFIG, self._base_anns(), None, None)
+        assert len(result) == 1
+        content = result[0]["text"]["content"]
+        assert alt in content
+        assert url in content
+
+    def test_handle_image_no_alt_no_url_returns_placeholder(self) -> None:
+        """With no alt and no url, the segment text is '[image]'."""
+        token: dict = {"attrs": {}, "children": []}
+        result = _handle_image(token, self._CONFIG, self._base_anns(), None, None)
+        assert len(result) == 1
+        assert result[0]["text"]["content"] == "[image]"
+
+    @given(url=st.text(min_size=1, max_size=100))
+    @settings(max_examples=200)
+    def test_handle_image_url_only_returns_url(self, url: str) -> None:
+        """With only url and no alt, the segment text is the URL."""
+        token = {"attrs": {"url": url}, "children": []}
+        result = _handle_image(token, self._CONFIG, self._base_anns(), None, None)
+        assert len(result) == 1
+        assert result[0]["text"]["content"] == url
