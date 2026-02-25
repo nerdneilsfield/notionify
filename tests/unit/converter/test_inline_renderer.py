@@ -254,3 +254,21 @@ class TestRenderEdgeCases:
     def test_segment_with_no_text_or_plain_text(self):
         seg = {"type": "text"}
         assert render_rich_text([seg]) == ""
+
+    def test_equation_with_none_value_does_not_raise(self):
+        """equation=None must not raise AttributeError (regression: #fix-null-equation)."""
+        seg = {"type": "equation", "equation": None}
+        result = render_rich_text([seg])
+        assert result == "$$"
+
+    def test_text_content_none_does_not_raise(self):
+        """text.content=None must not raise TypeError (regression: #fix-null-content)."""
+        seg = {"type": "text", "text": {"content": None}}
+        result = render_rich_text([seg])
+        assert result == ""
+
+    def test_plain_text_none_does_not_raise(self):
+        """plain_text=None (explicit None from API) must not raise TypeError."""
+        seg = {"type": "text", "plain_text": None, "text": {"content": "hello"}}
+        result = render_rich_text([seg])
+        assert result == "hello"

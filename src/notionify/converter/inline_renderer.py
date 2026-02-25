@@ -90,7 +90,7 @@ def render_rich_text(segments: list[dict]) -> str:
 
         # --- Equation segments bypass normal text handling ---------------
         if seg_type == "equation":
-            expression = seg.get("equation", {}).get("expression", "")
+            expression = (seg.get("equation") or {}).get("expression", "")
             text = f"${expression}$"
             # Equations may still have a link
             if href:
@@ -100,7 +100,7 @@ def render_rich_text(segments: list[dict]) -> str:
 
         # --- Text segments -----------------------------------------------
         # API responses use "plain_text"; locally-built blocks use "text.content".
-        plain_text = seg.get("plain_text", "") or seg.get("text", {}).get("content", "")
+        plain_text = seg.get("plain_text") or seg.get("text", {}).get("content") or ""
 
         is_code = annotations.get("code", False)
 
