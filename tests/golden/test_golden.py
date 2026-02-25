@@ -423,6 +423,44 @@ class TestCodeLanguageAliases:
         assert "hello world" in round_tripped
 
 
+class TestLongCodeBlock:
+    """Verify long_code_block.md: >2000-char code block is split correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "long_code_block.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 1
+        assert len(result.warnings) == 0
+
+    def test_code_block_rich_text_split(self, converter):
+        """A code block exceeding 2000 chars must have >1 rich_text segment."""
+        md = (FIXTURES_DIR / "long_code_block.md").read_text()
+        result = converter.convert(md)
+        code_blocks = [b for b in result.blocks if b.get("type") == "code"]
+        assert len(code_blocks) >= 1
+        # The long code block should be split into multiple rich_text segments
+        long_block = code_blocks[0]
+        rich_text = long_block.get("code", {}).get("rich_text", [])
+        assert len(rich_text) > 1
+
+    def test_language_preserved_after_split(self, converter):
+        """Language annotation must survive the rich_text split."""
+        md = (FIXTURES_DIR / "long_code_block.md").read_text()
+        result = converter.convert(md)
+        code_blocks = [b for b in result.blocks if b.get("type") == "code"]
+        assert code_blocks[0].get("code", {}).get("language") == "python"
+
+    def test_content_preserved_in_roundtrip(self, converter, renderer):
+        """Key function names must survive conversion and back."""
+        md = (FIXTURES_DIR / "long_code_block.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "fibonacci" in round_tripped
+        assert "merge_sort" in round_tripped
+        assert "BinarySearchTree" in round_tripped
+
+
 class TestNestedLists:
     """Verify nested_lists.md round-trips correctly."""
 
