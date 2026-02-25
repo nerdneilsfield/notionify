@@ -986,3 +986,131 @@ class TestStrikethroughCombinations:
         blocks = _simulate_api_response(result.blocks)
         round_tripped = renderer.render_blocks(blocks)
         assert "longer phrase" in round_tripped
+
+
+class TestRenderOnlyApiBlocks:
+    """Render-only tests for block types that can only come from the Notion API.
+
+    These block types (callout, toggle, embed, bookmark, child_page,
+    child_database) have no Markdown equivalent and cannot be produced by
+    the Markdown→Notion converter, but the renderer must handle them when
+    reading pages from the Notion API.
+    """
+
+    def _rt(self, text: str) -> list[dict]:
+        """Build a minimal rich_text segment with plain_text set."""
+        return [{"type": "text", "text": {"content": text}, "plain_text": text}]
+
+    def test_callout_with_emoji_renders_as_blockquote(self, renderer):
+        """Callout with emoji icon renders as a '>'-prefixed blockquote."""
+        block = {
+            "type": "callout",
+            "callout": {
+                "icon": {"type": "emoji", "emoji": "💡"},
+                "rich_text": self._rt("A tip for you"),
+            },
+        }
+        result = renderer.render_blocks([block])
+        assert "> " in result
+        assert "A tip for you" in result
+
+    def test_callout_without_icon_renders_text(self, renderer):
+        """Callout without icon still renders the text content."""
+        block = {
+            "type": "callout",
+            "callout": {
+                "rich_text": self._rt("Note without icon"),
+            },
+        }
+        result = renderer.render_blocks([block])
+        assert "Note without icon" in result
+
+    def test_toggle_renders_as_list_item(self, renderer):
+        """Toggle block renders as a bullet list item."""
+        block = {
+            "type": "toggle",
+            "toggle": {
+                "rich_text": self._rt("Toggle summary"),
+            },
+        }
+        result = renderer.render_blocks([block])
+        assert "Toggle summary" in result
+        assert "- " in result
+
+    def test_embed_renders_as_link(self, renderer):
+        """Embed block renders as a Markdown link."""
+        block = {
+            "type": "embed",
+            "embed": {"url": "https://example.com/embed"},
+        }
+        result = renderer.render_blocks([block])
+        assert "https://example.com/embed" in result
+        assert "[" in result
+
+    def test_bookmark_renders_url(self, renderer):
+        """Bookmark block renders the URL."""
+        block = {
+            "type": "bookmark",
+            "bookmark": {"url": "https://example.com/page", "caption": []},
+        }
+        result = renderer.render_blocks([block])
+        assert "https://example.com/page" in result
+
+    def test_child_page_renders_as_link_with_page_prefix(self, renderer):
+        """Child page renders as '[Page: title](url)' format."""
+        block = {
+            "id": "12345678-1234-1234-1234-123456789abc",
+            "type": "child_page",
+            "child_page": {"title": "My Subpage"},
+        }
+        result = renderer.render_blocks([block])
+        assert "My Subpage" in result
+        assert "Page:" in result
+
+    def test_child_database_renders_as_link_with_database_prefix(self, renderer):
+        """Child database renders as '[Database: title](url)' format."""
+        block = {
+            "id": "12345678-1234-1234-1234-123456789abc",
+            "type": "child_database",
+            "child_database": {"title": "My DB"},
+        }
+        result = renderer.render_blocks([block])
+        assert "My DB" in result
+        assert "Database:" in result
+
+    def test_all_api_only_blocks_never_raise(self, renderer):
+        """Rendering a mix of API-only blocks must not raise any exception."""
+        blocks = [
+            {
+                "type": "callout",
+                "callout": {
+                    "icon": {"type": "emoji", "emoji": "✅"},
+                    "rich_text": self._rt("Done"),
+                },
+            },
+            {
+                "type": "toggle",
+                "toggle": {"rich_text": self._rt("Toggle")},
+            },
+            {
+                "type": "embed",
+                "embed": {"url": "https://example.com"},
+            },
+            {
+                "type": "bookmark",
+                "bookmark": {"url": "https://example.com/bk", "caption": []},
+            },
+            {
+                "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "type": "child_page",
+                "child_page": {"title": "Page"},
+            },
+            {
+                "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+                "type": "child_database",
+                "child_database": {"title": "DB"},
+            },
+        ]
+        result = renderer.render_blocks(blocks)
+        assert isinstance(result, str)
+        assert len(result) > 0
