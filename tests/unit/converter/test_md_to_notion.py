@@ -1671,36 +1671,36 @@ class TestRemainingCoverageGaps:
         """_extract_text recurses into tokens that have a 'children' key
         (line 657-658), e.g. a strong/em inline node.
         """
-        from notionify.converter.block_builder import _extract_text
+        from notionify.converter.rich_text import extract_text
         children = [
             {
                 "type": "strong",
                 "children": [{"type": "text", "raw": "bold text"}],
             }
         ]
-        result = _extract_text(children)
+        result = extract_text(children)
         assert result == "bold text"
 
     def test_extract_text_from_token_with_raw_no_children(self):
         """_extract_text uses the 'raw' field for tokens that have no
         'children' key and are not type='text' (lines 659-660), e.g. code_inline.
         """
-        from notionify.converter.block_builder import _extract_text
+        from notionify.converter.rich_text import extract_text
         children = [
             {"type": "code_inline", "raw": "inline_code()"},
         ]
-        result = _extract_text(children)
+        result = extract_text(children)
         assert result == "inline_code()"
 
     def test_extract_text_mixed_token_types(self):
         """_extract_text handles a mix of text, children, and raw tokens."""
-        from notionify.converter.block_builder import _extract_text
+        from notionify.converter.rich_text import extract_text
         children = [
             {"type": "text", "raw": "Hello "},
             {"type": "strong", "children": [{"type": "text", "raw": "world"}]},
             {"type": "code_inline", "raw": "!"},
         ]
-        result = _extract_text(children)
+        result = extract_text(children)
         assert result == "Hello world!"
 
     def test_image_alt_text_uses_extract_text_children_branch(self):

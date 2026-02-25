@@ -376,21 +376,21 @@ class TestExtractText:
     """Tests for _extract_text recursive helper (lines 289-300)."""
 
     def test_extract_nested_children(self):
-        from notionify.converter.rich_text import _extract_text
+        from notionify.converter.rich_text import extract_text
         # token with children (no "raw") → recurse
         tokens = [{"type": "strong", "children": [{"type": "text", "raw": "bold"}]}]
-        assert _extract_text(tokens) == "bold"
+        assert extract_text(tokens) == "bold"
 
     def test_extract_raw_fallback(self):
-        from notionify.converter.rich_text import _extract_text
+        from notionify.converter.rich_text import extract_text
         # token with "raw" but no "children" and not "text" type
         tokens = [{"type": "codespan", "raw": "code"}]
-        assert _extract_text(tokens) == "code"
+        assert extract_text(tokens) == "code"
 
     def test_extract_mixed(self):
-        from notionify.converter.rich_text import _extract_text
+        from notionify.converter.rich_text import extract_text
         tokens = [
             {"type": "text", "raw": "hello "},
             {"type": "strong", "children": [{"type": "text", "raw": "world"}]},
         ]
-        assert _extract_text(tokens) == "hello world"
+        assert extract_text(tokens) == "hello world"

@@ -4,15 +4,15 @@ Covers lines missed by integration tests:
   148 - row padding with empty cells
   170-171 - non-table_cell in _build_row_cells
   250 - non-table_cell in _cells_to_text
-  263-266 - children/raw branches in _extract_inline_text
+  263-266 - children/raw branches in extract_text
 """
 
 
 from notionify.config import NotionifyConfig
+from notionify.converter.rich_text import extract_text
 from notionify.converter.tables import (
     _build_row_cells,
     _cells_to_text,
-    _extract_inline_text,
     build_table,
 )
 
@@ -95,7 +95,7 @@ class TestCellsToTextNonTableCell:
 
 
 class TestExtractInlineTextBranches:
-    """Lines 263-266: children and raw branches in _extract_inline_text."""
+    """Lines 263-266: children and raw branches in extract_text."""
 
     def test_token_with_children_recurses(self):
         """A non-text token with 'children' recursively extracts text (line 263-264)."""
@@ -107,7 +107,7 @@ class TestExtractInlineTextBranches:
                 ],
             }
         ]
-        result = _extract_inline_text(tokens)
+        result = extract_text(tokens)
         assert result == "bold text"
 
     def test_token_with_raw_but_no_children(self):
@@ -115,7 +115,7 @@ class TestExtractInlineTextBranches:
         tokens = [
             {"type": "softline", "raw": " "},
         ]
-        result = _extract_inline_text(tokens)
+        result = extract_text(tokens)
         assert result == " "
 
     def test_mixed_token_types(self):
@@ -125,7 +125,7 @@ class TestExtractInlineTextBranches:
             {"type": "em", "children": [{"type": "text", "raw": "world"}]},
             {"type": "softline", "raw": "!"},
         ]
-        result = _extract_inline_text(tokens)
+        result = extract_text(tokens)
         assert result == "hello world!"
 
     def test_neither_children_nor_raw_ignored(self):
@@ -134,5 +134,5 @@ class TestExtractInlineTextBranches:
             {"type": "unknown_token"},
             {"type": "text", "raw": "visible"},
         ]
-        result = _extract_inline_text(tokens)
+        result = extract_text(tokens)
         assert result == "visible"

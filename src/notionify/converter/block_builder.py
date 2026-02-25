@@ -23,7 +23,7 @@ from urllib.parse import urlparse
 
 from notionify.config import NotionifyConfig
 from notionify.converter.math import build_block_math
-from notionify.converter.rich_text import build_rich_text, split_rich_text
+from notionify.converter.rich_text import build_rich_text, extract_text, split_rich_text
 from notionify.converter.tables import build_table
 from notionify.models import ConversionWarning, ImageSourceType, PendingImage
 
@@ -556,7 +556,7 @@ def _build_image_block(token: dict, ctx: _BuildContext) -> list[dict]:
     """
     url = token.get("attrs", {}).get("url", "")
     alt_children = token.get("children", [])
-    alt_text = _extract_text(alt_children)
+    alt_text = extract_text(alt_children)
     source_type = _classify_image_source(url)
 
     if source_type == ImageSourceType.EXTERNAL_URL:
@@ -639,20 +639,6 @@ def _apply_image_fallback(
         fallback="raise",
     )
     return []
-
-
-def _extract_text(children: list[dict]) -> str:
-    """Recursively extract plain text from inline tokens."""
-    parts: list[str] = []
-    for token in children:
-        token_type = token.get("type", "")
-        if token_type == "text":
-            parts.append(token.get("raw", ""))
-        elif "children" in token:
-            parts.append(_extract_text(token["children"]))
-        elif "raw" in token:
-            parts.append(token["raw"])
-    return "".join(parts)
 
 
 # ---------------------------------------------------------------------------

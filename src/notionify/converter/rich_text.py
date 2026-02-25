@@ -101,15 +101,19 @@ def _clone_text_segment(segment: dict, new_content: str) -> dict:
     return new_seg
 
 
-def _extract_text(children: list[dict]) -> str:
-    """Recursively extract plain text from inline tokens."""
+def extract_text(children: list[dict]) -> str:
+    """Recursively extract plain text from inline tokens.
+
+    This is the canonical implementation shared by ``block_builder``,
+    ``rich_text``, and ``tables``.
+    """
     parts: list[str] = []
     for token in children:
         token_type = token.get("type", "")
         if token_type == "text":
             parts.append(token.get("raw", ""))
         elif "children" in token:
-            parts.append(_extract_text(token["children"]))
+            parts.append(extract_text(token["children"]))
         elif "raw" in token:
             parts.append(token["raw"])
     return "".join(parts)
@@ -195,7 +199,7 @@ def _handle_image(
     annotations: dict, href: str | None,
     warnings: list[ConversionWarning] | None,
 ) -> list[dict]:
-    alt = _extract_text(token.get("children", []))
+    alt = extract_text(token.get("children", []))
     url = token.get("attrs", {}).get("url", "")
     if alt and url:
         text = f"[{alt}]({url})"

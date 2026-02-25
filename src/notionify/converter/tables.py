@@ -61,7 +61,7 @@ The resulting Notion block::
 from __future__ import annotations
 
 from notionify.config import NotionifyConfig
-from notionify.converter.rich_text import build_rich_text, split_rich_text
+from notionify.converter.rich_text import build_rich_text, extract_text, split_rich_text
 from notionify.errors import NotionifyConversionError
 from notionify.models import ConversionWarning
 
@@ -247,20 +247,6 @@ def _cells_to_text(cells: list[dict]) -> str:
     for cell in cells:
         if cell.get("type") != "table_cell":
             continue
-        text = _extract_inline_text(cell.get("children", []))
+        text = extract_text(cell.get("children", []))
         parts.append(text)
     return " | ".join(parts)
-
-
-def _extract_inline_text(children: list[dict]) -> str:
-    """Recursively extract plain text from inline tokens."""
-    parts: list[str] = []
-    for token in children:
-        token_type = token.get("type", "")
-        if token_type == "text":
-            parts.append(token.get("raw", ""))
-        elif "children" in token:
-            parts.append(_extract_inline_text(token["children"]))
-        elif "raw" in token:
-            parts.append(token["raw"])
-    return "".join(parts)

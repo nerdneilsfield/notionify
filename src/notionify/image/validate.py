@@ -27,6 +27,9 @@ _DATA_URI_RE = re.compile(
 )
 
 # Map of magic bytes to MIME types for sniffing.
+_DATA_URI_MAX_BYTES = 20 * 1024 * 1024
+"""Hard limit (20 MiB) for base64 data-URI payloads before decoding."""
+
 _MAGIC_BYTES: list[tuple[bytes, str]] = [
     (b"\x89PNG\r\n\x1a\n", "image/png"),
     (b"\xff\xd8\xff", "image/jpeg"),
@@ -174,7 +177,7 @@ def _parse_data_uri(src: str) -> tuple[str, bytes]:
     if encoding and encoding.lower() == "base64":
         # Pre-check estimated size to avoid excessive memory allocation.
         estimated_size = len(raw_data) * 3 // 4
-        if estimated_size > 20 * 1024 * 1024:  # 20 MiB hard limit
+        if estimated_size > _DATA_URI_MAX_BYTES:
             raise NotionifyImageSizeError(
                 message=f"Data URI too large (estimated {estimated_size} bytes)",
                 context={"src": _truncate_src(src), "estimated_bytes": estimated_size},
