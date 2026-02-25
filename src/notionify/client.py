@@ -124,6 +124,17 @@ class NotionifyClient:
         Returns
         -------
         PageCreateResult
+
+        Raises
+        ------
+        ValueError
+            If *parent_type* is not ``"page"`` or ``"database"``.
+        NotionifyImageError
+            If an image in the Markdown cannot be validated or uploaded.
+        NotionifyAPIError
+            If the Notion API returns an error response.
+        NotionifyRetryExhaustedError
+            If all retry attempts are exhausted.
         """
         if parent_type not in ("page", "database"):
             msg = f"parent_type must be 'page' or 'database', got {parent_type!r}"
@@ -215,6 +226,15 @@ class NotionifyClient:
         Returns
         -------
         AppendResult
+
+        Raises
+        ------
+        NotionifyImageError
+            If an image in the Markdown cannot be validated or uploaded.
+        NotionifyAPIError
+            If the Notion API returns an error response.
+        NotionifyRetryExhaustedError
+            If all retry attempts are exhausted.
         """
         conversion = self._converter.convert(markdown)
         warnings = list(conversion.warnings)
@@ -311,11 +331,27 @@ class NotionifyClient:
             ``"diff"`` (default) or ``"overwrite"``.
         on_conflict:
             Conflict resolution policy: ``"raise"`` (default) or
-            ``"overwrite"``.
+            ``"overwrite"``.  When ``"raise"``, a
+            :exc:`NotionifyDiffConflictError` is raised if the page was
+            modified between fetch and apply.
 
         Returns
         -------
         UpdateResult
+
+        Raises
+        ------
+        ValueError
+            If *strategy* or *on_conflict* is not a recognised value.
+        NotionifyDiffConflictError
+            If *on_conflict* is ``"raise"`` and the page was concurrently
+            modified before the diff could be applied.
+        NotionifyImageError
+            If an image in the Markdown cannot be validated or uploaded.
+        NotionifyAPIError
+            If the Notion API returns an error response.
+        NotionifyRetryExhaustedError
+            If all retry attempts are exhausted.
         """
         if strategy not in ("diff", "overwrite"):
             msg = f"strategy must be 'diff' or 'overwrite', got {strategy!r}"
@@ -437,7 +473,16 @@ class NotionifyClient:
         archive:
             If ``True`` (default), the block is archived rather than
             permanently deleted.  Notion does not expose permanent
-            deletion via the API.
+            deletion via the API.  The *archive* parameter is accepted
+            for API symmetry but has no effect on behaviour.
+
+        Raises
+        ------
+        NotionifyAPIError
+            If the Notion API returns an error response (e.g. the block
+            does not exist or the token lacks permission).
+        NotionifyRetryExhaustedError
+            If all retry attempts are exhausted.
         """
         self._blocks.delete(block_id)
 
@@ -517,6 +562,14 @@ class NotionifyClient:
         -------
         str
             The rendered Markdown text.
+
+        Raises
+        ------
+        NotionifyAPIError
+            If the Notion API returns an error response (e.g. page not
+            found or insufficient permissions).
+        NotionifyRetryExhaustedError
+            If all retry attempts are exhausted while fetching blocks.
         """
         t0 = time.monotonic()
         blocks = self._blocks.get_children(page_id)
@@ -553,6 +606,14 @@ class NotionifyClient:
         -------
         str
             The rendered Markdown text.
+
+        Raises
+        ------
+        NotionifyAPIError
+            If the Notion API returns an error response (e.g. block not
+            found or insufficient permissions).
+        NotionifyRetryExhaustedError
+            If all retry attempts are exhausted while fetching children.
         """
         t0 = time.monotonic()
         blocks = self._blocks.get_children(block_id)
