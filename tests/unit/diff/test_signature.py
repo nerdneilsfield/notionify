@@ -3,6 +3,7 @@ from notionify.diff.signature import (
     _extract_children_info,
     _extract_plain_text,
     _extract_type_attrs,
+    _normalize_rich_text,
     compute_signature,
 )
 
@@ -193,3 +194,143 @@ class TestComputeSignature:
         b2 = {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": "B"}]}}
         s = {compute_signature(b1), compute_signature(b2)}
         assert len(s) == 2
+
+    def test_different_annotations_different_signature(self):
+        """PRD: same text with different annotations must produce different signatures."""
+        bold_block = {
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [
+                    {
+                        "plain_text": "hello",
+                        "annotations": {"bold": True, "italic": False},
+                    }
+                ]
+            },
+        }
+        italic_block = {
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [
+                    {
+                        "plain_text": "hello",
+                        "annotations": {"bold": False, "italic": True},
+                    }
+                ]
+            },
+        }
+        sig_bold = compute_signature(bold_block)
+        sig_italic = compute_signature(italic_block)
+        assert sig_bold.rich_text_hash != sig_italic.rich_text_hash
+
+    def test_same_annotations_same_signature(self):
+        """Blocks with identical text and annotations produce the same signature."""
+        block = {
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [
+                    {
+                        "plain_text": "hello",
+                        "annotations": {"bold": True},
+                    }
+                ]
+            },
+        }
+        assert compute_signature(block) == compute_signature(block)
+
+    def test_no_annotations_vs_annotations_different_signature(self):
+        """Plain text vs annotated text with same content differ."""
+        plain_block = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [{"plain_text": "hello"}]},
+        }
+        annotated_block = {
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [
+                    {
+                        "plain_text": "hello",
+                        "annotations": {"bold": True},
+                    }
+                ]
+            },
+        }
+        assert (
+            compute_signature(plain_block).rich_text_hash
+            != compute_signature(annotated_block).rich_text_hash
+        )
+
+    def test_different_href_different_signature(self):
+        """Same text with different links must produce different signatures."""
+        link1 = {
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [
+                    {"plain_text": "click", "href": "https://a.com"}
+                ]
+            },
+        }
+        link2 = {
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [
+                    {"plain_text": "click", "href": "https://b.com"}
+                ]
+            },
+        }
+        assert (
+            compute_signature(link1).rich_text_hash
+            != compute_signature(link2).rich_text_hash
+        )
+
+
+class TestNormalizeRichText:
+    def test_empty_rich_text(self):
+        block = {"paragraph": {"rich_text": []}}
+        assert _normalize_rich_text(block, "paragraph") == []
+
+    def test_plain_text_only(self):
+        block = {"paragraph": {"rich_text": [{"plain_text": "hello"}]}}
+        result = _normalize_rich_text(block, "paragraph")
+        assert len(result) == 1
+        assert result[0]["text"] == "hello"
+        assert "annotations" not in result[0]
+
+    def test_with_annotations(self):
+        block = {
+            "paragraph": {
+                "rich_text": [
+                    {
+                        "plain_text": "bold",
+                        "annotations": {"bold": True, "italic": False},
+                    }
+                ]
+            }
+        }
+        result = _normalize_rich_text(block, "paragraph")
+        assert result[0]["annotations"] == {"bold": True, "italic": False}
+
+    def test_with_href(self):
+        block = {
+            "paragraph": {
+                "rich_text": [
+                    {"plain_text": "link", "href": "https://example.com"}
+                ]
+            }
+        }
+        result = _normalize_rich_text(block, "paragraph")
+        assert result[0]["href"] == "https://example.com"
+
+    def test_fallback_to_text_content(self):
+        """Converter-produced blocks use text.content instead of plain_text."""
+        block = {
+            "paragraph": {
+                "rich_text": [{"text": {"content": "fallback"}}]
+            }
+        }
+        result = _normalize_rich_text(block, "paragraph")
+        assert result[0]["text"] == "fallback"
+
+    def test_missing_block_type(self):
+        block = {}
+        assert _normalize_rich_text(block, "paragraph") == []

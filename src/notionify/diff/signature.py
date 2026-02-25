@@ -50,6 +50,31 @@ def _extract_plain_text(block: dict, block_type: str) -> str:
     return "".join(parts)
 
 
+def _normalize_rich_text(block: dict, block_type: str) -> list[dict]:
+    """Build a normalized representation of rich_text including annotations.
+
+    Two blocks with the same plain text but different annotations (e.g. bold
+    vs italic) will produce different normalized representations, ensuring
+    distinct signatures as required by the PRD.
+    """
+    type_data = block.get(block_type, {})
+    rich_text = type_data.get("rich_text", [])
+    segments: list[dict] = []
+    for rt in rich_text:
+        text = rt.get("plain_text", "")
+        if not text:
+            text = rt.get("text", {}).get("content", "")
+        segment: dict = {"text": text}
+        annotations = rt.get("annotations")
+        if annotations:
+            segment["annotations"] = annotations
+        href = rt.get("href")
+        if href:
+            segment["href"] = href
+        segments.append(segment)
+    return segments
+
+
 def _extract_children_info(block: dict) -> dict:
     """Build a dict summarising child blocks for structural hashing."""
     children = block.get("children", [])
@@ -112,9 +137,10 @@ def compute_signature(block: dict, depth: int = 0) -> BlockSignature:
     """
     block_type: str = block.get("type", "unknown")
 
-    # Rich text hash -- concatenated plain text.
-    plain_text = _extract_plain_text(block, block_type)
-    rich_text_hash = md5_hash(plain_text)
+    # Rich text hash -- includes annotations so that identical text with
+    # different formatting (bold/italic/etc.) produces different signatures.
+    rich_text_segments = _normalize_rich_text(block, block_type)
+    rich_text_hash = hash_dict({"segments": rich_text_segments})
 
     # Structural hash -- child count and child types.
     children_info = _extract_children_info(block)

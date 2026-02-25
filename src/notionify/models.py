@@ -193,7 +193,8 @@ class BlockSignature:
         The Notion block type string (e.g. ``"paragraph"``,
         ``"heading_2"``).
     rich_text_hash:
-        MD5 hex digest of the normalised plain text content.
+        MD5 hex digest of the normalised rich text content including
+        annotations (bold, italic, etc.) and links.
     structural_hash:
         MD5 hex digest of child-count and child-type information.
     attrs_hash:
