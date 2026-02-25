@@ -79,6 +79,66 @@ class TestChunkChildren:
         assert len(result) == 1
         assert len(result[0]) == 1
 
+    # ── Boundary tests ────────────────────────────────────────────────
+
+    def test_exactly_100_blocks_single_batch(self):
+        """100 blocks at default size=100 produces exactly 1 batch of 100."""
+        blocks = [{"type": "paragraph"}] * 100
+        result = chunk_children(blocks)
+        assert len(result) == 1
+        assert len(result[0]) == 100
+
+    def test_101_blocks_two_batches(self):
+        """101 blocks at default size=100 produces 2 batches: 100 + 1."""
+        blocks = [{"type": "paragraph"}] * 101
+        result = chunk_children(blocks)
+        assert len(result) == 2
+        assert len(result[0]) == 100
+        assert len(result[1]) == 1
+
+    def test_200_blocks_two_batches(self):
+        """200 blocks at default size=100 produces exactly 2 batches of 100."""
+        blocks = [{"type": "paragraph"}] * 200
+        result = chunk_children(blocks)
+        assert len(result) == 2
+        assert len(result[0]) == 100
+        assert len(result[1]) == 100
+
+    def test_201_blocks_three_batches(self):
+        """201 blocks at default size=100 produces 3 batches: 100 + 100 + 1."""
+        blocks = [{"type": "paragraph"}] * 201
+        result = chunk_children(blocks)
+        assert len(result) == 3
+        assert len(result[0]) == 100
+        assert len(result[1]) == 100
+        assert len(result[2]) == 1
+
+    def test_99_blocks_single_batch(self):
+        """99 blocks at default size=100 produces 1 batch of 99."""
+        blocks = [{"type": "paragraph"}] * 99
+        result = chunk_children(blocks)
+        assert len(result) == 1
+        assert len(result[0]) == 99
+
+    def test_size_1_each_block_separate(self):
+        """size=1 with 5 blocks produces 5 batches of 1."""
+        blocks = [{"type": f"b{i}"} for i in range(5)]
+        result = chunk_children(blocks, size=1)
+        assert len(result) == 5
+        for i, batch in enumerate(result):
+            assert len(batch) == 1
+            assert batch[0] == {"type": f"b{i}"}
+
+    def test_invalid_size_zero_raises(self):
+        """size=0 raises ValueError."""
+        with pytest.raises(ValueError, match="size must be >= 1"):
+            chunk_children([{"type": "paragraph"}], size=0)
+
+    def test_invalid_size_negative_raises(self):
+        """size=-1 raises ValueError."""
+        with pytest.raises(ValueError, match="size must be >= 1"):
+            chunk_children([{"type": "paragraph"}], size=-1)
+
 
 # =========================================================================
 # split_string tests

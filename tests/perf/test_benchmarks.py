@@ -2,16 +2,21 @@
 
 Run with: pytest tests/perf/ -v -s
 """
+import asyncio
 import subprocess
 import sys
 import time
 import tracemalloc
+from unittest.mock import AsyncMock, MagicMock
 
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
+from notionify.diff.executor import DiffExecutor
 from notionify.diff.planner import DiffPlanner
 from notionify.diff.signature import compute_signature
+from notionify.image.upload_single import async_upload_single
+from notionify.models import DiffOp, DiffOpType
 
 
 def _make_large_markdown(n_paragraphs: int = 100) -> str:
@@ -270,6 +275,111 @@ class TestPRDBenchmarks:
 
         print(f"\n  Diff plan {len(blocks)} identical blocks: {elapsed_ms:.2f}ms")
         assert elapsed_ms < 200, f"500-block diff plan too slow: {elapsed_ms:.2f}ms"
+
+    def test_diff_execute_500_blocks_10_changes_under_3s(self):
+        """Execute 10 UPDATE ops on a 500-block page in < 3s (mocked API)."""
+        config = NotionifyConfig(token="test")
+
+        # Build a mock block_api whose methods return instantly.
+        mock_block_api = MagicMock()
+        mock_block_api.update.return_value = {"id": "updated", "type": "paragraph"}
+        mock_block_api.delete.return_value = {"id": "deleted", "archived": True}
+        mock_block_api.append_children.return_value = {
+            "results": [{"id": "new-block-0001"}],
+        }
+
+        executor = DiffExecutor(mock_block_api, config)
+
+        # Build 500 ops: 10 UPDATE ops scattered among 490 KEEP ops.
+        ops: list[DiffOp] = []
+        update_indices = set(range(0, 500, 50))  # indices 0, 50, 100, ...
+        for i in range(500):
+            block_id = f"block-{i:04d}"
+            if i in update_indices:
+                ops.append(DiffOp(
+                    op_type=DiffOpType.UPDATE,
+                    existing_id=block_id,
+                    new_block={
+                        "type": "paragraph",
+                        "paragraph": {
+                            "rich_text": [{
+                                "type": "text",
+                                "text": {"content": f"Updated text {i}"},
+                            }],
+                            "color": "default",
+                        },
+                    },
+                ))
+            else:
+                ops.append(DiffOp(
+                    op_type=DiffOpType.KEEP,
+                    existing_id=block_id,
+                ))
+
+        start = time.perf_counter()
+        result = executor.execute("page-id-0000", ops)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        print(
+            f"\n  Diff execute 500 blocks (10 updates): {elapsed_ms:.2f}ms, "
+            f"kept={result.blocks_kept}, inserted={result.blocks_inserted}"
+        )
+        assert result.blocks_kept == 490
+        assert result.blocks_inserted == 10  # UPDATE increments inserted counter
+        assert mock_block_api.update.call_count == 10
+        assert elapsed_ms < 3000, (
+            f"Diff execute 500 blocks too slow: {elapsed_ms:.2f}ms (limit: 3000ms)"
+        )
+
+    def test_async_upload_20_images_under_5s(self):
+        """Upload 20 images concurrently via mocked async pipeline in < 5s."""
+
+        async def _run_concurrent_uploads() -> list[str]:
+            # Build a mock async file_api.
+            mock_file_api = AsyncMock()
+
+            # create_upload returns a dict with an id and upload_url.
+            call_count = 0
+
+            async def _mock_create_upload(**kwargs):
+                nonlocal call_count
+                call_count += 1
+                return {
+                    "id": f"upload-{call_count:04d}",
+                    "upload_url": f"https://mock.notion.so/upload/{call_count}",
+                }
+
+            mock_file_api.create_upload.side_effect = _mock_create_upload
+            # send_part returns None (just uploads bytes).
+            mock_file_api.send_part.return_value = None
+
+            # Create 20 fake image payloads (1 KB each).
+            fake_data = b"\x89PNG" + b"\x00" * 1020
+
+            tasks = [
+                asyncio.create_task(
+                    async_upload_single(
+                        mock_file_api,
+                        name=f"image_{i:02d}.png",
+                        content_type="image/png",
+                        data=fake_data,
+                    )
+                )
+                for i in range(20)
+            ]
+            return await asyncio.gather(*tasks)
+
+        start = time.perf_counter()
+        upload_ids = asyncio.run(_run_concurrent_uploads())
+        elapsed_ms = (time.perf_counter() - start) * 1000
+
+        print(f"\n  Async upload 20 images: {elapsed_ms:.2f}ms, ids={len(upload_ids)}")
+        assert len(upload_ids) == 20
+        # All upload IDs should be unique.
+        assert len(set(upload_ids)) == 20
+        assert elapsed_ms < 5000, (
+            f"Async 20-image upload too slow: {elapsed_ms:.2f}ms (limit: 5000ms)"
+        )
 
 
 class TestNFRRequirements:

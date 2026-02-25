@@ -281,13 +281,23 @@ class NotionifyConfig:
         _validate_mime_list("image_allowed_mimes_external", self.image_allowed_mimes_external)
 
     def __repr__(self) -> str:
-        """Mask the token to prevent accidental credential leakage."""
+        """Mask the token to prevent accidental credential leakage.
+
+        The full token is scrubbed not only from the ``token`` field but
+        also from every other field's ``repr()`` output, so that a token
+        accidentally embedded in ``base_url`` or similar fields is never
+        exposed.
+        """
+        token = self.token
+        masked = f"...{token[-4:]}" if len(token) >= 4 else "****"
         parts: list[str] = []
         for f in dataclasses.fields(self):
-            val = getattr(self, f.name)
             if f.name == "token":
-                masked = f"...{val[-4:]}" if len(val) >= 4 else "****"
                 parts.append(f"token='{masked}'")
             else:
-                parts.append(f"{f.name}={val!r}")
+                val_repr = repr(getattr(self, f.name))
+                # Scrub the raw token from any field value representation.
+                if token and token in val_repr:
+                    val_repr = val_repr.replace(token, f"<redacted:...{masked}>")
+                parts.append(f"{f.name}={val_repr}")
         return f"NotionifyConfig({', '.join(parts)})"

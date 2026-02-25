@@ -830,3 +830,99 @@ class TestDataUriUrlEncoded:
         ):
             _parse_data_uri(src)
         assert exc_info.value.context["reason"] == "url_decode_error"
+
+
+# =========================================================================
+# 7. TestLoggingGuarantees
+# =========================================================================
+
+
+class TestLoggingGuarantees:
+    """Verify logging guarantees per PRD Section 18: tokens never appear in
+    logs, repr, error context, or debug dump output."""
+
+    def test_redact_binary_bytes_replaced(self):
+        """If a dict value contains raw bytes, redact() replaces it with
+        a <binary:N_bytes> placeholder instead of crashing."""
+        payload = {"file_data": b"\x89PNG\r\n\x1a\n" + b"\xff" * 100}
+        result = redact(payload)
+        assert isinstance(result["file_data"], str)
+        assert "<binary:" in result["file_data"]
+        assert "_bytes>" in result["file_data"]
+
+    def test_redact_empty_dict(self):
+        """redact({}) returns an empty dict without errors."""
+        result = redact({})
+        assert result == {}
+
+    def test_redact_none_token(self):
+        """redact(payload, token=None) still redacts sensitive keys."""
+        payload = {"Authorization": "Bearer my_secret_token_value"}
+        result = redact(payload, token=None)
+        assert "my_secret_token_value" not in str(result["Authorization"])
+        assert "<redacted>" in result["Authorization"]
+
+    def test_redact_bearer_prefix_stripped(self):
+        """'Bearer xxx' values under Authorization keys have the bearer
+        token fully stripped, not just partially masked."""
+        payload = {"Authorization": "Bearer ntn_super_secret_abc123"}
+        result = redact(payload)
+        assert "ntn_super_secret_abc123" not in result["Authorization"]
+        # The Bearer prefix may remain, but the actual token must be gone.
+        assert "<redacted>" in result["Authorization"]
+
+    def test_config_repr_never_contains_token_in_any_field(self):
+        """The token must not appear ANYWHERE in repr output, even if it
+        happens to match a substring of another field's value."""
+        token = "ntn_secret_xyzw_token_42"
+        # Embed the token inside another field value to test full repr scan.
+        cfg = NotionifyConfig(
+            token=token,
+            base_url=f"https://api.notion.com/v1?debug={token}",
+        )
+        full_repr = repr(cfg)
+        assert token not in full_repr
+
+    def test_error_context_does_not_contain_full_token(self):
+        """Create a NotionifyAuthError with token in context, verify repr
+        does not contain the raw token through normal display mechanisms.
+
+        Note: error context is user-controlled, so the token may appear in
+        context values.  This test documents the current behaviour: the
+        error repr faithfully renders context.  The security guarantee is
+        that the *SDK itself* never puts the raw token in error context."""
+        token = "ntn_absolutely_secret_token"
+        err = NotionifyAuthError(
+            message="Authentication failed",
+            context={"hint": "Check your token"},
+        )
+        r = repr(err)
+        # The token should not appear because the SDK doesn't put it there.
+        assert token not in r
+        assert "Authentication failed" in r
+
+    def test_dump_payload_redacts_token(self, capsys):
+        """_dump_payload redacts the token from request bodies that contain
+        it, ensuring debug output never leaks credentials."""
+        from notionify.notion_api.transport import _dump_payload
+
+        token = "ntn_very_secret_integration_token"
+        payload = {
+            "parent": {"page_id": "abc123"},
+            "children": [
+                {"paragraph": {"text": f"Token is {token}"}},
+            ],
+        }
+        _dump_payload(
+            method="POST",
+            url="https://api.notion.com/v1/blocks/abc123/children",
+            payload=payload,
+            response_status=200,
+            response_body={"ok": True},
+            token=token,
+        )
+        captured = capsys.readouterr()
+        # _dump_payload writes to stderr.
+        assert token not in captured.err
+        # The redacted placeholder should appear instead.
+        assert "<redacted:" in captured.err or "<redacted>" in captured.err

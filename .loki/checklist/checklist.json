@@ -31,7 +31,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CORE-002",
@@ -64,7 +64,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CORE-003",
@@ -97,7 +97,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CORE-004",
@@ -124,7 +124,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CORE-005",
@@ -151,7 +151,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         }
       ]
     },
@@ -177,7 +177,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "API-002",
@@ -198,7 +198,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "API-003",
@@ -219,7 +219,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "API-004",
@@ -240,7 +240,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "API-005",
@@ -255,7 +255,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "API-006",
@@ -270,7 +270,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "API-007",
@@ -285,7 +285,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         }
       ]
     },
@@ -311,7 +311,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CONV-002",
@@ -332,7 +332,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CONV-003",
@@ -347,7 +347,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CONV-004",
@@ -363,7 +363,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CONV-005",
@@ -379,7 +379,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CONV-006",
@@ -400,7 +400,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CONV-007",
@@ -415,7 +415,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CONV-008",
@@ -436,7 +436,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         }
       ]
     },
@@ -462,7 +462,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "EXPORT-002",
@@ -483,7 +483,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "EXPORT-003",
@@ -499,7 +499,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         }
       ]
     },
@@ -531,7 +531,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00",
+          "verified_at": "2026-02-25T14:54:17.446228+00:00",
           "note": "BlockSignature dataclass is defined in models.py and imported by signature.py; compute_signature() is fully implemented with rich_text, structural, and attrs hashing."
         },
         {
@@ -547,7 +547,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "DIFF-003",
@@ -568,7 +568,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "DIFF-004",
@@ -589,7 +589,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         }
       ]
     },
@@ -609,7 +609,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "IMG-002",
@@ -624,7 +624,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "IMG-003",
@@ -639,7 +639,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "IMG-004",
@@ -654,7 +654,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "IMG-005",
@@ -675,7 +675,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         }
       ]
     },
@@ -713,7 +713,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "CLIENT-002",
@@ -734,7 +734,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         }
       ]
     },
@@ -754,7 +754,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "OBS-002",
@@ -775,7 +775,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         }
       ]
     },
@@ -795,7 +795,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "UTIL-002",
@@ -810,7 +810,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "UTIL-003",
@@ -825,7 +825,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         },
         {
           "id": "UTIL-004",
@@ -840,7 +840,7 @@
               "passed": true
             }
           ],
-          "verified_at": "2026-02-25T09:30:11.866427+00:00"
+          "verified_at": "2026-02-25T14:54:17.446228+00:00"
         }
       ]
     },
@@ -864,10 +864,10 @@
               "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/unit/converter/ -q --tb=no",
               "expect_exit": 0,
               "passed": true,
-              "output": "414 passed in 1.73s"
+              "output": "476 passed in 1.70s"
             }
           ],
-          "verified_at": "2026-02-25T10:00:00Z"
+          "verified_at": "2026-02-25T15:10:00Z"
         },
         {
           "id": "TEST-002",
@@ -886,10 +886,10 @@
               "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/unit/converter/test_notion_to_md.py -q --tb=no",
               "expect_exit": 0,
               "passed": true,
-              "output": "81 passed in 0.72s"
+              "output": "81 passed in 0.34s"
             }
           ],
-          "verified_at": "2026-02-25T10:00:00Z"
+          "verified_at": "2026-02-25T15:10:00Z"
         },
         {
           "id": "TEST-003",
@@ -908,10 +908,10 @@
               "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/unit/converter/test_rich_text.py -q --tb=no",
               "expect_exit": 0,
               "passed": true,
-              "output": "37 passed in 0.55s"
+              "output": "37 passed in 0.30s"
             }
           ],
-          "verified_at": "2026-02-25T10:00:00Z"
+          "verified_at": "2026-02-25T15:10:00Z"
         },
         {
           "id": "TEST-004",
@@ -930,10 +930,10 @@
               "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/unit/diff/ -q --tb=no",
               "expect_exit": 0,
               "passed": true,
-              "output": "133 passed in 0.84s"
+              "output": "159 passed in 0.67s"
             }
           ],
-          "verified_at": "2026-02-25T10:00:00Z"
+          "verified_at": "2026-02-25T15:10:00Z"
         },
         {
           "id": "TEST-005",
@@ -952,10 +952,10 @@
               "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/unit/image/ -q --tb=no",
               "expect_exit": 0,
               "passed": true,
-              "output": "60 passed in 0.77s"
+              "output": "89 passed in 0.65s"
             }
           ],
-          "verified_at": "2026-02-25T10:00:00Z"
+          "verified_at": "2026-02-25T15:10:00Z"
         },
         {
           "id": "TEST-006",
@@ -969,10 +969,10 @@
               "cmd": "cd /home/dengqi/Source/langs/python/notionify && python -m pytest tests/ -q --tb=no",
               "expect_exit": 0,
               "passed": true,
-              "output": "1465 passed, 8 skipped in 177.05s"
+              "output": "1838 passed, 8 skipped in 224.61s"
             }
           ],
-          "verified_at": "2026-02-25T10:00:00Z"
+          "verified_at": "2026-02-25T15:10:00Z"
         }
       ]
     }
@@ -983,5 +983,5 @@
     "failing": 0,
     "pending": 0
   },
-  "last_verified_at": "2026-02-25T10:00:00Z"
+  "last_verified_at": "2026-02-25T15:10:00.000000+00:00"
 }
