@@ -479,6 +479,10 @@ class TestRedactProperties:
         self, key: str, token: str
     ) -> None:
         """When a token is supplied, it is scrubbed from sensitive key values."""
+        # Exclude tokens that are substrings of the redaction placeholder itself
+        # ("<redacted>") to avoid false assertions where the token appears in the
+        # placeholder text rather than as the original value.
+        assume(token not in "<redacted>")
         payload = {key: f"value contains {token} here"}
         result = redact(payload, token=token)
         assert token not in result[key]

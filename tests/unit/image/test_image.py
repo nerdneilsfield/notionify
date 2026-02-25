@@ -401,3 +401,27 @@ class TestImageSourceTypeEnum:
         """ImageSourceType values are also strings."""
         assert isinstance(ImageSourceType.EXTERNAL_URL, str)
         assert ImageSourceType.EXTERNAL_URL == "external_url"
+
+
+class TestValidateLocalFileWithoutData:
+    """validate_image with LOCAL_FILE and data=None falls back to extension guessing.
+
+    Covers the branch at validate.py:112 where data is falsy — skips sniff and
+    falls through to _guess_mime_from_path (branch 112->114).
+    """
+
+    def test_local_file_no_data_uses_extension(self):
+        """LOCAL_FILE with data=None guesses MIME from extension."""
+        mime, returned_data = validate_image(
+            "photo.png", ImageSourceType.LOCAL_FILE, None, make_config()
+        )
+        assert mime == "image/png"
+        assert returned_data is None
+
+    def test_local_file_empty_bytes_uses_extension(self):
+        """LOCAL_FILE with data=b'' (falsy) also guesses MIME from extension."""
+        mime, returned_data = validate_image(
+            "photo.jpg", ImageSourceType.LOCAL_FILE, b"", make_config()
+        )
+        assert mime == "image/jpeg"
+        assert returned_data == b""

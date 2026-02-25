@@ -5,7 +5,7 @@ PRD test IDs: U-RT-001 through U-RT-008.
 
 
 from notionify.config import NotionifyConfig
-from notionify.converter.rich_text import build_rich_text, split_rich_text
+from notionify.converter.rich_text import _merge_annotations, build_rich_text, split_rich_text
 
 
 def make_config(**kwargs):
@@ -200,6 +200,18 @@ class TestCustomLimit:
         result = split_rich_text([seg], limit=1)
         assert len(result) == 3
         assert [r["text"]["content"] for r in result] == ["a", "b", "c"]
+
+
+class TestMergeAnnotationsUnknownKey:
+    """Branch coverage for _merge_annotations: key NOT in merged (51->50)."""
+
+    def test_unknown_key_is_silently_ignored(self):
+        """_merge_annotations ignores keys not in the base annotations dict."""
+        base = {"bold": False, "italic": False}
+        result = _merge_annotations(base, bold=True, unknown_field=True)
+        assert result["bold"] is True
+        assert result["italic"] is False
+        assert "unknown_field" not in result  # silently dropped
 
 
 # =========================================================================
