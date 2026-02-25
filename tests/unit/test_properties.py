@@ -33,6 +33,7 @@ from notionify.converter.math import EQUATION_CHAR_LIMIT, build_block_math, buil
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.converter.rich_text import (
+    _clone_text_segment,
     _has_non_default_annotations,
     build_rich_text,
     extract_text,
@@ -4272,3 +4273,112 @@ class TestExtractChildrenInfoProperties:
         children = [{"type": f"type_{i}"} for i in range(n)]
         info = _extract_children_info({"children": children})
         assert len(info["child_types"]) == info["child_count"]
+
+
+# ---------------------------------------------------------------------------
+# _clone_text_segment properties
+# ---------------------------------------------------------------------------
+
+
+class TestCloneTextSegmentProperties:
+    """_clone_text_segment annotation/href preservation and content replacement."""
+
+    @given(
+        content=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=50),
+        new_content=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=50),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_new_content_replaces_original(self, content: str, new_content: str) -> None:
+        """Clone always carries new_content, not the original."""
+        segment = {"type": "text", "text": {"content": content}}
+        clone = _clone_text_segment(segment, new_content)
+        assert clone["text"]["content"] == new_content
+
+    @given(
+        content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+        new_content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+        bold=st.booleans(),
+        italic=st.booleans(),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_annotations_are_deep_copied(
+        self, content: str, new_content: str, bold: bool, italic: bool
+    ) -> None:
+        """Clone preserves annotations; mutating clone does not affect original."""
+        annotations = {"bold": bold, "italic": italic}
+        segment = {
+            "type": "text",
+            "text": {"content": content},
+            "annotations": annotations,
+        }
+        clone = _clone_text_segment(segment, new_content)
+        assert clone["annotations"] == annotations
+        clone["annotations"]["extra"] = True
+        assert "extra" not in segment["annotations"]
+
+    @given(
+        content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+        new_content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+        href=st.text(alphabet=_SAFE_TEXT + "/.:?=#", min_size=1, max_size=50),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_href_is_preserved(self, content: str, new_content: str, href: str) -> None:
+        """Clone always carries the href from the source segment."""
+        segment = {"type": "text", "text": {"content": content}, "href": href}
+        clone = _clone_text_segment(segment, new_content)
+        assert clone["href"] == href
+
+    @given(
+        content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+        new_content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_no_annotations_key_when_original_has_none(
+        self, content: str, new_content: str
+    ) -> None:
+        """Clone of a plain segment has no 'annotations' key."""
+        segment = {"type": "text", "text": {"content": content}}
+        clone = _clone_text_segment(segment, new_content)
+        assert "annotations" not in clone
+
+
+# ---------------------------------------------------------------------------
+# _truncate_src properties
+# ---------------------------------------------------------------------------
+
+
+class TestTruncateSrcProperties:
+    """_truncate_src length and content invariants."""
+
+    @given(
+        src=st.text(min_size=0, max_size=300),
+        max_len=st.integers(min_value=1, max_value=200),
+    )
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_result_never_exceeds_max_len_plus_three(
+        self, src: str, max_len: int
+    ) -> None:
+        """Result length is always <= max_len + 3 (the '...' suffix)."""
+        from notionify.image.validate import _truncate_src
+
+        result = _truncate_src(src, max_len)
+        assert len(result) <= max_len + 3
+
+    @given(src=st.text(min_size=0, max_size=100))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_short_strings_returned_unchanged(self, src: str) -> None:
+        """Strings at or below the default 200-char limit are unchanged."""
+        from notionify.image.validate import _truncate_src
+
+        assume(len(src) <= 200)
+        assert _truncate_src(src) == src
+
+    @given(extra=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_truncated_strings_end_with_ellipsis(self, extra: str) -> None:
+        """Strings exceeding the limit always end with '...'."""
+        from notionify.image.validate import _truncate_src
+
+        long_src = "a" * 201 + extra
+        result = _truncate_src(long_src)
+        assert result.endswith("...")
