@@ -56,7 +56,7 @@ def detect_image_source(src: str) -> ImageSourceType:
         return ImageSourceType.LOCAL_FILE
 
     # Check for relative path patterns.
-    if src.startswith("./") or src.startswith("../") or src.startswith("~"):
+    if src.startswith(("./", "../", "~")):
         return ImageSourceType.LOCAL_FILE
 
     # Check if the string looks like a file path with an image extension.

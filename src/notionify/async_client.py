@@ -594,7 +594,7 @@ class AsyncNotionifyClient:
         """Read, validate, upload a local file image and replace the block."""
         base = self._config.image_base_dir
         if base is not None:
-            base_path = Path(base).resolve()  # noqa: ASYNC240 - trivial stat, not blocking I/O
+            base_path = Path(base).resolve()  # noqa: ASYNC240
             file_path = (base_path / pending.src).resolve()
             if not file_path.is_relative_to(base_path):
                 raise NotionifyImageNotFoundError(
