@@ -148,8 +148,8 @@ pip install -e ".[dev]"
 pytest tests/ -v
 
 # Lint and type-check
-ruff check src/
-mypy src/notionify
+ruff check src/ tests/
+mypy src/notionify  # strict mode via pyproject.toml
 
 # Performance benchmarks
 pytest tests/perf/ -v -s
