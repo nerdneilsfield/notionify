@@ -10,13 +10,12 @@ import pytest
 from notionify.config import NotionifyConfig
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.diff.executor import DiffExecutor, _extract_block_ids
-from notionify.image.validate import validate_image
-from notionify.models import DiffOp, DiffOpType, ImageSourceType
 from notionify.errors import (
     NotionifyImageParseError,
     NotionifyImageTypeError,
 )
-
+from notionify.image.validate import validate_image
+from notionify.models import DiffOp, DiffOpType, ImageSourceType
 
 # ── Config: base_url validation ───────────────────────────────────────
 
@@ -606,7 +605,7 @@ class TestImageValidationEdgeCases:
         config = NotionifyConfig(token="test")
         mime, data = validate_image(
             "photo.png",
-            ImageSourceType.UNKNOWN if hasattr(ImageSourceType, "UNKNOWN") else ImageSourceType.LOCAL_FILE,
+            getattr(ImageSourceType, "UNKNOWN", ImageSourceType.LOCAL_FILE),
             b"\x89PNG\r\n\x1a\n" + b"\x00" * 100,
             config,
         )
