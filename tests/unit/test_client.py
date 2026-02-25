@@ -368,14 +368,13 @@ class TestPageToMarkdown:
         grandchild = _block_dict(block_type="paragraph", block_id="g1", text="Level 2")
 
         client = _make_sync_client()
+        children_map = {
+            "page-1": [parent],
+            "p1": [child],
+            "c1": [grandchild],
+        }
         def mock_get_children(block_id):
-            if block_id == "page-1":
-                return [parent]
-            elif block_id == "p1":
-                return [child]
-            elif block_id == "c1":
-                return [grandchild]
-            return []
+            return children_map.get(block_id, [])
 
         client._blocks.get_children = MagicMock(side_effect=mock_get_children)
 
@@ -1202,15 +1201,17 @@ class TestAsyncUploadLocalFileEdgeCases:
         client = AsyncNotionifyClient(token="test-token")
 
         # validate_image returns (mime, None) → raw bytes should be used
-        with patch("notionify.async_client.validate_image", return_value=("image/png", None)):
-            with patch("notionify.async_client.async_upload_single", new=AM(return_value="uid-1")):
-                pending = PendingImage(
-                    src=str(img_file),
-                    source_type=ImageSourceType.LOCAL_FILE,
-                    block_index=0,
-                )
-                blocks = [{"type": "image"}]
-                result = await client._upload_local_file(pending, blocks, [])
+        with (
+            patch("notionify.async_client.validate_image", return_value=("image/png", None)),
+            patch("notionify.async_client.async_upload_single", new=AM(return_value="uid-1")),
+        ):
+            pending = PendingImage(
+                src=str(img_file),
+                source_type=ImageSourceType.LOCAL_FILE,
+                block_index=0,
+            )
+            blocks = [{"type": "image"}]
+            result = await client._upload_local_file(pending, blocks, [])
 
         assert result == 1
         await client.close()

@@ -285,46 +285,58 @@ class TestNotionTransportRequest:
     def test_400_raises_validation_error_immediately(self):
         transport = self._transport()
         resp = make_response(400, body={"message": "bad input", "code": "validation_error"})
-        with patch.object(transport._client, "request", return_value=resp):
-            with pytest.raises(NotionifyValidationError):
-                transport.request("POST", "/pages")
+        with (
+            patch.object(transport._client, "request", return_value=resp),
+            pytest.raises(NotionifyValidationError),
+        ):
+            transport.request("POST", "/pages")
 
     def test_401_raises_auth_error(self):
         transport = self._transport()
         resp = make_response(401, body={"message": "Unauthorized", "code": "unauthorized"})
-        with patch.object(transport._client, "request", return_value=resp):
-            with pytest.raises(NotionifyAuthError):
-                transport.request("GET", "/users/me")
+        with (
+            patch.object(transport._client, "request", return_value=resp),
+            pytest.raises(NotionifyAuthError),
+        ):
+            transport.request("GET", "/users/me")
 
     def test_403_raises_permission_error(self):
         transport = self._transport()
         resp = make_response(403, body={"message": "Forbidden", "code": "restricted_resource"})
-        with patch.object(transport._client, "request", return_value=resp):
-            with pytest.raises(NotionifyPermissionError):
-                transport.request("GET", "/pages/secret")
+        with (
+            patch.object(transport._client, "request", return_value=resp),
+            pytest.raises(NotionifyPermissionError),
+        ):
+            transport.request("GET", "/pages/secret")
 
     def test_404_raises_not_found_error(self):
         transport = self._transport()
         resp = make_response(404, body={"message": "Not found", "code": "object_not_found"})
-        with patch.object(transport._client, "request", return_value=resp):
-            with pytest.raises(NotionifyNotFoundError):
-                transport.request("GET", "/pages/missing")
+        with (
+            patch.object(transport._client, "request", return_value=resp),
+            pytest.raises(NotionifyNotFoundError),
+        ):
+            transport.request("GET", "/pages/missing")
 
     def test_409_raises_diff_conflict_error(self):
         transport = self._transport()
         resp = make_response(409, body={"message": "Conflict", "code": "conflict_error"})
-        with patch.object(transport._client, "request", return_value=resp):
-            with pytest.raises(NotionifyDiffConflictError):
-                transport.request("PATCH", "/pages/p1")
+        with (
+            patch.object(transport._client, "request", return_value=resp),
+            pytest.raises(NotionifyDiffConflictError),
+        ):
+            transport.request("PATCH", "/pages/p1")
 
     # -- Retry on 429 --------------------------------------------------------
 
     def test_429_retried_and_eventually_exhausted(self):
         transport = self._transport(retry_max_attempts=3)
         resp_429 = make_response(429, body={"message": "rate limited"})
-        with patch.object(transport._client, "request", return_value=resp_429):
-            with pytest.raises(NotionifyRetryExhaustedError) as exc_info:
-                transport.request("GET", "/databases")
+        with (
+            patch.object(transport._client, "request", return_value=resp_429),
+            pytest.raises(NotionifyRetryExhaustedError) as exc_info,
+        ):
+            transport.request("GET", "/databases")
         assert exc_info.value.context["attempts"] == 3
         assert exc_info.value.context["last_status_code"] == 429
 
@@ -363,9 +375,11 @@ class TestNotionTransportRequest:
     def test_500_retry_exhausted_raises(self):
         transport = self._transport(retry_max_attempts=3)
         resp_500 = make_response(500, body={"message": "Server error"})
-        with patch.object(transport._client, "request", return_value=resp_500):
-            with pytest.raises(NotionifyRetryExhaustedError) as exc_info:
-                transport.request("POST", "/blocks")
+        with (
+            patch.object(transport._client, "request", return_value=resp_500),
+            pytest.raises(NotionifyRetryExhaustedError) as exc_info,
+        ):
+            transport.request("POST", "/blocks")
         assert exc_info.value.context["last_status_code"] == 500
 
     # -- Network errors -------------------------------------------------------
@@ -398,10 +412,12 @@ class TestNotionTransportRequest:
         def side_effect(*args, **kwargs):
             raise httpx.NetworkError("connection reset")
 
-        with patch.object(transport._client, "request", side_effect=side_effect):
+        with (
+            patch.object(transport._client, "request", side_effect=side_effect),
             # On the final attempt should_retry returns False -> NotionifyNetworkError
-            with pytest.raises(NotionifyNetworkError):
-                transport.request("GET", "/pages")
+            pytest.raises(NotionifyNetworkError),
+        ):
+            transport.request("GET", "/pages")
 
     def test_network_error_single_attempt_raises_network_error(self):
         # With max_attempts=1, no retries, immediate NotionifyNetworkError
@@ -410,9 +426,11 @@ class TestNotionTransportRequest:
         def side_effect(*args, **kwargs):
             raise httpx.NetworkError("DNS failure")
 
-        with patch.object(transport._client, "request", side_effect=side_effect):
-            with pytest.raises(NotionifyNetworkError):
-                transport.request("GET", "/pages")
+        with (
+            patch.object(transport._client, "request", side_effect=side_effect),
+            pytest.raises(NotionifyNetworkError),
+        ):
+            transport.request("GET", "/pages")
 
     # -- Debug dump ----------------------------------------------------------
 
@@ -581,17 +599,21 @@ class TestNotionTransportLifecycle:
 
     def test_context_manager_closes_on_exit(self):
         transport = NotionTransport(make_config())
-        with patch.object(transport._client, "close") as mock_close:
-            with transport as t:
-                assert t is transport
+        with (
+            patch.object(transport._client, "close") as mock_close,
+            transport as t,
+        ):
+            assert t is transport
         mock_close.assert_called_once()
 
     def test_context_manager_closes_on_exception(self):
         transport = NotionTransport(make_config())
-        with patch.object(transport._client, "close") as mock_close:
-            with pytest.raises(ValueError):
-                with transport:
-                    raise ValueError("test error")
+        with (
+            patch.object(transport._client, "close") as mock_close,
+            pytest.raises(ValueError),
+            transport,
+        ):
+            raise ValueError("test error")
         mock_close.assert_called_once()
 
 
@@ -639,41 +661,51 @@ class TestAsyncNotionTransportRequest:
     async def test_400_raises_validation_error(self):
         transport = self._transport()
         resp = make_response(400, body={"message": "bad input", "code": "err"})
-        with patch.object(transport._client, "request", new=AsyncMock(return_value=resp)):
-            with pytest.raises(NotionifyValidationError):
-                await transport.request("POST", "/pages")
+        with (
+            patch.object(transport._client, "request", new=AsyncMock(return_value=resp)),
+            pytest.raises(NotionifyValidationError),
+        ):
+            await transport.request("POST", "/pages")
         await transport.close()
 
     async def test_401_raises_auth_error(self):
         transport = self._transport()
         resp = make_response(401, body={"message": "Unauthorized", "code": "unauthorized"})
-        with patch.object(transport._client, "request", new=AsyncMock(return_value=resp)):
-            with pytest.raises(NotionifyAuthError):
-                await transport.request("GET", "/users/me")
+        with (
+            patch.object(transport._client, "request", new=AsyncMock(return_value=resp)),
+            pytest.raises(NotionifyAuthError),
+        ):
+            await transport.request("GET", "/users/me")
         await transport.close()
 
     async def test_403_raises_permission_error(self):
         transport = self._transport()
         resp = make_response(403, body={"message": "Forbidden", "code": "forbidden"})
-        with patch.object(transport._client, "request", new=AsyncMock(return_value=resp)):
-            with pytest.raises(NotionifyPermissionError):
-                await transport.request("GET", "/pages/secret")
+        with (
+            patch.object(transport._client, "request", new=AsyncMock(return_value=resp)),
+            pytest.raises(NotionifyPermissionError),
+        ):
+            await transport.request("GET", "/pages/secret")
         await transport.close()
 
     async def test_404_raises_not_found_error(self):
         transport = self._transport()
         resp = make_response(404, body={"message": "Not found", "code": "not_found"})
-        with patch.object(transport._client, "request", new=AsyncMock(return_value=resp)):
-            with pytest.raises(NotionifyNotFoundError):
-                await transport.request("GET", "/pages/missing")
+        with (
+            patch.object(transport._client, "request", new=AsyncMock(return_value=resp)),
+            pytest.raises(NotionifyNotFoundError),
+        ):
+            await transport.request("GET", "/pages/missing")
         await transport.close()
 
     async def test_409_raises_diff_conflict_error(self):
         transport = self._transport()
         resp = make_response(409, body={"message": "Conflict", "code": "conflict"})
-        with patch.object(transport._client, "request", new=AsyncMock(return_value=resp)):
-            with pytest.raises(NotionifyDiffConflictError):
-                await transport.request("PATCH", "/pages/p1")
+        with (
+            patch.object(transport._client, "request", new=AsyncMock(return_value=resp)),
+            pytest.raises(NotionifyDiffConflictError),
+        ):
+            await transport.request("PATCH", "/pages/p1")
         await transport.close()
 
     # -- Retry on 429 --------------------------------------------------------
@@ -681,9 +713,11 @@ class TestAsyncNotionTransportRequest:
     async def test_429_retry_exhausted(self):
         transport = self._transport(retry_max_attempts=3)
         resp_429 = make_response(429, body={"message": "rate limited"})
-        with patch.object(transport._client, "request", new=AsyncMock(return_value=resp_429)):
-            with pytest.raises(NotionifyRetryExhaustedError) as exc_info:
-                await transport.request("GET", "/databases")
+        with (
+            patch.object(transport._client, "request", new=AsyncMock(return_value=resp_429)),
+            pytest.raises(NotionifyRetryExhaustedError) as exc_info,
+        ):
+            await transport.request("GET", "/databases")
         assert exc_info.value.context["attempts"] == 3
         await transport.close()
 
@@ -726,9 +760,11 @@ class TestAsyncNotionTransportRequest:
     async def test_500_retry_exhausted(self):
         transport = self._transport(retry_max_attempts=3)
         resp_500 = make_response(500, body={"message": "Server error"})
-        with patch.object(transport._client, "request", new=AsyncMock(return_value=resp_500)):
-            with pytest.raises(NotionifyRetryExhaustedError):
-                await transport.request("POST", "/blocks")
+        with (
+            patch.object(transport._client, "request", new=AsyncMock(return_value=resp_500)),
+            pytest.raises(NotionifyRetryExhaustedError),
+        ):
+            await transport.request("POST", "/blocks")
         await transport.close()
 
     # -- Network errors -------------------------------------------------------
@@ -757,9 +793,11 @@ class TestAsyncNotionTransportRequest:
         async def side_effect(*args, **kwargs):
             raise httpx.NetworkError("connection reset")
 
-        with patch.object(transport._client, "request", side_effect=side_effect):
-            with pytest.raises(NotionifyNetworkError):
-                await transport.request("GET", "/pages")
+        with (
+            patch.object(transport._client, "request", side_effect=side_effect),
+            pytest.raises(NotionifyNetworkError),
+        ):
+            await transport.request("GET", "/pages")
         await transport.close()
 
     async def test_network_error_single_attempt_raises_network_error(self):
@@ -768,9 +806,11 @@ class TestAsyncNotionTransportRequest:
         async def side_effect(*args, **kwargs):
             raise httpx.NetworkError("DNS failure")
 
-        with patch.object(transport._client, "request", side_effect=side_effect):
-            with pytest.raises(NotionifyNetworkError):
-                await transport.request("GET", "/pages")
+        with (
+            patch.object(transport._client, "request", side_effect=side_effect),
+            pytest.raises(NotionifyNetworkError),
+        ):
+            await transport.request("GET", "/pages")
         await transport.close()
 
     # -- Debug dump ----------------------------------------------------------
@@ -934,8 +974,10 @@ class TestAsyncNotionTransportLifecycle:
 
     async def test_async_context_manager_closes_on_exception(self):
         transport = AsyncNotionTransport(make_config())
-        with patch.object(transport._client, "aclose", new=AsyncMock()) as mock_aclose:
-            with pytest.raises(ValueError):
-                async with transport:
-                    raise ValueError("test error")
+        with (
+            patch.object(transport._client, "aclose", new=AsyncMock()) as mock_aclose,
+            pytest.raises(ValueError),
+        ):
+            async with transport:
+                raise ValueError("test error")
         mock_aclose.assert_called_once()

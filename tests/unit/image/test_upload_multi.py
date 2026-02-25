@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-
 from notionify.image.upload_multi import async_upload_multi, upload_multi
 
 

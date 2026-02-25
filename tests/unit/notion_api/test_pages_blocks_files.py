@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
-
 from notionify.notion_api.blocks import AsyncBlockAPI, BlockAPI
 from notionify.notion_api.files import AsyncFileAPI, FileAPI
 from notionify.notion_api.pages import AsyncPageAPI, PageAPI

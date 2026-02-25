@@ -602,10 +602,12 @@ class TestSyncTransportRetryExhaustedWithException:
 
         # Patch should_retry to always return True so network errors always continue
         # (instead of raising NotionifyNetworkError on the last attempt)
-        with patch("notionify.notion_api.transport.should_retry", return_value=True):
-            with patch.object(transport._client, "request", side_effect=always_network_error):
-                with pytest.raises(NotionifyRetryExhaustedError) as exc_info:
-                    transport.request("GET", "/pages")
+        with (
+            patch("notionify.notion_api.transport.should_retry", return_value=True),
+            patch.object(transport._client, "request", side_effect=always_network_error),
+            pytest.raises(NotionifyRetryExhaustedError) as exc_info,
+        ):
+            transport.request("GET", "/pages")
 
         assert exc_info.value.context["attempts"] == 2
         # The error message should mention "last error" since last_exception was set
@@ -662,10 +664,12 @@ class TestAsyncTransportRetryExhaustedWithException:
         async def always_network_error(*args, **kwargs):
             raise httpx.NetworkError("connection reset by peer")
 
-        with patch("notionify.notion_api.transport.should_retry", return_value=True):
-            with patch.object(transport._client, "request", side_effect=always_network_error):
-                with pytest.raises(NotionifyRetryExhaustedError) as exc_info:
-                    await transport.request("GET", "/pages")
+        with (
+            patch("notionify.notion_api.transport.should_retry", return_value=True),
+            patch.object(transport._client, "request", side_effect=always_network_error),
+            pytest.raises(NotionifyRetryExhaustedError) as exc_info,
+        ):
+            await transport.request("GET", "/pages")
 
         assert exc_info.value.context["attempts"] == 2
         assert "last error" in exc_info.value.message
