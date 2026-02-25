@@ -1252,3 +1252,104 @@ class TestTaskListAnnotations:
         blocks = _simulate_api_response(result.blocks)
         round_tripped = renderer.render_blocks(blocks)
         assert "example.com" in round_tripped
+
+
+class TestBlockquoteRichContent:
+    """Round-trip tests for blockquote_rich_content.md.
+
+    Verifies that inline formatting (bold, italic, code, strikethrough, links)
+    inside blockquotes survives conversion — basic.md only has plain-text quotes.
+    """
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "blockquote_rich_content.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_produces_quote_blocks(self, converter):
+        md = (FIXTURES_DIR / "blockquote_rich_content.md").read_text()
+        result = converter.convert(md)
+        quote_blocks = [b for b in result.blocks if b.get("type") == "quote"]
+        assert len(quote_blocks) >= 4, "Should produce multiple quote blocks"
+
+    def test_bold_in_blockquote_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "blockquote_rich_content.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "bold text" in round_tripped
+        assert "italic text" in round_tripped
+
+    def test_inline_code_in_blockquote_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "blockquote_rich_content.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "git status" in round_tripped
+
+    def test_link_in_blockquote_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "blockquote_rich_content.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "example.com" in round_tripped
+
+    def test_multiple_sequential_blockquotes_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "blockquote_rich_content.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "First separate blockquote" in round_tripped
+        assert "Second separate blockquote" in round_tripped
+        assert "Third blockquote" in round_tripped
+
+
+class TestMathInTable:
+    """Round-trip tests for math_in_table.md.
+
+    Verifies that inline math expressions inside table cells survive
+    conversion. Neither tables.md nor math_in_context.md tests this intersection.
+    """
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "math_in_table.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_produces_table_blocks(self, converter):
+        md = (FIXTURES_DIR / "math_in_table.md").read_text()
+        result = converter.convert(md)
+        table_blocks = [b for b in result.blocks if b.get("type") == "table"]
+        assert len(table_blocks) >= 2, "Should produce multiple table blocks"
+
+    def test_math_cells_produce_equation_segments(self, converter):
+        md = (FIXTURES_DIR / "math_in_table.md").read_text()
+        result = converter.convert(md)
+        table_blocks = [b for b in result.blocks if b.get("type") == "table"]
+        assert table_blocks, "Need table blocks to inspect"
+        found_equation = False
+        for table in table_blocks:
+            for row in table.get("table", {}).get("children", []):
+                for cell in row.get("table_row", {}).get("cells", []):
+                    for seg in cell:
+                        if seg.get("type") == "equation":
+                            found_equation = True
+        assert found_equation, "Should have at least one equation segment in table cells"
+
+    def test_math_expressions_preserved_in_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "math_in_table.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "mc^2" in round_tripped
+        assert "pi r^2" in round_tripped or "\\pi r^2" in round_tripped
+
+    def test_mixed_math_and_annotations_in_table(self, converter, renderer):
+        md = (FIXTURES_DIR / "math_in_table.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Parabola shape" in round_tripped
+        assert "Positive domain only" in round_tripped
