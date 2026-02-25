@@ -25,14 +25,20 @@ from notionify.converter.ast_normalizer import ASTNormalizer
 from notionify.converter.block_builder import (
     _LANGUAGE_ALIASES,
     _NOTION_LANGUAGES,
+    _classify_image_source,
     _normalize_language,
 )
 from notionify.converter.inline_renderer import markdown_escape, render_rich_text
 from notionify.converter.math import EQUATION_CHAR_LIMIT, build_block_math, build_inline_math
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
-from notionify.converter.rich_text import build_rich_text, extract_text, split_rich_text
-from notionify.converter.tables import build_table
+from notionify.converter.rich_text import (
+    _has_non_default_annotations,
+    build_rich_text,
+    extract_text,
+    split_rich_text,
+)
+from notionify.converter.tables import _cells_to_text, build_table
 from notionify.diff.conflict import detect_conflict, take_snapshot
 from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.planner import DiffPlanner
@@ -4081,3 +4087,102 @@ class TestNotionifyErrorProperties:
         err = NotionifyError(code, message, cause=cause)
         assert err.cause is cause
         assert err.__cause__ is cause
+
+
+# ---------------------------------------------------------------------------
+# _classify_image_source properties
+# ---------------------------------------------------------------------------
+
+
+class TestClassifyImageSourceProperties:
+    """_classify_image_source always returns a valid ImageSourceType."""
+
+    @given(suffix=st.text(alphabet=_SAFE_TEXT + "/.:?=#", min_size=1, max_size=50))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_data_uri_prefix_always_data_uri(self, suffix: str) -> None:
+        """Any string starting with 'data:' is DATA_URI regardless of suffix."""
+        assert _classify_image_source(f"data:{suffix}") == ImageSourceType.DATA_URI
+
+    @given(path=st.text(alphabet=_SAFE_TEXT + "/.:?=#", min_size=1, max_size=50))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_http_https_scheme_always_external_url(self, path: str) -> None:
+        """URLs with http or https scheme are EXTERNAL_URL."""
+        assert _classify_image_source(f"http://{path}") == ImageSourceType.EXTERNAL_URL
+        assert _classify_image_source(f"https://{path}") == ImageSourceType.EXTERNAL_URL
+
+    def test_empty_string_is_unknown(self) -> None:
+        """Empty string always returns UNKNOWN."""
+        assert _classify_image_source("") == ImageSourceType.UNKNOWN
+
+    @given(url=st.text(min_size=0, max_size=80))
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_result_is_always_a_valid_image_source_type(self, url: str) -> None:
+        """Result is always one of the four ImageSourceType enum members."""
+        result = _classify_image_source(url)
+        assert isinstance(result, ImageSourceType)
+
+
+# ---------------------------------------------------------------------------
+# _has_non_default_annotations properties
+# ---------------------------------------------------------------------------
+
+
+class TestHasNonDefaultAnnotationsProperties:
+    """_has_non_default_annotations boolean invariants."""
+
+    def test_empty_dict_is_false(self) -> None:
+        """All-default (empty) annotations dict returns False."""
+        assert _has_non_default_annotations({}) is False
+
+    @given(
+        flag=st.sampled_from(["bold", "italic", "strikethrough", "underline", "code"])
+    )
+    @settings(max_examples=100)
+    def test_any_true_boolean_flag_returns_true(self, flag: str) -> None:
+        """Any truthy boolean annotation field makes result True."""
+        assert _has_non_default_annotations({flag: True}) is True
+
+    @given(color=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_non_default_color_returns_true(self, color: str) -> None:
+        """color != 'default' makes result True."""
+        assume(color != "default")
+        assert _has_non_default_annotations({"color": color}) is True
+
+    def test_default_color_alone_is_false(self) -> None:
+        """color='default' is still considered default."""
+        assert _has_non_default_annotations({"color": "default"}) is False
+
+
+# ---------------------------------------------------------------------------
+# _cells_to_text properties
+# ---------------------------------------------------------------------------
+
+
+class TestCellsToTextProperties:
+    """_cells_to_text separator count and filtering invariants."""
+
+    def test_empty_list_returns_empty_string(self) -> None:
+        """Zero cells → empty string, no separators."""
+        assert _cells_to_text([]) == ""
+
+    @given(n=st.integers(min_value=1, max_value=10))
+    @settings(max_examples=200)
+    def test_n_cells_produce_n_minus_one_separators(self, n: int) -> None:
+        """n table_cell tokens produce exactly n-1 ' | ' separators."""
+        cells = [
+            {"type": "table_cell", "children": [{"type": "text", "raw": "x"}]}
+            for _ in range(n)
+        ]
+        result = _cells_to_text(cells)
+        assert result.count(" | ") == n - 1
+
+    @given(n=st.integers(min_value=1, max_value=10))
+    @settings(max_examples=200)
+    def test_non_table_cell_tokens_are_ignored(self, n: int) -> None:
+        """Cells with type != 'table_cell' are silently dropped."""
+        cells = [
+            {"type": "paragraph", "children": [{"type": "text", "raw": "x"}]}
+            for _ in range(n)
+        ]
+        assert _cells_to_text(cells) == ""
