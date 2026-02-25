@@ -8,6 +8,8 @@ exercising the code with a wide range of randomly generated inputs.
 from __future__ import annotations
 
 import copy
+import json as _json
+import logging as _logging
 import re
 import string
 from datetime import datetime
@@ -38,6 +40,8 @@ from notionify.image.detect import detect_image_source, mime_to_extension
 from notionify.models import BlockSignature, DiffOp, DiffOpType, ImageSourceType
 from notionify.notion_api.blocks import extract_block_ids
 from notionify.notion_api.retries import compute_backoff, should_retry
+from notionify.observability.logger import StructuredFormatter
+from notionify.observability.metrics import MetricsHook, NoopMetricsHook
 from notionify.utils.chunk import chunk_children
 from notionify.utils.hashing import hash_dict, md5_hash
 from notionify.utils.redact import _SENSITIVE_KEY_PATTERNS, redact
@@ -3697,3 +3701,111 @@ class TestExtractBlockIdsProperties:
         ids = extract_block_ids({"results": results})
         for pos, r in enumerate(results):
             assert ids[pos] == r["id"]
+
+
+# ---------------------------------------------------------------------------
+# Section 21 — StructuredFormatter and NoopMetricsHook properties
+# ---------------------------------------------------------------------------
+
+
+class TestStructuredFormatterProperties:
+    """Property-based tests for :class:`StructuredFormatter`."""
+
+    _fmt = StructuredFormatter()
+
+    def _make_record(self, msg: str, level: int = _logging.INFO) -> _logging.LogRecord:
+        return _logging.LogRecord(
+            name="test.prop",
+            level=level,
+            pathname="",
+            lineno=0,
+            msg=msg,
+            args=(),
+            exc_info=None,
+        )
+
+    @given(msg=st.text(min_size=0, max_size=200))
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_output_is_always_valid_json(self, msg: str) -> None:
+        """format() must always return a valid JSON string."""
+        record = self._make_record(msg)
+        output = self._fmt.format(record)
+        parsed = _json.loads(output)
+        assert isinstance(parsed, dict)
+
+    @given(msg=st.text(min_size=0, max_size=200))
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_required_keys_always_present(self, msg: str) -> None:
+        """Formatted output always has ts, level, logger, and message keys."""
+        record = self._make_record(msg)
+        parsed = _json.loads(self._fmt.format(record))
+        for key in ("ts", "level", "logger", "message"):
+            assert key in parsed
+
+    @given(
+        msg=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+        extra=st.dictionaries(
+            st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20),
+            st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=50),
+            max_size=5,
+        ),
+    )
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_extra_fields_merged_into_output(
+        self, msg: str, extra: dict
+    ) -> None:
+        """Extra fields supplied via record.extra_fields appear in output JSON."""
+        record = self._make_record(msg)
+        record.extra_fields = extra  # type: ignore[attr-defined]
+        parsed = _json.loads(self._fmt.format(record))
+        for key, value in extra.items():
+            assert parsed[key] == value
+
+    @given(
+        msg=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+        level=st.sampled_from([
+            _logging.DEBUG, _logging.INFO, _logging.WARNING, _logging.ERROR,
+        ]),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_level_name_matches_record(self, msg: str, level: int) -> None:
+        """The 'level' field in the JSON matches the record's levelname."""
+        record = self._make_record(msg, level=level)
+        parsed = _json.loads(self._fmt.format(record))
+        assert parsed["level"] == record.levelname
+
+
+class TestNoopMetricsHookProperties:
+    """Property-based tests for :class:`NoopMetricsHook`."""
+
+    def test_satisfies_metrics_hook_protocol(self) -> None:
+        """NoopMetricsHook must satisfy the MetricsHook protocol."""
+        hook = NoopMetricsHook()
+        assert isinstance(hook, MetricsHook)
+
+    @given(
+        name=st.text(min_size=1, max_size=50),
+        value=st.integers(min_value=1, max_value=1000),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_increment_always_returns_none(self, name: str, value: int) -> None:
+        """NoopMetricsHook.increment always returns None."""
+        assert NoopMetricsHook().increment(name, value) is None
+
+    @given(
+        name=st.text(min_size=1, max_size=50),
+        ms=st.floats(min_value=0.0, max_value=1e6, allow_nan=False),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_timing_always_returns_none(self, name: str, ms: float) -> None:
+        """NoopMetricsHook.timing always returns None."""
+        assert NoopMetricsHook().timing(name, ms) is None
+
+    @given(
+        name=st.text(min_size=1, max_size=50),
+        value=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_gauge_always_returns_none(self, name: str, value: float) -> None:
+        """NoopMetricsHook.gauge always returns None."""
+        assert NoopMetricsHook().gauge(name, value) is None
