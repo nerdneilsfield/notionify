@@ -711,6 +711,43 @@ class TestConverterProperties:
         types2 = [b["type"] for b in r2.blocks]
         assert types1 == types2
 
+    @given(
+        level=st.integers(min_value=4, max_value=6),
+        text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=60),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_heading_overflow_downgrade_produces_no_h4_h5_h6(
+        self, level: int, text: str
+    ) -> None:
+        """With heading_overflow='downgrade', H4-H6 blocks are downgraded to heading_3."""
+        cfg = NotionifyConfig(token="test", heading_overflow="downgrade")
+        converter = MarkdownToNotionConverter(cfg)
+        md = "#" * level + " " + text
+        result = converter.convert(md)
+        types = [b["type"] for b in result.blocks]
+        assert "heading_4" not in types
+        assert "heading_5" not in types
+        assert "heading_6" not in types
+
+    @given(
+        level=st.integers(min_value=4, max_value=6),
+        text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=60),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_heading_overflow_paragraph_produces_paragraph_not_heading(
+        self, level: int, text: str
+    ) -> None:
+        """With heading_overflow='paragraph', H4-H6 blocks become paragraphs."""
+        cfg = NotionifyConfig(token="test", heading_overflow="paragraph")
+        converter = MarkdownToNotionConverter(cfg)
+        md = "#" * level + " " + text
+        result = converter.convert(md)
+        types = [b["type"] for b in result.blocks]
+        assert "paragraph" in types
+        assert "heading_4" not in types
+        assert "heading_5" not in types
+        assert "heading_6" not in types
+
 
 # ---------------------------------------------------------------------------
 # 8. TestNotionToMarkdownRendererProperties
