@@ -5,10 +5,11 @@ All FileAPI calls are mocked with MagicMock / AsyncMock.
 
 from __future__ import annotations
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock, call
+from unittest.mock import AsyncMock, MagicMock, call
 
-from notionify.image.upload_multi import upload_multi, async_upload_multi
+import pytest
+
+from notionify.image.upload_multi import async_upload_multi, upload_multi
 
 
 async def _agen(*items):

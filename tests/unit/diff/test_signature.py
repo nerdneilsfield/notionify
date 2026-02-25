@@ -1,7 +1,7 @@
 """Tests for diff/signature.py"""
 from notionify.diff.signature import (
-    _extract_plain_text,
     _extract_children_info,
+    _extract_plain_text,
     _extract_type_attrs,
     compute_signature,
 )

@@ -5,13 +5,13 @@ All HTTP calls go through a transport mock (MagicMock / AsyncMock).
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 
-from notionify.notion_api.pages import PageAPI, AsyncPageAPI
-from notionify.notion_api.blocks import BlockAPI, AsyncBlockAPI
-from notionify.notion_api.files import FileAPI, AsyncFileAPI
-
+from notionify.notion_api.blocks import AsyncBlockAPI, BlockAPI
+from notionify.notion_api.files import AsyncFileAPI, FileAPI
+from notionify.notion_api.pages import AsyncPageAPI, PageAPI
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -7,8 +7,8 @@ import pytest
 
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
+from notionify.diff.executor import AsyncDiffExecutor, DiffExecutor
 from notionify.diff.planner import DiffPlanner
-from notionify.diff.executor import DiffExecutor, AsyncDiffExecutor
 from notionify.diff.signature import compute_signature
 from notionify.models import DiffOpType
 

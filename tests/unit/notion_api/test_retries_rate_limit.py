@@ -14,9 +14,8 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from notionify.notion_api.retries import compute_backoff, should_retry
 from notionify.notion_api.rate_limit import AsyncTokenBucket, TokenBucket
-
+from notionify.notion_api.retries import compute_backoff, should_retry
 
 # ---------------------------------------------------------------------------
 # should_retry

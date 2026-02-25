@@ -4,20 +4,21 @@ PRD test IDs: U-IM-001 through U-IM-017.
 """
 
 import base64
+
 import pytest
 
 from notionify.config import NotionifyConfig
-from notionify.models import ImageSourceType, UploadState
-from notionify.image.detect import detect_image_source
-from notionify.image.validate import validate_image
-from notionify.image.state import UploadStateMachine
-from notionify.image.attach import build_image_block_external, build_image_block_uploaded
 from notionify.errors import (
-    NotionifyImageTypeError,
-    NotionifyImageSizeError,
     NotionifyImageParseError,
+    NotionifyImageSizeError,
+    NotionifyImageTypeError,
     NotionifyUploadExpiredError,
 )
+from notionify.image.attach import build_image_block_external, build_image_block_uploaded
+from notionify.image.detect import detect_image_source
+from notionify.image.state import UploadStateMachine
+from notionify.image.validate import validate_image
+from notionify.models import ImageSourceType, UploadState
 
 
 def make_config(**kwargs):

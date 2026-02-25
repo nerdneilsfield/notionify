@@ -5,8 +5,8 @@ PRD test IDs: U-CV-001 through U-CV-040.
 
 import pytest
 
-from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.config import NotionifyConfig
+from notionify.converter.md_to_notion import MarkdownToNotionConverter
 
 
 def make_config(**kwargs):
@@ -971,8 +971,9 @@ class TestDebugDumpPayload:
 class TestASTNormalizerEdgeCases:
     def test_footnotes_token_skipped(self):
         """Footnotes block token is silently dropped."""
-        from notionify.converter.ast_normalizer import ASTNormalizer
         from unittest.mock import patch
+
+        from notionify.converter.ast_normalizer import ASTNormalizer
         normalizer = ASTNormalizer()
         # Inject a footnotes token
         with patch.object(normalizer, '_parser', return_value=[{"type": "footnotes"}]):
@@ -981,8 +982,9 @@ class TestASTNormalizerEdgeCases:
 
     def test_footnote_ref_becomes_text(self):
         """footnote_ref token becomes a text token with [^key] content."""
-        from notionify.converter.ast_normalizer import ASTNormalizer
         from unittest.mock import patch
+
+        from notionify.converter.ast_normalizer import ASTNormalizer
         normalizer = ASTNormalizer()
         with patch.object(normalizer, '_parser', return_value=[
             {"type": "footnote_ref", "raw": "1"}
@@ -994,8 +996,9 @@ class TestASTNormalizerEdgeCases:
 
     def test_footnote_ref_uses_attrs_index_fallback(self):
         """footnote_ref without raw uses attrs.index."""
-        from notionify.converter.ast_normalizer import ASTNormalizer
         from unittest.mock import patch
+
+        from notionify.converter.ast_normalizer import ASTNormalizer
         normalizer = ASTNormalizer()
         with patch.object(normalizer, '_parser', return_value=[
             {"type": "footnote_ref", "attrs": {"index": "note1"}}
@@ -1005,8 +1008,9 @@ class TestASTNormalizerEdgeCases:
 
     def test_raw_type_becomes_text(self):
         """'raw' type token becomes text token."""
-        from notionify.converter.ast_normalizer import ASTNormalizer
         from unittest.mock import patch
+
+        from notionify.converter.ast_normalizer import ASTNormalizer
         normalizer = ASTNormalizer()
         with patch.object(normalizer, '_parser', return_value=[
             {"type": "raw", "raw": "some raw content"}
@@ -1018,8 +1022,9 @@ class TestASTNormalizerEdgeCases:
 
     def test_unknown_token_type_skipped(self):
         """Unknown token types are silently dropped."""
-        from notionify.converter.ast_normalizer import ASTNormalizer
         from unittest.mock import patch
+
+        from notionify.converter.ast_normalizer import ASTNormalizer
         normalizer = ASTNormalizer()
         with patch.object(normalizer, '_parser', return_value=[
             {"type": "completely_unknown_type", "raw": "???"}
@@ -1029,8 +1034,9 @@ class TestASTNormalizerEdgeCases:
 
     def test_parser_returning_string_gives_empty(self):
         """If the parser returns a string instead of list, parse() returns []."""
-        from notionify.converter.ast_normalizer import ASTNormalizer
         from unittest.mock import patch
+
+        from notionify.converter.ast_normalizer import ASTNormalizer
         normalizer = ASTNormalizer()
         with patch.object(normalizer, '_parser', return_value="not a list"):
             tokens = normalizer.parse("anything")
@@ -1038,8 +1044,9 @@ class TestASTNormalizerEdgeCases:
 
     def test_html_inline_token_normalized(self):
         """inline_html mistune token becomes html_inline canonical type (lines 182-183)."""
-        from notionify.converter.ast_normalizer import ASTNormalizer
         from unittest.mock import patch
+
+        from notionify.converter.ast_normalizer import ASTNormalizer
         normalizer = ASTNormalizer()
         with patch.object(normalizer, '_parser', return_value=[
             {"type": "inline_html", "raw": "<br>"}
@@ -1627,6 +1634,7 @@ class TestRemainingCoverageGaps:
         is added (line 542).
         """
         from unittest.mock import patch
+
         from notionify.converter.block_builder import build_blocks
         from notionify.models import ConversionWarning
 

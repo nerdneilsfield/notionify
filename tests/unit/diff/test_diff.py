@@ -6,10 +6,10 @@ PRD test IDs: U-DF-001 through U-DF-015.
 import pytest
 
 from notionify.config import NotionifyConfig
-from notionify.models import DiffOp, DiffOpType, BlockSignature
+from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.planner import DiffPlanner
 from notionify.diff.signature import compute_signature
-from notionify.diff.lcs_matcher import lcs_match
+from notionify.models import BlockSignature, DiffOp, DiffOpType
 
 
 def make_config(**kwargs):

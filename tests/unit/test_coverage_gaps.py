@@ -5,8 +5,8 @@ Each test class documents exactly which source file and line(s) it covers.
 
 from __future__ import annotations
 
-import base64
 import asyncio
+import base64
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -35,7 +35,6 @@ from notionify.models import (
 )
 from notionify.notion_api.transport import AsyncNotionTransport, NotionTransport
 from notionify.observability.metrics import NoopMetricsHook
-
 
 # ---------------------------------------------------------------------------
 # Helpers

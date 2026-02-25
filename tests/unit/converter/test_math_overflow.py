@@ -15,7 +15,6 @@ from notionify.converter.math import (
 from notionify.converter.tables import build_table
 from notionify.errors import NotionifyConversionError
 
-
 # ── Block math overflow ───────────────────────────────────────────────
 
 

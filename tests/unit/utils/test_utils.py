@@ -5,13 +5,13 @@ Tests for: chunk_children, split_string, md5_hash, hash_dict, redact.
 
 import hashlib
 import json
+
 import pytest
 
 from notionify.utils.chunk import chunk_children
-from notionify.utils.text_split import split_string
-from notionify.utils.hashing import md5_hash, hash_dict
+from notionify.utils.hashing import hash_dict, md5_hash
 from notionify.utils.redact import redact
-
+from notionify.utils.text_split import split_string
 
 # =========================================================================
 # chunk_children tests

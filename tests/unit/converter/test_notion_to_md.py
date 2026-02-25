@@ -5,8 +5,8 @@ PRD test IDs: U-NM-001 through U-NM-022.
 
 import pytest
 
-from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.config import NotionifyConfig
+from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.errors import NotionifyUnsupportedBlockError
 
 

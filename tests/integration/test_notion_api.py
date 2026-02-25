@@ -7,6 +7,7 @@ Usage:
     NOTION_TOKEN=ntn_xxx NOTION_TEST_PAGE_ID=xxx pytest tests/integration/ -v
 """
 import os
+
 import pytest
 
 # Skip entire module if no token is configured
@@ -107,7 +108,7 @@ class TestErrorHandling:
             client.page_to_markdown(page_id="00000000-0000-0000-0000-000000000000")
 
     def test_invalid_token_raises(self):
-        from notionify import NotionifyClient, NotionifyAuthError
+        from notionify import NotionifyAuthError, NotionifyClient
         with NotionifyClient(token="ntn_invalid_token") as c:
             with pytest.raises((NotionifyAuthError, Exception)):
                 c.page_to_markdown(page_id="00000000-0000-0000-0000-000000000000")

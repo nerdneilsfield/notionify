@@ -820,8 +820,9 @@ class TestDataUriUrlEncoded:
     def test_url_decode_failure_raises_parse_error(self):
         """When unquote_to_bytes raises, lines 194-195 are hit."""
         from unittest.mock import patch
-        from notionify.image.validate import _parse_data_uri
+
         from notionify.errors import NotionifyImageParseError
+        from notionify.image.validate import _parse_data_uri
         src = "data:text/plain,hello"
         with patch("urllib.parse.unquote_to_bytes", side_effect=ValueError("bad")):
             with pytest.raises(NotionifyImageParseError) as exc_info:

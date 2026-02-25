@@ -12,18 +12,18 @@ import re
 import string
 
 import pytest
-from hypothesis import HealthCheck, given, settings, assume
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
-from notionify.utils.chunk import chunk_children
-from notionify.utils.text_split import split_string
-from notionify.utils.hashing import md5_hash, hash_dict
-from notionify.converter.rich_text import split_rich_text
-from notionify.utils.redact import redact, _SENSITIVE_KEY_PATTERNS
-from notionify.converter.ast_normalizer import ASTNormalizer
 from notionify.config import NotionifyConfig
+from notionify.converter.ast_normalizer import ASTNormalizer
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
+from notionify.converter.rich_text import split_rich_text
 from notionify.diff.signature import compute_signature
+from notionify.utils.chunk import chunk_children
+from notionify.utils.hashing import hash_dict, md5_hash
+from notionify.utils.redact import _SENSITIVE_KEY_PATTERNS, redact
+from notionify.utils.text_split import split_string
 
 # ---------------------------------------------------------------------------
 # Reusable strategies

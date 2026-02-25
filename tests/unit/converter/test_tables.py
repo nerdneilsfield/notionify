@@ -11,10 +11,10 @@ import pytest
 
 from notionify.config import NotionifyConfig
 from notionify.converter.tables import (
-    build_table,
     _build_row_cells,
     _cells_to_text,
     _extract_inline_text,
+    build_table,
 )
 
 

@@ -5,8 +5,8 @@ PRD test IDs: U-RT-001 through U-RT-008.
 
 import pytest
 
-from notionify.converter.rich_text import split_rich_text, build_rich_text
 from notionify.config import NotionifyConfig
+from notionify.converter.rich_text import build_rich_text, split_rich_text
 
 
 def make_config(**kwargs):

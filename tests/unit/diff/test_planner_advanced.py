@@ -7,8 +7,8 @@ fallback threshold, and async executor mirror operations.
 import pytest
 
 from notionify.config import NotionifyConfig
+from notionify.diff.executor import AsyncDiffExecutor, DiffExecutor
 from notionify.diff.planner import DiffPlanner
-from notionify.diff.executor import DiffExecutor, AsyncDiffExecutor
 from notionify.models import DiffOp, DiffOpType
 
 

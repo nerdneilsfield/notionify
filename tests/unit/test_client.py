@@ -11,8 +11,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from notionify.client import NotionifyClient
 from notionify.async_client import AsyncNotionifyClient
+from notionify.client import NotionifyClient
+from notionify.errors import NotionifyImageNotFoundError
 from notionify.models import (
     AppendResult,
     BlockUpdateResult,
@@ -24,8 +25,6 @@ from notionify.models import (
     PendingImage,
     UpdateResult,
 )
-from notionify.errors import NotionifyImageNotFoundError
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1184,7 +1183,8 @@ class TestAsyncUploadLocalFileEdgeCases:
     async def test_validate_returns_none_data_uses_raw(self, tmp_path):
         """When validate_image returns None for data, raw bytes are used."""
         import base64
-        from unittest.mock import patch, AsyncMock as AM
+        from unittest.mock import AsyncMock as AM
+        from unittest.mock import patch
 
         img_data = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
         img_file = tmp_path / "test.png"
