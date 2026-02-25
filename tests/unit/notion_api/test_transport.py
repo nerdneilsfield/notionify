@@ -32,6 +32,7 @@ from notionify.notion_api.transport import (
     AsyncNotionTransport,
     NotionTransport,
     _dump_payload,
+    _emit_debug_dump,
     _parse_retry_after,
     _raise_for_status,
 )
@@ -1010,3 +1011,229 @@ class TestAsyncNotionTransportLifecycle:
             async with transport:
                 raise ValueError("test error")
         mock_aclose.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# _parse_retry_after — additional edge cases
+# ---------------------------------------------------------------------------
+
+class TestParseRetryAfterEdgeCases:
+    def test_infinity_returns_float_inf(self):
+        resp = make_response(headers={"retry-after": "inf"})
+        result = _parse_retry_after(resp)
+        assert result == float("inf")
+
+    def test_nan_returns_float_nan(self):
+        import math
+        resp = make_response(headers={"retry-after": "nan"})
+        result = _parse_retry_after(resp)
+        assert result is not None
+        assert math.isnan(result)
+
+    def test_leading_trailing_whitespace_parsed(self):
+        resp = make_response(headers={"retry-after": "  5  "})
+        assert _parse_retry_after(resp) == 5.0
+
+    def test_plus_sign_prefix_parsed(self):
+        resp = make_response(headers={"retry-after": "+5"})
+        assert _parse_retry_after(resp) == 5.0
+
+
+# ---------------------------------------------------------------------------
+# _emit_debug_dump — non-JSON response fallback
+# ---------------------------------------------------------------------------
+
+class TestEmitDebugDump:
+    def test_non_json_response_falls_back_to_text(self, capsys):
+        config = make_config(debug_dump_payload=True)
+        resp = httpx.Response(500, content=b"Internal Server Error", headers={})
+        resp.request = httpx.Request("GET", "https://api.notion.com/v1/pages")
+        _emit_debug_dump(config, "GET", resp, None)
+        captured = capsys.readouterr()
+        data = json.loads(captured.err)
+        assert data["response_body"] == "Internal Server Error"
+
+    def test_non_json_response_truncated_at_1000_chars(self, capsys):
+        config = make_config(debug_dump_payload=True)
+        long_text = "x" * 2000
+        resp = httpx.Response(500, content=long_text.encode(), headers={})
+        resp.request = httpx.Request("GET", "https://api.notion.com/v1/pages")
+        _emit_debug_dump(config, "GET", resp, None)
+        captured = capsys.readouterr()
+        data = json.loads(captured.err)
+        assert len(data["response_body"]) == 1000
+
+    def test_json_response_returns_parsed_dict(self, capsys):
+        config = make_config(debug_dump_payload=True)
+        resp = make_response(200, body={"id": "p1"})
+        resp.request = httpx.Request("GET", "https://api.notion.com/v1/pages/p1")
+        _emit_debug_dump(config, "GET", resp, {"key": "val"})
+        captured = capsys.readouterr()
+        data = json.loads(captured.err)
+        assert data["response_body"] == {"id": "p1"}
+        assert data["request_body"] == {"key": "val"}
+
+    def test_disabled_does_not_dump(self, capsys):
+        config = make_config(debug_dump_payload=False)
+        resp = httpx.Response(500, content=b"error", headers={})
+        resp.request = httpx.Request("GET", "https://api.notion.com/v1/pages")
+        _emit_debug_dump(config, "GET", resp, None)
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+    def test_html_error_response(self, capsys):
+        config = make_config(debug_dump_payload=True)
+        html = b"<html><body>502 Bad Gateway</body></html>"
+        resp = httpx.Response(502, content=html, headers={})
+        resp.request = httpx.Request("GET", "https://api.notion.com/v1/pages")
+        _emit_debug_dump(config, "GET", resp, None)
+        captured = capsys.readouterr()
+        data = json.loads(captured.err)
+        assert "502 Bad Gateway" in data["response_body"]
+
+
+# ---------------------------------------------------------------------------
+# Sync NotionTransport.paginate — additional edge cases
+# ---------------------------------------------------------------------------
+
+class TestPaginateEdgeCases:
+    def _transport(self) -> NotionTransport:
+        t = NotionTransport(make_config())
+        t._bucket = _MockBucket(wait=0.0)
+        return t
+
+    def test_missing_results_key_yields_nothing(self):
+        transport = self._transport()
+        page_resp = make_response(200, body={"has_more": False})
+        with patch.object(transport._client, "request", return_value=page_resp):
+            items = list(transport.paginate("/blocks/1/children"))
+        assert items == []
+
+    def test_missing_has_more_stops_after_one_page(self):
+        transport = self._transport()
+        page_resp = make_response(200, body={"results": [{"id": "a"}]})
+        with patch.object(transport._client, "request", return_value=page_resp):
+            items = list(transport.paginate("/blocks/1/children"))
+        assert items == [{"id": "a"}]
+
+    def test_patch_method_uses_json_body(self):
+        transport = self._transport()
+        page_resp = make_response(200, body={
+            "results": [{"id": "x"}],
+            "has_more": False,
+        })
+        mock_request = MagicMock(return_value=page_resp)
+        with patch.object(transport._client, "request", mock_request):
+            items = list(transport.paginate("/databases/query", method="PATCH"))
+        assert items == [{"id": "x"}]
+        call_kwargs = mock_request.call_args_list[0][1]
+        assert "json" in call_kwargs
+        assert call_kwargs["json"]["page_size"] == 100
+
+    def test_lowercase_post_method_uses_json_body(self):
+        transport = self._transport()
+        page_resp = make_response(200, body={
+            "results": [{"id": "y"}],
+            "has_more": False,
+        })
+        mock_request = MagicMock(return_value=page_resp)
+        with patch.object(transport._client, "request", mock_request):
+            items = list(transport.paginate("/search", method="post"))
+        assert items == [{"id": "y"}]
+        call_kwargs = mock_request.call_args_list[0][1]
+        assert call_kwargs["json"]["page_size"] == 100
+
+    def test_three_page_pagination(self):
+        transport = self._transport()
+        pages = [
+            make_response(200, body={
+                "results": [{"id": "a"}], "has_more": True, "next_cursor": "c1",
+            }),
+            make_response(200, body={
+                "results": [{"id": "b"}], "has_more": True, "next_cursor": "c2",
+            }),
+            make_response(200, body={
+                "results": [{"id": "c"}], "has_more": False, "next_cursor": None,
+            }),
+        ]
+        responses = iter(pages)
+        mock_request = MagicMock(side_effect=lambda *a, **kw: next(responses))
+        with patch.object(transport._client, "request", mock_request):
+            items = list(transport.paginate("/blocks/1/children"))
+        assert items == [{"id": "a"}, {"id": "b"}, {"id": "c"}]
+        assert mock_request.call_count == 3
+
+    def test_get_with_existing_params_merged(self):
+        transport = self._transport()
+        page_resp = make_response(200, body={"results": [], "has_more": False})
+        mock_request = MagicMock(return_value=page_resp)
+        with patch.object(transport._client, "request", mock_request):
+            list(transport.paginate("/blocks/1/children", params={"filter": "all"}))
+        call_kwargs = mock_request.call_args_list[0][1]
+        assert call_kwargs["params"]["filter"] == "all"
+        assert call_kwargs["params"]["page_size"] == 100
+
+    def test_post_first_page_removes_stale_start_cursor(self):
+        transport = self._transport()
+        page_resp = make_response(200, body={"results": [], "has_more": False})
+        mock_request = MagicMock(return_value=page_resp)
+        # Pass json with a stale start_cursor that should be removed
+        with patch.object(transport._client, "request", mock_request):
+            list(transport.paginate(
+                "/search", method="POST",
+                json={"start_cursor": "stale-cursor"},
+            ))
+        call_kwargs = mock_request.call_args_list[0][1]
+        assert "start_cursor" not in call_kwargs["json"]
+
+
+# ---------------------------------------------------------------------------
+# Async paginate — additional edge cases
+# ---------------------------------------------------------------------------
+
+class TestAsyncPaginateEdgeCases:
+    def _transport(self) -> AsyncNotionTransport:
+        t = AsyncNotionTransport(make_config())
+        t._bucket = _MockAsyncBucket(wait=0.0)
+        return t
+
+    async def test_missing_results_key_yields_nothing(self):
+        transport = self._transport()
+        page_resp = make_response(200, body={"has_more": False})
+        with patch.object(transport._client, "request", new=AsyncMock(return_value=page_resp)):
+            items = [item async for item in transport.paginate("/blocks/1/children")]
+        assert items == []
+        await transport.close()
+
+    async def test_missing_has_more_stops_after_one_page(self):
+        transport = self._transport()
+        page_resp = make_response(200, body={"results": [{"id": "a"}]})
+        with patch.object(transport._client, "request", new=AsyncMock(return_value=page_resp)):
+            items = [item async for item in transport.paginate("/blocks/1/children")]
+        assert items == [{"id": "a"}]
+        await transport.close()
+
+    async def test_three_page_pagination(self):
+        transport = self._transport()
+        pages = [
+            make_response(200, body={
+                "results": [{"id": "a"}], "has_more": True, "next_cursor": "c1",
+            }),
+            make_response(200, body={
+                "results": [{"id": "b"}], "has_more": True, "next_cursor": "c2",
+            }),
+            make_response(200, body={
+                "results": [{"id": "c"}], "has_more": False, "next_cursor": None,
+            }),
+        ]
+        idx = {"i": 0}
+
+        async def side_effect(*args, **kwargs):
+            r = pages[idx["i"]]
+            idx["i"] += 1
+            return r
+
+        with patch.object(transport._client, "request", side_effect=side_effect):
+            items = [item async for item in transport.paginate("/blocks/1/children")]
+        assert items == [{"id": "a"}, {"id": "b"}, {"id": "c"}]
+        await transport.close()
