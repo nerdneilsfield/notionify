@@ -384,6 +384,45 @@ class TestCodeBlocks:
         assert "add" in round_tripped
 
 
+class TestCodeLanguageAliases:
+    """Verify code_language_aliases.md: short aliases map to Notion names."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "code_language_aliases.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 6
+
+    def test_py_alias_normalized_to_python(self, converter):
+        md = (FIXTURES_DIR / "code_language_aliases.md").read_text()
+        result = converter.convert(md)
+        code_blocks = [b for b in result.blocks if b.get("type") == "code"]
+        languages = [b.get("code", {}).get("language", "") for b in code_blocks]
+        assert "python" in languages
+
+    def test_js_alias_normalized_to_javascript(self, converter):
+        md = (FIXTURES_DIR / "code_language_aliases.md").read_text()
+        result = converter.convert(md)
+        code_blocks = [b for b in result.blocks if b.get("type") == "code"]
+        languages = [b.get("code", {}).get("language", "") for b in code_blocks]
+        assert "javascript" in languages
+
+    def test_ts_alias_normalized_to_typescript(self, converter):
+        md = (FIXTURES_DIR / "code_language_aliases.md").read_text()
+        result = converter.convert(md)
+        code_blocks = [b for b in result.blocks if b.get("type") == "code"]
+        languages = [b.get("code", {}).get("language", "") for b in code_blocks]
+        assert "typescript" in languages
+
+    def test_content_survives_roundtrip(self, converter, renderer):
+        md = (FIXTURES_DIR / "code_language_aliases.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "greet" in round_tripped
+        assert "double" in round_tripped
+        assert "hello world" in round_tripped
+
+
 class TestNestedLists:
     """Verify nested_lists.md round-trips correctly."""
 
