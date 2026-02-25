@@ -13,6 +13,7 @@ from notionify.converter.rich_text import extract_text
 from notionify.converter.tables import (
     _build_row_cells,
     _cells_to_text,
+    _table_to_plain_text,
     build_table,
 )
 
@@ -136,3 +137,130 @@ class TestExtractInlineTextBranches:
         ]
         result = extract_text(tokens)
         assert result == "visible"
+
+
+class TestBuildTableBlockBranchCoverage:
+    """Branch coverage for _build_table_block (lines 132->119, 135->134)."""
+
+    def test_unknown_child_type_is_ignored(self):
+        """A child with an unknown type (neither table_head nor table_body)
+        is silently skipped — covers the 132->119 false branch."""
+        token = {
+            "type": "table",
+            "children": [
+                {"type": "unexpected_child", "children": []},
+                {
+                    "type": "table_head",
+                    "children": [_text_cell("A"), _text_cell("B")],
+                },
+            ],
+        }
+        block, warnings = build_table(token, make_config())
+        assert block is not None
+        # Only the head row should be produced (unknown child ignored)
+        rows = block["table"]["children"]
+        assert len(rows) == 1
+
+    def test_non_table_row_in_body_is_ignored(self):
+        """A non-table_row child inside table_body is skipped — covers
+        the 135->134 false branch."""
+        token = {
+            "type": "table",
+            "children": [
+                {
+                    "type": "table_head",
+                    "children": [_text_cell("H1")],
+                },
+                {
+                    "type": "table_body",
+                    "children": [
+                        {"type": "not_a_row", "children": []},  # skipped
+                        {
+                            "type": "table_row",
+                            "children": [_text_cell("R1")],
+                        },
+                    ],
+                },
+            ],
+        }
+        block, warnings = build_table(token, make_config())
+        assert block is not None
+        rows = block["table"]["children"]
+        # head + 1 body row (non-table_row is skipped)
+        assert len(rows) == 2
+
+
+class TestTableToPlainTextBranchCoverage:
+    """Branch coverage for _table_to_plain_text (lines 233, 235, 237, 239)."""
+
+    def test_empty_head_row_text_skipped(self):
+        """When table_head cells are all empty, row_text is '' and not appended
+        — covers the 233->229 false branch."""
+        # A table_head with cells that produce no text
+        token = {
+            "type": "table",
+            "children": [
+                {
+                    "type": "table_head",
+                    # table_cell with no text children
+                    "children": [
+                        {"type": "table_cell", "children": []},
+                    ],
+                },
+            ],
+        }
+        result = _table_to_plain_text(token, make_config())
+        # empty row_text means it's skipped; no rows appended → "[table]"
+        assert result == "[table]"
+
+    def test_unknown_child_type_in_plain_text_skipped(self):
+        """Unknown child type in _table_to_plain_text neither head nor body
+        — covers the 235->229 false branch."""
+        token = {
+            "type": "table",
+            "children": [
+                {"type": "something_else", "children": []},
+            ],
+        }
+        result = _table_to_plain_text(token, make_config())
+        assert result == "[table]"
+
+    def test_non_table_row_in_body_plain_text_skipped(self):
+        """Non-table_row inside table_body skipped in _table_to_plain_text
+        — covers the 237->236 false branch."""
+        token = {
+            "type": "table",
+            "children": [
+                {
+                    "type": "table_body",
+                    "children": [
+                        {"type": "not_a_row", "children": []},
+                    ],
+                },
+            ],
+        }
+        result = _table_to_plain_text(token, make_config())
+        assert result == "[table]"
+
+    def test_empty_body_row_text_skipped(self):
+        """When table_body row cells produce no text, row_text is '' and not
+        appended — covers the 239->236 false branch."""
+        token = {
+            "type": "table",
+            "children": [
+                {
+                    "type": "table_body",
+                    "children": [
+                        {
+                            "type": "table_row",
+                            # table_cell with no text children
+                            "children": [
+                                {"type": "table_cell", "children": []},
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }
+        result = _table_to_plain_text(token, make_config())
+        assert result == "[table]"
