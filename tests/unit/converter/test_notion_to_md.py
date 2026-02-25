@@ -1115,3 +1115,97 @@ class TestFileBlockRendering:
         }
         md = r.render_blocks([block])
         assert "File" in md
+
+
+class TestEmbedRendering:
+    """_render_embed produces [Embed](url)."""
+
+    def test_embed_url_included(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "embed",
+            "embed": {"url": "https://youtube.com/watch?v=abc"},
+        }
+        md = r.render_blocks([block])
+        assert "youtube.com" in md
+        assert "Embed" in md
+
+    def test_embed_empty_url(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {"type": "embed", "embed": {"url": ""}}
+        md = r.render_blocks([block])
+        assert "[Embed]" in md
+
+    def test_embed_url_with_parens_encoded(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "embed",
+            "embed": {"url": "https://example.com/page(1)"},
+        }
+        md = r.render_blocks([block])
+        assert "example.com" in md
+
+
+class TestLinkPreviewRendering:
+    """_render_link_preview produces [url](escaped_url)."""
+
+    def test_link_preview_url(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "link_preview",
+            "link_preview": {"url": "https://example.com/article"},
+        }
+        md = r.render_blocks([block])
+        assert "https://example.com/article" in md
+
+    def test_link_preview_empty_url(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {"type": "link_preview", "link_preview": {"url": ""}}
+        md = r.render_blocks([block])
+        assert md is not None
+
+
+class TestChildPageAndDatabaseRendering:
+    """_render_child_page and _render_child_database produce links."""
+
+    def test_child_page_title(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "child_page",
+            "id": "abc123",
+            "child_page": {"title": "My Subpage"},
+        }
+        md = r.render_blocks([block])
+        assert "My Subpage" in md
+        assert "Page:" in md
+
+    def test_child_page_no_title_uses_untitled(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "child_page",
+            "id": "abc123",
+            "child_page": {},
+        }
+        md = r.render_blocks([block])
+        assert "Untitled" in md
+
+    def test_child_database_title(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "child_database",
+            "id": "def456",
+            "child_database": {"title": "My DB"},
+        }
+        md = r.render_blocks([block])
+        assert "My DB" in md
+        assert "Database:" in md
+
+    def test_child_database_no_title(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "child_database",
+            "id": "def456",
+            "child_database": {},
+        }
+        md = r.render_blocks([block])
+        assert "Untitled" in md
