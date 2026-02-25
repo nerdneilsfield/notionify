@@ -44,6 +44,7 @@ dev = [
     "respx>=0.21",
     "mypy>=1.10",
     "ruff>=0.4",
+    "bandit>=1.7",
 ]
 
 [tool.hatch.build.targets.wheel]

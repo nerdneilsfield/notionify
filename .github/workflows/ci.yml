@@ -33,8 +33,11 @@ jobs:
       - name: Type check with mypy (strict)
         run: mypy src/notionify
 
-      - name: Security audit
+      - name: Security audit (dependencies)
         run: pip-audit
+
+      - name: Security scan (bandit)
+        run: bandit -r src/notionify/
 
       - name: Run tests with coverage
         run: pytest tests/ -v --tb=short -q --cov=src/notionify --cov-branch --cov-report=term-missing --cov-fail-under=90

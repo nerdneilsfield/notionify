@@ -112,7 +112,7 @@ def extract_text(children: list[dict[str, Any]]) -> str:
     parts: list[str] = []
     for token in children:
         token_type = token.get("type", "")
-        if token_type == "text":
+        if token_type == "text":  # nosec B105 - AST node type, not a password
             parts.append(token.get("raw", ""))
         elif "children" in token:
             parts.append(extract_text(token["children"]))

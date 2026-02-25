@@ -32,7 +32,7 @@ def md5_hash(data: str) -> str:
     >>> md5_hash("hello")
     '5d41402abc4b2a76b9719d911017c592'
     """
-    return hashlib.md5(data.encode("utf-8")).hexdigest()
+    return hashlib.md5(data.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def hash_dict(d: dict[str, Any]) -> str:
