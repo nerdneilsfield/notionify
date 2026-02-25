@@ -22,6 +22,7 @@ from notionify.converter.math import EQUATION_CHAR_LIMIT, build_block_math, buil
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
 from notionify.converter.rich_text import split_rich_text
+from notionify.converter.tables import build_table
 from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.signature import compute_signature
 from notionify.image.detect import detect_image_source, mime_to_extension
@@ -1420,3 +1421,94 @@ class TestMathBuilderProperties:
             blocks, _ = build_block_math(expression, cfg)
             for block in blocks:
                 assert "type" in block
+
+
+# ---------------------------------------------------------------------------
+# 15. TestTableBuilderProperties
+# ---------------------------------------------------------------------------
+
+# Strategy for a minimal table cell token.
+_table_cell_st = st.fixed_dictionaries({
+    "type": st.just("table_cell"),
+    "attrs": st.fixed_dictionaries({
+        "align": st.none(),
+        "head": st.booleans(),
+    }),
+    "children": st.lists(
+        st.fixed_dictionaries({
+            "type": st.just("text"),
+            "raw": st.text(max_size=50),
+        }),
+        max_size=3,
+    ),
+})
+
+_table_row_st = st.fixed_dictionaries({
+    "type": st.just("table_row"),
+    "children": st.lists(_table_cell_st, min_size=1, max_size=5),
+})
+
+_table_head_st = st.fixed_dictionaries({
+    "type": st.just("table_head"),
+    "children": st.lists(_table_cell_st, min_size=1, max_size=5),
+})
+
+_table_body_st = st.fixed_dictionaries({
+    "type": st.just("table_body"),
+    "children": st.lists(_table_row_st, max_size=5),
+})
+
+_table_token_st = st.fixed_dictionaries({
+    "type": st.just("table"),
+    "children": st.lists(
+        st.one_of(_table_head_st, _table_body_st),
+        max_size=4,
+    ),
+})
+
+
+class TestTableBuilderProperties:
+    """Property-based tests for :func:`build_table`."""
+
+    _BASE_URL = "https://api.notion.com/v1"
+    _config = NotionifyConfig(token="test", base_url="https://api.notion.com/v1")
+
+    @given(token=_table_token_st)
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_build_table_never_raises(self, token: dict) -> None:
+        """build_table must never raise on any table AST token."""
+        block, warnings = build_table(token, self._config)
+        assert block is None or isinstance(block, dict)
+        assert isinstance(warnings, list)
+
+    @given(token=_table_token_st)
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_build_table_enabled_returns_table_or_none(self, token: dict) -> None:
+        """With enable_tables=True, result is either a table block or None."""
+        block, _ = build_table(token, self._config)
+        if block is not None:
+            assert block.get("type") == "table"
+
+    @given(token=_table_token_st)
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_build_table_disabled_returns_none_or_paragraph(
+        self, token: dict
+    ) -> None:
+        """With enable_tables=False, result is None or a paragraph fallback."""
+        cfg = NotionifyConfig(
+            token="test",
+            base_url=self._BASE_URL,
+            enable_tables=False,
+            table_fallback="skip",
+        )
+        block, _ = build_table(token, cfg)
+        assert block is None or block.get("type") in ("paragraph", "code")
+
+    @given(token=_table_token_st)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_build_table_is_deterministic(self, token: dict) -> None:
+        """build_table must return the same result for identical inputs."""
+        block1, w1 = build_table(token, self._config)
+        block2, w2 = build_table(token, self._config)
+        assert block1 == block2
+        assert [w.code for w in w1] == [w.code for w in w2]
