@@ -4783,3 +4783,39 @@ class TestMaskTokenProperties:
         """Strings without Bearer patterns and no token pass through unchanged."""
         result = _mask_token(text, None)
         assert result == text
+
+
+# ---------------------------------------------------------------------------
+# _estimate_data_uri_bytes properties
+# ---------------------------------------------------------------------------
+
+
+class TestEstimateDataUriBytesProperties:
+    """_estimate_data_uri_bytes always returns a non-negative integer."""
+
+    @given(data=st.binary(min_size=0, max_size=200))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_valid_base64_uri_returns_exact_byte_count(self, data: bytes) -> None:
+        """For a syntactically valid base64 data URI, returns len(decoded_bytes)."""
+        import base64 as _b64
+
+        from notionify.utils.redact import _estimate_data_uri_bytes
+
+        b64 = _b64.b64encode(data).decode()
+        uri = f"data:image/png;base64,{b64}"
+        assert _estimate_data_uri_bytes(uri) == len(data)
+
+    @given(text=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=100))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_result_always_non_negative(self, text: str) -> None:
+        """Result is always >= 0 for any input string."""
+        from notionify.utils.redact import _estimate_data_uri_bytes
+
+        result = _estimate_data_uri_bytes(text)
+        assert result >= 0
+
+    def test_empty_string_returns_zero(self) -> None:
+        """Empty string (no ;base64, separator) returns 0."""
+        from notionify.utils.redact import _estimate_data_uri_bytes
+
+        assert _estimate_data_uri_bytes("") == 0
