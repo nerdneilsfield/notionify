@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import json as _json
 import logging as _logging
+import pickle
 import re
 import string
 from datetime import datetime
@@ -36,6 +37,7 @@ from notionify.diff.conflict import detect_conflict, take_snapshot
 from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.planner import DiffPlanner
 from notionify.diff.signature import compute_signature
+from notionify.errors import NotionifyError, NotionifyValidationError
 from notionify.image.detect import detect_image_source, mime_to_extension
 from notionify.models import BlockSignature, DiffOp, DiffOpType, ImageSourceType
 from notionify.notion_api.blocks import extract_block_ids
@@ -3809,3 +3811,79 @@ class TestNoopMetricsHookProperties:
     def test_gauge_always_returns_none(self, name: str, value: float) -> None:
         """NoopMetricsHook.gauge always returns None."""
         assert NoopMetricsHook().gauge(name, value) is None
+
+
+# ---------------------------------------------------------------------------
+# Section 22 — NotionifyError properties
+# ---------------------------------------------------------------------------
+
+
+class TestNotionifyErrorProperties:
+    """Property-based tests for :class:`NotionifyError` and subclasses."""
+
+    @given(
+        code=st.text(min_size=1, max_size=50),
+        message=st.text(min_size=0, max_size=200),
+    )
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_str_equals_message(self, code: str, message: str) -> None:
+        """str(error) must equal the message argument."""
+        err = NotionifyError(code, message)
+        assert str(err) == message
+
+    @given(
+        code=st.text(min_size=1, max_size=50),
+        message=st.text(min_size=0, max_size=200),
+    )
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_code_and_message_attributes(self, code: str, message: str) -> None:
+        """error.code and error.message always match constructor arguments."""
+        err = NotionifyError(code, message)
+        assert err.code == code
+        assert err.message == message
+
+    @given(
+        code=st.text(min_size=1, max_size=50),
+        message=st.text(min_size=0, max_size=200),
+    )
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_context_defaults_to_empty_dict(self, code: str, message: str) -> None:
+        """context defaults to an empty dict when not supplied."""
+        err = NotionifyError(code, message)
+        assert err.context == {}
+
+    @given(
+        code=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+        message=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_pickle_roundtrip_preserves_code_and_message(
+        self, code: str, message: str
+    ) -> None:
+        """Pickle round-trip preserves code and message for NotionifyError."""
+        err = NotionifyError(code, message)
+        restored = pickle.loads(pickle.dumps(err))
+        assert restored.code == code
+        assert restored.message == message
+
+    @given(
+        message=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_validation_error_pickle_roundtrip(self, message: str) -> None:
+        """Pickle round-trip preserves message for NotionifyValidationError."""
+        err = NotionifyValidationError(message)
+        restored = pickle.loads(pickle.dumps(err))
+        assert restored.message == message
+
+    @given(
+        code=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+        message=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_repr_contains_code_and_message(self, code: str, message: str) -> None:
+        """repr(error) contains both code and message."""
+        err = NotionifyError(code, message)
+        r = repr(err)
+        assert code in r
+        assert message in r
