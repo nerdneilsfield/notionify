@@ -268,6 +268,75 @@ class TestUpdatePageFromMarkdown:
         assert result.strategy_used == "diff"
         client.close()
 
+    def test_diff_debug_dump_diff(self, capsys):
+        """debug_dump_diff prints the diff plan to stderr."""
+        client = NotionifyClient(token="test-token", debug_dump_diff=True)
+        existing = [_block_dict(block_id="b1", text="hello")]
+        page_obj = {"last_edited_time": "2024-01-15T10:00:00.000Z"}
+        client._pages.retrieve = MagicMock(return_value=page_obj)
+        client._blocks.get_children = MagicMock(return_value=existing)
+        client._blocks.delete = MagicMock(return_value={})
+        client._blocks.append_children = MagicMock(
+            return_value=_append_response("new-1")
+        )
+        client._blocks.update = MagicMock(return_value={})
+
+        client.update_page_from_markdown(
+            page_id="page-1",
+            markdown="Different text",
+            strategy="diff",
+        )
+
+        captured = capsys.readouterr()
+        assert "[notionify] Diff plan:" in captured.err
+        client.close()
+
+    def test_diff_conflict_raises(self):
+        """on_conflict='raise' raises NotionifyDiffConflictError on conflict."""
+        from notionify.errors import NotionifyDiffConflictError
+
+        client = _make_sync_client()
+        existing = [_block_dict(block_id="b1", text="hello")]
+        # First retrieve returns old timestamp, second returns new (conflict)
+        client._pages.retrieve = MagicMock(side_effect=[
+            {"last_edited_time": "2024-01-15T10:00:00.000Z"},
+            {"last_edited_time": "2024-01-15T10:05:00.000Z"},
+        ])
+        client._blocks.get_children = MagicMock(return_value=existing)
+
+        with pytest.raises(NotionifyDiffConflictError):
+            client.update_page_from_markdown(
+                page_id="page-1",
+                markdown="New text",
+                strategy="diff",
+                on_conflict="raise",
+            )
+        client.close()
+
+    def test_diff_conflict_overwrite_fallback(self):
+        """on_conflict='overwrite' falls back to full overwrite on conflict."""
+        client = _make_sync_client()
+        existing = [_block_dict(block_id="b1", text="hello")]
+        client._pages.retrieve = MagicMock(side_effect=[
+            {"last_edited_time": "2024-01-15T10:00:00.000Z"},
+            {"last_edited_time": "2024-01-15T10:05:00.000Z"},
+        ])
+        client._blocks.get_children = MagicMock(return_value=existing)
+        client._blocks.delete = MagicMock(return_value={})
+        client._blocks.append_children = MagicMock(
+            return_value=_append_response("new-1")
+        )
+
+        result = client.update_page_from_markdown(
+            page_id="page-1",
+            markdown="New text",
+            strategy="diff",
+            on_conflict="overwrite",
+        )
+
+        assert result.strategy_used == "overwrite"
+        client.close()
+
 
 class TestUpdateBlock:
     def test_basic_update(self):
@@ -721,6 +790,74 @@ class TestAsyncUpdatePageFromMarkdown:
         )
 
         assert result.strategy_used == "diff"
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_diff_debug_dump_diff(self, capsys):
+        """debug_dump_diff prints the diff plan to stderr (async)."""
+        client = AsyncNotionifyClient(token="test-token", debug_dump_diff=True)
+        page_obj = {"last_edited_time": "2024-01-15T10:00:00.000Z"}
+        client._pages.retrieve = AsyncMock(return_value=page_obj)
+        client._blocks.get_children = AsyncMock(return_value=[
+            _block_dict(block_id="b1", text="old"),
+        ])
+        client._blocks.delete = AsyncMock(return_value={})
+        client._blocks.append_children = AsyncMock(return_value=_append_response("new-1"))
+        client._blocks.update = AsyncMock(return_value={})
+
+        await client.update_page_from_markdown(
+            page_id="page-1",
+            markdown="New text",
+            strategy="diff",
+        )
+
+        captured = capsys.readouterr()
+        assert "[notionify] Diff plan:" in captured.err
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_diff_conflict_raises(self):
+        """on_conflict='raise' raises NotionifyDiffConflictError (async)."""
+        from notionify.errors import NotionifyDiffConflictError
+
+        client = AsyncNotionifyClient(token="test-token")
+        existing = [_block_dict(block_id="b1", text="old")]
+        client._pages.retrieve = AsyncMock(side_effect=[
+            {"last_edited_time": "2024-01-15T10:00:00.000Z"},
+            {"last_edited_time": "2024-01-15T10:05:00.000Z"},
+        ])
+        client._blocks.get_children = AsyncMock(return_value=existing)
+
+        with pytest.raises(NotionifyDiffConflictError):
+            await client.update_page_from_markdown(
+                page_id="page-1",
+                markdown="New text",
+                strategy="diff",
+                on_conflict="raise",
+            )
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_diff_conflict_overwrite_fallback(self):
+        """on_conflict='overwrite' falls back on conflict (async)."""
+        client = AsyncNotionifyClient(token="test-token")
+        existing = [_block_dict(block_id="b1", text="old")]
+        client._pages.retrieve = AsyncMock(side_effect=[
+            {"last_edited_time": "2024-01-15T10:00:00.000Z"},
+            {"last_edited_time": "2024-01-15T10:05:00.000Z"},
+        ])
+        client._blocks.get_children = AsyncMock(return_value=existing)
+        client._blocks.delete = AsyncMock(return_value={})
+        client._blocks.append_children = AsyncMock(return_value=_append_response("new-1"))
+
+        result = await client.update_page_from_markdown(
+            page_id="page-1",
+            markdown="New text",
+            strategy="diff",
+            on_conflict="overwrite",
+        )
+
+        assert result.strategy_used == "overwrite"
         await client.close()
 
 
