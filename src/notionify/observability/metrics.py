@@ -19,6 +19,7 @@ Emitted metric names (see PRD section 17.3 for the full table):
 * ``notionify.retries_total``            -- counter
 * ``notionify.rate_limited_total``       -- counter
 * ``notionify.request_duration_ms``      -- timing
+* ``notionify.rate_limit_wait_ms``      -- timing
 * ``notionify.blocks_created_total``     -- counter
 * ``notionify.upload_success_total``     -- counter
 * ``notionify.upload_failure_total``     -- counter
