@@ -2385,3 +2385,103 @@ class TestDataUriParseProperties:
         src = f"data:{mime};base64,{encoded}"
         _, decoded = _parse_data_uri(src)
         assert len(decoded) == len(raw_bytes)
+
+
+# ---------------------------------------------------------------------------
+# TestUploadStateMachineProperties
+# ---------------------------------------------------------------------------
+
+class TestUploadStateMachineProperties:
+    """Property-based tests for UploadStateMachine state transition invariants."""
+
+    def test_initial_state_is_pending(self) -> None:
+        """Fresh state machine always starts in PENDING."""
+        from notionify.image.state import UploadStateMachine
+        from notionify.models import UploadState
+        sm = UploadStateMachine("upload-id")
+        assert sm.state == UploadState.PENDING
+
+    def test_happy_path_transitions(self) -> None:
+        """PENDING → UPLOADING → UPLOADED → ATTACHED is valid."""
+        from notionify.image.state import UploadStateMachine
+        from notionify.models import UploadState
+        sm = UploadStateMachine("upload-id")
+        sm.transition(UploadState.UPLOADING)
+        assert sm.state == UploadState.UPLOADING
+        sm.transition(UploadState.UPLOADED)
+        assert sm.state == UploadState.UPLOADED
+        sm.transition(UploadState.ATTACHED)
+        assert sm.state == UploadState.ATTACHED
+
+    def test_failure_path_transitions(self) -> None:
+        """PENDING → UPLOADING → FAILED is valid."""
+        from notionify.image.state import UploadStateMachine
+        from notionify.models import UploadState
+        sm = UploadStateMachine("upload-id")
+        sm.transition(UploadState.UPLOADING)
+        sm.transition(UploadState.FAILED)
+        assert sm.state == UploadState.FAILED
+
+    def test_retry_path_transitions(self) -> None:
+        """UPLOADED → EXPIRED → UPLOADING → UPLOADED (retry) is valid."""
+        from notionify.image.state import UploadStateMachine
+        from notionify.models import UploadState
+        sm = UploadStateMachine("upload-id")
+        sm.transition(UploadState.UPLOADING)
+        sm.transition(UploadState.UPLOADED)
+        sm.transition(UploadState.EXPIRED)
+        sm.transition(UploadState.UPLOADING)  # retry
+        assert sm.state == UploadState.UPLOADING
+
+    def test_invalid_transition_from_pending_raises(self) -> None:
+        """PENDING → UPLOADED (skipping UPLOADING) raises ValueError."""
+        from notionify.image.state import UploadStateMachine
+        from notionify.models import UploadState
+        sm = UploadStateMachine("upload-id")
+        with pytest.raises(ValueError, match="Invalid state transition"):
+            sm.transition(UploadState.UPLOADED)
+
+    def test_expired_to_attach_raises_upload_expired_error(self) -> None:
+        """EXPIRED → ATTACHED raises NotionifyUploadExpiredError."""
+        from notionify.errors import NotionifyUploadExpiredError
+        from notionify.image.state import UploadStateMachine
+        from notionify.models import UploadState
+        sm = UploadStateMachine("upload-id")
+        sm.transition(UploadState.UPLOADING)
+        sm.transition(UploadState.UPLOADED)
+        sm.transition(UploadState.EXPIRED)
+        with pytest.raises(NotionifyUploadExpiredError):
+            sm.transition(UploadState.ATTACHED)
+
+    def test_attached_is_terminal_state(self) -> None:
+        """ATTACHED is terminal: any further transition raises ValueError."""
+        from notionify.image.state import UploadStateMachine
+        from notionify.models import UploadState
+        sm = UploadStateMachine("upload-id")
+        sm.transition(UploadState.UPLOADING)
+        sm.transition(UploadState.UPLOADED)
+        sm.transition(UploadState.ATTACHED)
+        with pytest.raises(ValueError, match="Invalid state transition"):
+            sm.transition(UploadState.UPLOADING)
+
+    def test_assert_can_attach_in_uploaded_state(self) -> None:
+        """assert_can_attach() succeeds in UPLOADED state."""
+        from notionify.image.state import UploadStateMachine
+        from notionify.models import UploadState
+        sm = UploadStateMachine("upload-id")
+        sm.transition(UploadState.UPLOADING)
+        sm.transition(UploadState.UPLOADED)
+        sm.assert_can_attach()  # should not raise
+
+    @given(
+        upload_id=st.text(min_size=1, max_size=36,
+                          alphabet=string.ascii_letters + string.digits + "-"),
+    )
+    @settings(max_examples=200)
+    def test_initial_state_always_pending(self, upload_id: str) -> None:
+        """Regardless of upload_id, initial state is always PENDING."""
+        from notionify.image.state import UploadStateMachine
+        from notionify.models import UploadState
+        sm = UploadStateMachine(upload_id)
+        assert sm.state == UploadState.PENDING
+        assert sm.upload_id == upload_id
