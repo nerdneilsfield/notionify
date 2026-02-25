@@ -759,7 +759,7 @@ class TestConverterProperties:
     ) -> None:
         """With enable_tables=False, no 'table' blocks are produced."""
         cfg = NotionifyConfig(
-            token="test", enable_tables=False, table_fallback="skip"
+            token="test", enable_tables=False, table_fallback="comment"
         )
         converter = MarkdownToNotionConverter(cfg)
         # Build a simple GFM table
@@ -1751,7 +1751,7 @@ class TestTableBuilderProperties:
             token="test",
             base_url=self._BASE_URL,
             enable_tables=False,
-            table_fallback="skip",
+            table_fallback="comment",
         )
         block, _ = build_table(token, cfg)
         assert block is None or block.get("type") in ("paragraph", "code")
