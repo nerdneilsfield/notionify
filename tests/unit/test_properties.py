@@ -42,7 +42,11 @@ from notionify.converter.tables import _cells_to_text, build_table
 from notionify.diff.conflict import detect_conflict, take_snapshot
 from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.planner import DiffPlanner
-from notionify.diff.signature import compute_signature
+from notionify.diff.signature import (
+    _extract_children_info,
+    _extract_plain_text,
+    compute_signature,
+)
 from notionify.errors import NotionifyError, NotionifyValidationError
 from notionify.image.detect import detect_image_source, mime_to_extension
 from notionify.models import BlockSignature, DiffOp, DiffOpType, ImageSourceType
@@ -4186,3 +4190,85 @@ class TestCellsToTextProperties:
             for _ in range(n)
         ]
         assert _cells_to_text(cells) == ""
+
+
+# ---------------------------------------------------------------------------
+# _extract_plain_text properties
+# ---------------------------------------------------------------------------
+
+
+class TestExtractPlainTextProperties:
+    """_extract_plain_text always returns a string and concatenates segments."""
+
+    @given(
+        block_type=st.sampled_from(["paragraph", "heading_1", "bulleted_list_item"]),
+        texts=st.lists(
+            st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20), min_size=0, max_size=5
+        ),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_result_is_always_a_string(self, block_type: str, texts: list[str]) -> None:
+        """_extract_plain_text always returns a str, never raises."""
+        rich_text = [{"plain_text": t} for t in texts]
+        block = {block_type: {"rich_text": rich_text}}
+        result = _extract_plain_text(block, block_type)
+        assert isinstance(result, str)
+
+    @given(
+        block_type=st.sampled_from(["paragraph", "heading_1"]),
+        texts=st.lists(
+            st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20), min_size=1, max_size=5
+        ),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_plain_text_fields_are_concatenated(
+        self, block_type: str, texts: list[str]
+    ) -> None:
+        """Output is the concatenation of all plain_text values."""
+        rich_text = [{"plain_text": t} for t in texts]
+        block = {block_type: {"rich_text": rich_text}}
+        assert _extract_plain_text(block, block_type) == "".join(texts)
+
+    @given(
+        block_type=st.sampled_from(["paragraph", "heading_1"]),
+        content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_falls_back_to_text_content(self, block_type: str, content: str) -> None:
+        """When plain_text absent, falls back to text.content."""
+        rich_text = [{"text": {"content": content}}]
+        block = {block_type: {"rich_text": rich_text}}
+        assert _extract_plain_text(block, block_type) == content
+
+
+# ---------------------------------------------------------------------------
+# _extract_children_info properties
+# ---------------------------------------------------------------------------
+
+
+class TestExtractChildrenInfoProperties:
+    """_extract_children_info structural invariants."""
+
+    def test_no_children_key_uses_has_children_flag(self) -> None:
+        """Missing 'children' key defers to block's has_children flag."""
+        assert _extract_children_info({}) == {"child_count": 0, "has_children": False}
+        assert _extract_children_info({"has_children": True}) == {
+            "child_count": 0,
+            "has_children": True,
+        }
+
+    @given(n=st.integers(min_value=1, max_value=10))
+    @settings(max_examples=200)
+    def test_child_count_equals_list_length(self, n: int) -> None:
+        """child_count must equal the number of children provided."""
+        children = [{"type": "paragraph"} for _ in range(n)]
+        info = _extract_children_info({"children": children})
+        assert info["child_count"] == n
+
+    @given(n=st.integers(min_value=1, max_value=10))
+    @settings(max_examples=200)
+    def test_child_types_length_matches_count(self, n: int) -> None:
+        """child_types list length must equal child_count."""
+        children = [{"type": f"type_{i}"} for i in range(n)]
+        info = _extract_children_info({"children": children})
+        assert len(info["child_types"]) == info["child_count"]
