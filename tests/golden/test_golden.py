@@ -1114,3 +1114,50 @@ class TestRenderOnlyApiBlocks:
         result = renderer.render_blocks(blocks)
         assert isinstance(result, str)
         assert len(result) > 0
+
+
+class TestMixedListTypes:
+    """Round-trip tests for mixed_list_types.md fixture.
+
+    Covers interleaved ordered and unordered lists at the same level, mixed
+    nesting (ordered parents with bullet children and vice versa), and the
+    numbered-list counter reset behaviour.
+    """
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "mixed_list_types.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_bullet_items_present_in_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "mixed_list_types.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "First bullet point" in round_tripped
+        assert "Back to bullets after ordered list" in round_tripped
+
+    def test_ordered_items_present_in_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "mixed_list_types.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "First numbered item" in round_tripped
+        assert "Third numbered item" in round_tripped
+
+    def test_mixed_nesting_content_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "mixed_list_types.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Ordered parent item" in round_tripped
+        assert "Bullet parent item" in round_tripped
+
+    def test_counter_reset_sequences_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "mixed_list_types.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Alpha in first sequence" in round_tripped
+        assert "New sequence starts at one again" in round_tripped
