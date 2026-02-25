@@ -25,6 +25,7 @@ from notionify.converter.ast_normalizer import ASTNormalizer
 from notionify.converter.block_builder import (
     _LANGUAGE_ALIASES,
     _NOTION_LANGUAGES,
+    _apply_image_fallback,
     _build_divider,
     _build_heading,
     _build_list,
@@ -7307,3 +7308,91 @@ class TestBlockUpdateResultModelProperties:
         assume(block_id.isprintable())
         result = BlockUpdateResult(block_id=block_id)
         assert block_id in repr(result)
+
+
+# ---------------------------------------------------------------------------
+# _apply_image_fallback
+# ---------------------------------------------------------------------------
+
+class TestApplyImageFallbackProperties:
+    """_apply_image_fallback branches: skip, placeholder, raise (warning only)."""
+
+    def _ctx(self, fallback: str) -> _BuildContext:
+        cfg = NotionifyConfig(token="test-token", image_fallback=fallback)
+        return _BuildContext(cfg)
+
+    def test_skip_returns_empty_list(self) -> None:
+        """fallback='skip' always returns an empty list."""
+        ctx = self._ctx("skip")
+        result = _apply_image_fallback("https://example.com/img.jpg", "alt", ctx)
+        assert result == []
+
+    def test_skip_adds_warning(self) -> None:
+        """fallback='skip' adds an IMAGE_SKIPPED warning."""
+        ctx = self._ctx("skip")
+        _apply_image_fallback("https://example.com/img.jpg", "alt", ctx)
+        assert any(w.code == "IMAGE_SKIPPED" for w in ctx.warnings)
+
+    def test_placeholder_returns_one_block(self) -> None:
+        """fallback='placeholder' returns exactly one paragraph block."""
+        ctx = self._ctx("placeholder")
+        result = _apply_image_fallback("https://example.com/img.jpg", "alt text", ctx)
+        assert len(result) == 1
+        assert result[0]["type"] == "paragraph"
+
+    def test_placeholder_block_contains_image_text(self) -> None:
+        """Placeholder block rich_text contains '[image: alt text]'."""
+        ctx = self._ctx("placeholder")
+        result = _apply_image_fallback("https://example.com/img.jpg", "my image", ctx)
+        rt = result[0]["paragraph"]["rich_text"]
+        content = "".join(seg["text"]["content"] for seg in rt)
+        assert "my image" in content
+
+    def test_placeholder_uses_url_when_no_alt(self) -> None:
+        """Placeholder uses URL as display text when alt_text is empty."""
+        ctx = self._ctx("placeholder")
+        result = _apply_image_fallback("https://example.com/img.jpg", "", ctx)
+        rt = result[0]["paragraph"]["rich_text"]
+        content = "".join(seg["text"]["content"] for seg in rt)
+        assert "example.com" in content
+
+    def test_placeholder_adds_warning(self) -> None:
+        """fallback='placeholder' adds an IMAGE_PLACEHOLDER warning."""
+        ctx = self._ctx("placeholder")
+        _apply_image_fallback("https://example.com/img.jpg", "alt", ctx)
+        assert any(w.code == "IMAGE_PLACEHOLDER" for w in ctx.warnings)
+
+    def test_raise_fallback_returns_empty_list(self) -> None:
+        """fallback='raise' returns empty list (raises at client level, not here)."""
+        ctx = self._ctx("raise")
+        result = _apply_image_fallback("https://example.com/img.jpg", "alt", ctx)
+        assert result == []
+
+    def test_raise_fallback_adds_image_error_warning(self) -> None:
+        """fallback='raise' adds an IMAGE_ERROR warning."""
+        ctx = self._ctx("raise")
+        _apply_image_fallback("https://example.com/img.jpg", "alt", ctx)
+        assert any(w.code == "IMAGE_ERROR" for w in ctx.warnings)
+
+    @given(
+        url=st.text(min_size=1, max_size=100),
+        alt=st.text(min_size=0, max_size=50),
+    )
+    @settings(max_examples=100)
+    def test_skip_never_raises(self, url: str, alt: str) -> None:
+        """_apply_image_fallback with 'skip' never raises for any url/alt."""
+        ctx = self._ctx("skip")
+        result = _apply_image_fallback(url, alt, ctx)
+        assert result == []
+
+    @given(
+        url=st.text(min_size=1, max_size=100),
+        alt=st.text(min_size=0, max_size=50),
+    )
+    @settings(max_examples=100)
+    def test_placeholder_always_returns_paragraph(self, url: str, alt: str) -> None:
+        """_apply_image_fallback with 'placeholder' always returns a paragraph."""
+        ctx = self._ctx("placeholder")
+        result = _apply_image_fallback(url, alt, ctx)
+        assert len(result) == 1
+        assert result[0]["type"] == "paragraph"
