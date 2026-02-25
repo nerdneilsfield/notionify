@@ -1824,6 +1824,47 @@ class TestConflictDetectionProperties:
         s2 = _make_snapshot(page_id, t, modified)
         assert detect_conflict(s1, s2)
 
+    @given(
+        page_id=st.text(min_size=1, max_size=36),
+        t=_dt_st,
+        etags=_etags_st,
+        new_block_id=st.text(min_size=1, max_size=36),
+        new_etag=st.text(min_size=1, max_size=30),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_extra_blocks_in_current_do_not_conflict_alone(
+        self,
+        page_id: str,
+        t: datetime,
+        etags: dict,
+        new_block_id: str,
+        new_etag: str,
+    ) -> None:
+        """Blocks only in 'current' (not in snapshot) never trigger conflict alone.
+
+        detect_conflict only checks blocks from snapshot.block_etags.
+        If current has additional blocks and the page timestamp is unchanged,
+        no conflict is reported.
+        """
+        assume(new_block_id not in etags)
+        s1 = _make_snapshot(page_id, t, etags)
+        extended = {**etags, new_block_id: new_etag}
+        s2 = _make_snapshot(page_id, t, extended)
+        assert not detect_conflict(s1, s2)
+
+    @given(
+        page_id=st.text(min_size=1, max_size=36),
+        t=_dt_st,
+        etags=_etags_st,
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_detect_conflict_is_reflexive(
+        self, page_id: str, t: datetime, etags: dict
+    ) -> None:
+        """detect_conflict(s, s) is always False (reflexivity property)."""
+        s = _make_snapshot(page_id, t, etags)
+        assert not detect_conflict(s, s)
+
 
 # ---------------------------------------------------------------------------
 # TestRichTextBuilderProperties
