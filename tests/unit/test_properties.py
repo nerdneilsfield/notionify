@@ -5111,6 +5111,8 @@ class TestExtractPlainTextFromBlockProperties:
     @settings(max_examples=200)
     def test_plain_text_field_is_concatenated(self, block_type: str, texts: list[str]) -> None:
         """If segments have plain_text, they are concatenated in order."""
+        # Avoid block_type="type" which would create colliding dict keys
+        assume(block_type != "type")
         segments = [{"plain_text": t} for t in texts]
         block: dict = {"type": block_type, block_type: {"rich_text": segments}}
         result = _extract_plain_text_from_block(block)
@@ -5125,6 +5127,8 @@ class TestExtractPlainTextFromBlockProperties:
         self, block_type: str, texts: list[str]
     ) -> None:
         """When plain_text is absent, falls back to text.content."""
+        # Avoid block_type="type" which would create colliding dict keys
+        assume(block_type != "type")
         segments = [{"text": {"content": t}} for t in texts]
         block: dict = {"type": block_type, block_type: {"rich_text": segments}}
         result = _extract_plain_text_from_block(block)
