@@ -52,6 +52,7 @@ packages = ["src/notionify"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+addopts = "--strict-markers"
 
 [tool.mypy]
 python_version = "3.10"

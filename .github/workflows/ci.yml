@@ -28,7 +28,7 @@ jobs:
           pip install mypy ruff pip-audit pytest-cov
 
       - name: Lint with ruff
-        run: ruff check src/
+        run: ruff check src/ tests/
 
       - name: Type check with mypy (strict)
         run: mypy src/notionify
@@ -37,7 +37,7 @@ jobs:
         run: pip-audit
 
       - name: Run tests with coverage
-        run: pytest tests/ -v --tb=short -q --cov=src/notionify --cov-report=term-missing --cov-fail-under=90
+        run: pytest tests/ -v --tb=short -q --cov=src/notionify --cov-branch --cov-report=term-missing --cov-fail-under=90
 
       - name: Run performance benchmarks
         run: pytest tests/perf/ -v -s
