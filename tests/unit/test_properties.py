@@ -20,7 +20,7 @@ import pytest
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
-from notionify.config import NotionifyConfig
+from notionify.config import NotionifyConfig, _validate_mime_list
 from notionify.converter.ast_normalizer import ASTNormalizer
 from notionify.converter.block_builder import (
     _LANGUAGE_ALIASES,
@@ -84,6 +84,7 @@ from notionify.utils.redact import (
     _SENSITIVE_KEY_PATTERNS,
     _looks_binary,
     _mask_token,
+    _redact_dict,
     _redact_value,
     redact,
 )
@@ -5099,3 +5100,176 @@ class TestExtractPlainTextFromBlockProperties:
         block: dict = {"type": "paragraph", "paragraph": {"rich_text": [{"plain_text": text}]}}
         result = _extract_plain_text_from_block(block)
         assert isinstance(result, str)
+
+
+class TestGuessMimeFromPathProperties:
+    """Property tests for _guess_mime_from_path from image/validate.py."""
+
+    def test_known_png_extension(self) -> None:
+        """Files ending in .png are identified as image/png."""
+        from notionify.image.validate import _guess_mime_from_path
+
+        assert _guess_mime_from_path("photo.png") == "image/png"
+
+    def test_known_jpeg_extension(self) -> None:
+        """Files ending in .jpg / .jpeg are identified as image/jpeg."""
+        from notionify.image.validate import _guess_mime_from_path
+
+        assert _guess_mime_from_path("photo.jpg") in ("image/jpeg", "image/jpg")
+        assert _guess_mime_from_path("photo.jpeg") == "image/jpeg"
+
+    def test_known_gif_extension(self) -> None:
+        """Files ending in .gif are identified as image/gif."""
+        from notionify.image.validate import _guess_mime_from_path
+
+        assert _guess_mime_from_path("anim.gif") == "image/gif"
+
+    def test_known_webp_extension(self) -> None:
+        """Files ending in .webp are identified as image/webp."""
+        from notionify.image.validate import _guess_mime_from_path
+
+        assert _guess_mime_from_path("img.webp") == "image/webp"
+
+    @given(
+        ext=st.text(
+            min_size=5, max_size=10, alphabet=st.characters(whitelist_categories=("L",))
+        )
+    )
+    @settings(max_examples=200)
+    def test_unknown_extension_returns_none_or_string(self, ext: str) -> None:
+        """_guess_mime_from_path always returns str | None."""
+        from notionify.image.validate import _guess_mime_from_path
+
+        result = _guess_mime_from_path(f"file.{ext}")
+        assert result is None or isinstance(result, str)
+
+    def test_url_with_extension(self) -> None:
+        """Works on full URLs, not just bare filenames."""
+        from notionify.image.validate import _guess_mime_from_path
+
+        result = _guess_mime_from_path("https://example.com/image.png")
+        assert result == "image/png"
+
+
+class TestRedactDictProperties:
+    """Property tests for _redact_dict from utils/redact.py."""
+
+    @given(
+        keys=st.lists(
+            st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L",))),
+            min_size=1,
+            max_size=5,
+            unique=True,
+        ),
+        values=st.lists(st.integers(min_value=0, max_value=100), min_size=1, max_size=5),
+    )
+    @settings(max_examples=200)
+    def test_output_has_same_keys_as_input(
+        self, keys: list[str], values: list[int]
+    ) -> None:
+        """_redact_dict preserves all keys from the input dict."""
+        d = dict(zip(keys, values, strict=False))
+        result = _redact_dict(d, None)
+        assert set(result.keys()) == set(d.keys())
+
+    @given(
+        safe_key=st.text(
+            min_size=1, max_size=15, alphabet=st.characters(whitelist_categories=("L",))
+        ),
+        value=st.integers(min_value=0, max_value=100),
+    )
+    @settings(max_examples=200)
+    def test_non_sensitive_integer_passes_through(
+        self, safe_key: str, value: int
+    ) -> None:
+        """Non-sensitive integer values are not modified."""
+        assume(not any(p in safe_key.lower() for p in _SENSITIVE_KEY_PATTERNS))
+        d: dict = {safe_key: value}
+        result = _redact_dict(d, None)
+        assert result[safe_key] == value
+
+    @given(
+        value=st.text(min_size=0, max_size=50),
+    )
+    @settings(max_examples=200)
+    def test_sensitive_key_non_string_value_becomes_redacted(self, value: str) -> None:
+        """Non-string values under a sensitive key become '<redacted>'."""
+        d: dict = {"token": [value]}  # list is non-string
+        result = _redact_dict(d, None)
+        assert result["token"] == "<redacted>"
+
+    @given(
+        keys=st.lists(
+            st.text(min_size=1, max_size=20, alphabet=st.characters(whitelist_categories=("L",))),
+            min_size=1,
+            max_size=5,
+            unique=True,
+        ),
+        values=st.lists(st.integers(min_value=0, max_value=100), min_size=1, max_size=5),
+    )
+    @settings(max_examples=200)
+    def test_nested_dict_is_recursively_redacted(
+        self, keys: list[str], values: list[int]
+    ) -> None:
+        """_redact_dict recursively processes nested dicts."""
+        inner: dict = dict(zip(keys, values, strict=False))
+        outer_key = "data"
+        d: dict = {outer_key: inner}
+        result = _redact_dict(d, None)
+        assert isinstance(result[outer_key], dict)
+        assert set(result[outer_key].keys()) == set(inner.keys())
+
+
+class TestValidateMimeListProperties:
+    """Property tests for _validate_mime_list from config.py."""
+
+    def test_empty_list_raises_value_error(self) -> None:
+        """An empty MIME list must raise ValueError."""
+        with pytest.raises(ValueError, match="must not be empty"):
+            _validate_mime_list("test_label", [])
+
+    @given(
+        mimes=st.lists(
+            st.from_regex(r"[a-z]+/[a-z]+", fullmatch=True),
+            min_size=1,
+            max_size=5,
+        )
+    )
+    @settings(max_examples=200)
+    def test_valid_mime_types_do_not_raise(self, mimes: list[str]) -> None:
+        """Well-formed MIME strings (type/subtype) must not raise."""
+        _validate_mime_list("test_label", mimes)
+
+    @given(
+        bad_mime=st.text(
+            min_size=1,
+            max_size=20,
+            alphabet=st.characters(whitelist_categories=("L",)),
+        )
+    )
+    @settings(max_examples=200)
+    def test_mime_without_slash_raises(self, bad_mime: str) -> None:
+        """A MIME string without '/' must raise ValueError."""
+        with pytest.raises(ValueError, match="Invalid MIME type"):
+            _validate_mime_list("test_label", [bad_mime])
+
+    @given(
+        valid_mimes=st.lists(
+            st.from_regex(r"[a-z]+/[a-z]+", fullmatch=True),
+            min_size=1,
+            max_size=4,
+        ),
+        bad_mime=st.text(
+            min_size=1,
+            max_size=20,
+            alphabet=st.characters(whitelist_categories=("L",)),
+        ),
+    )
+    @settings(max_examples=200)
+    def test_one_bad_mime_in_list_raises(
+        self, valid_mimes: list[str], bad_mime: str
+    ) -> None:
+        """A single invalid MIME entry causes the whole list to fail."""
+        mixed = [*valid_mimes, bad_mime]
+        with pytest.raises(ValueError, match="Invalid MIME type"):
+            _validate_mime_list("test_label", mixed)
