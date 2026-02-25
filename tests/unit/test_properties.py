@@ -6463,3 +6463,124 @@ class TestRendererBlockMethodsProperties:
         block = {"numbered_list_item": {"rich_text": self._rt(text)}}
         result = r._render_numbered_list_item(block, depth, number)
         assert result.startswith("  " * depth + f"{number}. ")
+
+
+class TestRendererUrlAndCalloutProperties:
+    """Property tests for renderer methods: callout, child pages, embed, bookmark."""
+
+    def _r(self) -> NotionToMarkdownRenderer:
+        return NotionToMarkdownRenderer(NotionifyConfig(token="test-token"))
+
+    def _rt(self, text: str) -> list[dict]:
+        return [{"type": "text", "text": {"content": text}, "plain_text": text}]
+
+    # --- _render_callout ---
+
+    @given(
+        emoji=st.text(min_size=1, max_size=2, alphabet="🔥💡✅⚡🎯"),
+        text=st.text(min_size=1, max_size=40, alphabet=string.ascii_letters + " "),
+    )
+    @settings(max_examples=100)
+    def test_callout_with_emoji_prepends_icon(self, emoji: str, text: str) -> None:
+        """Callout with emoji icon → icon prepended before text in output."""
+        r = self._r()
+        block = {
+            "callout": {
+                "icon": {"type": "emoji", "emoji": emoji},
+                "rich_text": self._rt(text),
+            }
+        }
+        result = r._render_callout(block, 0)
+        assert emoji in result
+
+    @given(text=st.text(min_size=1, max_size=40, alphabet=string.ascii_letters + " "))
+    @settings(max_examples=100)
+    def test_callout_always_starts_with_quote_marker(self, text: str) -> None:
+        """Callout output always begins with '> '."""
+        r = self._r()
+        block = {"callout": {"rich_text": self._rt(text)}}
+        result = r._render_callout(block, 0)
+        assert result.startswith("> ")
+
+    # --- _render_child_page / _render_child_database ---
+
+    @given(
+        title=st.text(min_size=1, max_size=40, alphabet=string.ascii_letters + " "),
+    )
+    @settings(max_examples=100)
+    def test_child_page_output_contains_page_prefix(self, title: str) -> None:
+        """_render_child_page → '[Page: title](url)\\n\\n'."""
+        r = self._r()
+        block = {"child_page": {"title": title}, "id": "abc-123"}
+        result = r._render_child_page(block, 0)
+        assert result.startswith("[Page: ")
+        assert result.endswith("\n\n")
+
+    @given(
+        title=st.text(min_size=1, max_size=40, alphabet=string.ascii_letters + " "),
+    )
+    @settings(max_examples=100)
+    def test_child_database_output_contains_database_prefix(self, title: str) -> None:
+        """_render_child_database → '[Database: title](url)\\n\\n'."""
+        r = self._r()
+        block = {"child_database": {"title": title}, "id": "abc-123"}
+        result = r._render_child_database(block, 0)
+        assert result.startswith("[Database: ")
+        assert result.endswith("\n\n")
+
+    # --- _render_embed ---
+
+    def test_embed_contains_embed_label(self) -> None:
+        """_render_embed renders as '[Embed](url)\\n\\n'."""
+        r = self._r()
+        block = {"embed": {"url": "https://example.com/video"}}
+        result = r._render_embed(block, 0)
+        assert result.startswith("[Embed](")
+        assert result.endswith("\n\n")
+
+    # --- _render_bookmark ---
+
+    @given(
+        url=st.text(min_size=5, max_size=40, alphabet=string.ascii_letters + ":/._-"),
+    )
+    @settings(max_examples=100)
+    def test_bookmark_contains_url_in_output(self, url: str) -> None:
+        """_render_bookmark always includes the URL somewhere in the output."""
+        r = self._r()
+        block = {"bookmark": {"url": url}}
+        result = r._render_bookmark(block, 0)
+        assert url in result
+        assert result.endswith("\n\n")
+
+    # --- _render_block_list numbered counter ---
+
+    def test_block_list_numbered_counter_increments(self) -> None:
+        """Consecutive numbered_list_item blocks receive incrementing numbers."""
+        r = self._r()
+        blocks = [
+            {"type": "numbered_list_item",
+             "numbered_list_item": {"rich_text": self._rt("alpha")}},
+            {"type": "numbered_list_item",
+             "numbered_list_item": {"rich_text": self._rt("beta")}},
+            {"type": "numbered_list_item",
+             "numbered_list_item": {"rich_text": self._rt("gamma")}},
+        ]
+        result = r._render_block_list(blocks, 0)
+        assert "1. alpha" in result
+        assert "2. beta" in result
+        assert "3. gamma" in result
+
+    def test_block_list_numbered_counter_resets_after_divider(self) -> None:
+        """Numbered counter resets to 1 when a non-numbered block interrupts."""
+        r = self._r()
+        blocks = [
+            {"type": "numbered_list_item",
+             "numbered_list_item": {"rich_text": self._rt("first")}},
+            {"type": "divider", "divider": {}},
+            {"type": "numbered_list_item",
+             "numbered_list_item": {"rich_text": self._rt("second")}},
+        ]
+        result = r._render_block_list(blocks, 0)
+        # Counter resets: both items should be numbered "1."
+        assert "1. first" in result
+        assert "1. second" in result
