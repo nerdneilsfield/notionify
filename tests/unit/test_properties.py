@@ -1908,6 +1908,32 @@ class TestConflictDetectionProperties:
         s = _make_snapshot(page_id, t, etags)
         assert not detect_conflict(s, s)
 
+    @given(
+        page_id=st.text(min_size=1, max_size=36),
+        blocks=st.lists(
+            st.fixed_dictionaries({
+                "id": st.text(min_size=1, max_size=36),
+                "last_edited_time": st.from_regex(
+                    r"20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", fullmatch=True
+                ),
+            }),
+            min_size=1,
+            max_size=10,
+        ),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_take_snapshot_captures_all_blocks_with_id_and_time(
+        self, page_id: str, blocks: list[dict]
+    ) -> None:
+        """Every block with both 'id' and 'last_edited_time' appears in block_etags."""
+        # Require unique IDs so last-wins dict semantics don't hide any blocks.
+        assume(len({b["id"] for b in blocks}) == len(blocks))
+        page = {"last_edited_time": ""}
+        snapshot = take_snapshot(page_id, page, blocks)
+        for block in blocks:
+            assert block["id"] in snapshot.block_etags
+            assert snapshot.block_etags[block["id"]] == block["last_edited_time"]
+
 
 # ---------------------------------------------------------------------------
 # TestRichTextBuilderProperties
