@@ -86,6 +86,7 @@ from notionify.converter.tables import (
     build_table,
 )
 from notionify.diff.conflict import detect_conflict, take_snapshot
+from notionify.diff.executor import _ExecState
 from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.planner import DiffPlanner
 from notionify.diff.signature import (
@@ -98,11 +99,15 @@ from notionify.diff.signature import (
 )
 from notionify.errors import (
     NotionifyError,
+    NotionifyImageSizeError,
+    NotionifyImageTypeError,
     NotionifyUnsupportedBlockError,
     NotionifyValidationError,
     _reconstruct_error,
 )
+from notionify.image.attach import build_image_block_external, build_image_block_uploaded
 from notionify.image.detect import detect_image_source, mime_to_extension
+from notionify.image.validate import validate_image
 from notionify.models import (
     BlockSignature,
     ConversionResult,
@@ -6948,3 +6953,229 @@ class TestConversionResultModelProperties:
         assert w.code == code
         assert w.message == message
         assert w.context == {}
+
+
+# ---------------------------------------------------------------------------
+# validate_image
+# ---------------------------------------------------------------------------
+
+class TestValidateImageProperties:
+    """validate_image returns a valid MIME type + bytes, or raises."""
+
+    def _cfg(self) -> NotionifyConfig:
+        return NotionifyConfig(token="test-token")
+
+    def test_external_jpg_url_returns_jpeg_mime_and_none_data(self) -> None:
+        """External .jpg URL guesses image/jpeg and returns None data."""
+        cfg = self._cfg()
+        mime, data = validate_image(
+            "https://example.com/photo.jpg",
+            ImageSourceType.EXTERNAL_URL,
+            None,
+            cfg,
+        )
+        assert mime == "image/jpeg"
+        assert data is None
+
+    def test_external_png_url_returns_png_mime(self) -> None:
+        """External .png URL guesses image/png."""
+        cfg = self._cfg()
+        mime, _ = validate_image(
+            "https://example.com/image.png",
+            ImageSourceType.EXTERNAL_URL,
+            None,
+            cfg,
+        )
+        assert mime == "image/png"
+
+    def test_local_jpeg_bytes_detected_via_magic(self) -> None:
+        """Local file with JPEG magic bytes sniffs as image/jpeg."""
+        cfg = self._cfg()
+        jpeg_bytes = b"\xff\xd8\xff" + b"\x00" * 20
+        mime, returned = validate_image(
+            "photo.jpg",
+            ImageSourceType.LOCAL_FILE,
+            jpeg_bytes,
+            cfg,
+        )
+        assert mime == "image/jpeg"
+        assert returned is jpeg_bytes
+
+    def test_local_png_bytes_detected_via_magic(self) -> None:
+        """Local file with PNG magic bytes sniffs as image/png."""
+        cfg = self._cfg()
+        png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+        mime, returned = validate_image(
+            "photo.png",
+            ImageSourceType.LOCAL_FILE,
+            png_bytes,
+            cfg,
+        )
+        assert mime == "image/png"
+        assert returned is png_bytes
+
+    def test_data_exceeding_max_size_raises_size_error(self) -> None:
+        """Image data exceeding image_max_size_bytes raises NotionifyImageSizeError."""
+        cfg = NotionifyConfig(token="test-token", image_max_size_bytes=50)
+        jpeg_bytes = b"\xff\xd8\xff" + b"\x00" * 200
+        with pytest.raises(NotionifyImageSizeError) as exc_info:
+            validate_image("photo.jpg", ImageSourceType.LOCAL_FILE, jpeg_bytes, cfg)
+        assert exc_info.value.context["size_bytes"] > 50
+        assert exc_info.value.context["max_bytes"] == 50
+
+    def test_disallowed_mime_raises_type_error(self) -> None:
+        """A URL with a non-image extension raises NotionifyImageTypeError."""
+        cfg = self._cfg()
+        with pytest.raises(NotionifyImageTypeError) as exc_info:
+            validate_image(
+                "https://example.com/document.pdf",
+                ImageSourceType.EXTERNAL_URL,
+                None,
+                cfg,
+            )
+        assert "not allowed" in exc_info.value.message
+
+    def test_type_error_context_contains_detected_mime(self) -> None:
+        """NotionifyImageTypeError context includes the detected MIME type."""
+        cfg = self._cfg()
+        with pytest.raises(NotionifyImageTypeError) as exc_info:
+            validate_image(
+                "https://example.com/file.html",
+                ImageSourceType.EXTERNAL_URL,
+                None,
+                cfg,
+            )
+        assert "detected_mime" in exc_info.value.context
+
+    @given(url=st.from_regex(r"https://example\.com/img\.(jpg|png|gif|webp)", fullmatch=True))
+    @settings(max_examples=50)
+    def test_known_image_extensions_always_pass_validation(self, url: str) -> None:
+        """URLs with known image extensions never raise TypeError."""
+        cfg = self._cfg()
+        mime, data = validate_image(url, ImageSourceType.EXTERNAL_URL, None, cfg)
+        assert mime in cfg.image_allowed_mimes_external
+        assert data is None
+
+    def test_unknown_extension_falls_back_to_octet_stream_and_raises(self) -> None:
+        """URL with unknown extension → octet-stream fallback → type error."""
+        cfg = self._cfg()
+        with pytest.raises(NotionifyImageTypeError):
+            validate_image(
+                "https://example.com/file.xyz123unknown",
+                ImageSourceType.EXTERNAL_URL,
+                None,
+                cfg,
+            )
+
+    def test_result_is_always_two_tuple(self) -> None:
+        """validate_image always returns a 2-tuple on success."""
+        cfg = self._cfg()
+        result = validate_image(
+            "https://example.com/photo.jpg",
+            ImageSourceType.EXTERNAL_URL,
+            None,
+            cfg,
+        )
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+
+# ---------------------------------------------------------------------------
+# build_image_block_external / build_image_block_uploaded
+# ---------------------------------------------------------------------------
+
+class TestBuildImageBlockProperties:
+    """Invariants for image block dict builders."""
+
+    @given(url=st.text(min_size=1, max_size=200))
+    @settings(max_examples=200)
+    def test_external_block_type_is_image(self, url: str) -> None:
+        """build_image_block_external always returns type='image'."""
+        block = build_image_block_external(url)
+        assert block["type"] == "image"
+
+    @given(url=st.text(min_size=1, max_size=200))
+    @settings(max_examples=200)
+    def test_external_block_image_type_is_external(self, url: str) -> None:
+        """The image sub-type is always 'external'."""
+        block = build_image_block_external(url)
+        assert block["image"]["type"] == "external"
+
+    @given(url=st.text(min_size=1, max_size=200))
+    @settings(max_examples=200)
+    def test_external_block_url_preserved_verbatim(self, url: str) -> None:
+        """The URL is stored verbatim in image.external.url."""
+        block = build_image_block_external(url)
+        assert block["image"]["external"]["url"] == url
+
+    @given(upload_id=st.text(min_size=1, max_size=100))
+    @settings(max_examples=200)
+    def test_uploaded_block_type_is_image(self, upload_id: str) -> None:
+        """build_image_block_uploaded always returns type='image'."""
+        block = build_image_block_uploaded(upload_id)
+        assert block["type"] == "image"
+
+    @given(upload_id=st.text(min_size=1, max_size=100))
+    @settings(max_examples=200)
+    def test_uploaded_block_image_type_is_file_upload(self, upload_id: str) -> None:
+        """The image sub-type is always 'file_upload'."""
+        block = build_image_block_uploaded(upload_id)
+        assert block["image"]["type"] == "file_upload"
+
+    @given(upload_id=st.text(min_size=1, max_size=100))
+    @settings(max_examples=200)
+    def test_uploaded_block_id_preserved_verbatim(self, upload_id: str) -> None:
+        """The upload_id is stored verbatim in image.file_upload.id."""
+        block = build_image_block_uploaded(upload_id)
+        assert block["image"]["file_upload"]["id"] == upload_id
+
+    def test_external_and_uploaded_have_different_image_subtypes(self) -> None:
+        """External and uploaded blocks have distinct image type values."""
+        ext = build_image_block_external("https://example.com/img.png")
+        upl = build_image_block_uploaded("upload-uuid-123")
+        assert ext["image"]["type"] != upl["image"]["type"]
+
+
+# ---------------------------------------------------------------------------
+# _ExecState
+# ---------------------------------------------------------------------------
+
+class TestExecStateProperties:
+    """_ExecState always initializes with zero counters and None last_block_id."""
+
+    def test_initial_kept_is_zero(self) -> None:
+        assert _ExecState().kept == 0
+
+    def test_initial_inserted_is_zero(self) -> None:
+        assert _ExecState().inserted == 0
+
+    def test_initial_deleted_is_zero(self) -> None:
+        assert _ExecState().deleted == 0
+
+    def test_initial_replaced_is_zero(self) -> None:
+        assert _ExecState().replaced == 0
+
+    def test_initial_last_block_id_is_none(self) -> None:
+        assert _ExecState().last_block_id is None
+
+    def test_counters_are_independent(self) -> None:
+        """Incrementing one counter does not affect others."""
+        state = _ExecState()
+        state.kept += 7
+        assert state.inserted == 0
+        assert state.deleted == 0
+        assert state.replaced == 0
+
+    def test_multiple_instances_are_independent(self) -> None:
+        """Two _ExecState instances share no state."""
+        s1 = _ExecState()
+        s2 = _ExecState()
+        s1.kept = 10
+        s2.last_block_id = "block-xyz"
+        assert s2.kept == 0
+        assert s1.last_block_id is None
+
+    def test_last_block_id_can_be_set_and_read(self) -> None:
+        state = _ExecState()
+        state.last_block_id = "block-abc-123"
+        assert state.last_block_id == "block-abc-123"
