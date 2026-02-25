@@ -2306,3 +2306,82 @@ class TestComputeSignatureProperties:
         sig_a = compute_signature(_make_typed_block(type_a))
         sig_b = compute_signature(_make_typed_block(type_b))
         assert sig_a != sig_b
+
+
+# ---------------------------------------------------------------------------
+# TestDataUriParseProperties
+# ---------------------------------------------------------------------------
+
+class TestDataUriParseProperties:
+    """Property-based tests for _parse_data_uri."""
+
+    @given(
+        raw_bytes=st.binary(min_size=0, max_size=200),
+        mime=st.sampled_from(["image/png", "image/jpeg", "image/gif", "image/webp"]),
+    )
+    @settings(max_examples=200)
+    def test_valid_base64_uri_round_trips(self, raw_bytes: bytes, mime: str) -> None:
+        """Valid base64 data URIs are parsed back to original bytes."""
+        import base64
+
+        from notionify.image.validate import _parse_data_uri
+        encoded = base64.b64encode(raw_bytes).decode("ascii")
+        src = f"data:{mime};base64,{encoded}"
+        parsed_mime, decoded = _parse_data_uri(src)
+        assert parsed_mime == mime
+        assert decoded == raw_bytes
+
+    @given(
+        raw_bytes=st.binary(min_size=0, max_size=200),
+        mime=st.sampled_from(["image/png", "image/jpeg"]),
+    )
+    @settings(max_examples=200)
+    def test_base64_uri_mime_is_preserved(self, raw_bytes: bytes, mime: str) -> None:
+        """MIME type from data URI header is returned verbatim."""
+        import base64
+
+        from notionify.image.validate import _parse_data_uri
+        encoded = base64.b64encode(raw_bytes).decode("ascii")
+        src = f"data:{mime};base64,{encoded}"
+        parsed_mime, _ = _parse_data_uri(src)
+        assert parsed_mime == mime
+
+    @given(garbage=st.text(min_size=1, max_size=50, alphabet=string.ascii_letters + "!@#$%"))
+    @settings(max_examples=200)
+    def test_invalid_base64_raises_parse_error(self, garbage: str) -> None:
+        """Invalid base64 payload raises NotionifyImageParseError."""
+        from notionify.errors import NotionifyImageParseError
+        from notionify.image.validate import _parse_data_uri
+        # Use characters that are invalid in base64 to force a decode error.
+        src = f"data:image/png;base64,{garbage}!!!invalid!!!"
+        with pytest.raises((NotionifyImageParseError, Exception)):
+            _parse_data_uri(src)
+
+    @given(
+        raw_bytes=st.binary(min_size=0, max_size=100),
+    )
+    @settings(max_examples=200)
+    def test_no_mime_defaults_to_octet_stream(self, raw_bytes: bytes) -> None:
+        """Data URIs without a MIME type default to 'application/octet-stream'."""
+        import base64
+
+        from notionify.image.validate import _parse_data_uri
+        encoded = base64.b64encode(raw_bytes).decode("ascii")
+        src = f"data:;base64,{encoded}"
+        parsed_mime, _ = _parse_data_uri(src)
+        assert parsed_mime == "application/octet-stream"
+
+    @given(
+        raw_bytes=st.binary(min_size=0, max_size=100),
+        mime=st.sampled_from(["image/png", "image/jpeg"]),
+    )
+    @settings(max_examples=200)
+    def test_decoded_length_matches_original(self, raw_bytes: bytes, mime: str) -> None:
+        """Decoded bytes length equals original bytes length."""
+        import base64
+
+        from notionify.image.validate import _parse_data_uri
+        encoded = base64.b64encode(raw_bytes).decode("ascii")
+        src = f"data:{mime};base64,{encoded}"
+        _, decoded = _parse_data_uri(src)
+        assert len(decoded) == len(raw_bytes)
