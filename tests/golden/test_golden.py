@@ -932,3 +932,57 @@ class TestMathMixed:
         round_tripped = renderer.render_blocks(blocks)
         assert "Pythagorean theorem" in round_tripped
         assert "Euler" in round_tripped
+
+
+class TestStrikethroughCombinations:
+    """Verify strikethrough_combinations.md: strikethrough with bold/italic combos."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "strikethrough_combinations.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 8
+        assert len(result.warnings) == 0
+
+    def test_pure_strikethrough_preserved(self, converter, renderer):
+        """A purely struck word survives the round-trip."""
+        md = (FIXTURES_DIR / "strikethrough_combinations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "struck" in round_tripped
+
+    def test_bold_strikethrough_segment_exists(self, converter):
+        """At least one rich_text segment must have both bold and strikethrough."""
+        md = (FIXTURES_DIR / "strikethrough_combinations.md").read_text()
+        result = converter.convert(md)
+
+        def has_both(block: dict) -> bool:
+            for seg in block.get(block.get("type", ""), {}).get("rich_text", []):
+                ann = seg.get("annotations", {})
+                if ann.get("bold") and ann.get("strikethrough"):
+                    return True
+            return False
+
+        assert any(has_both(b) for b in result.blocks)
+
+    def test_italic_strikethrough_segment_exists(self, converter):
+        """At least one rich_text segment must have both italic and strikethrough."""
+        md = (FIXTURES_DIR / "strikethrough_combinations.md").read_text()
+        result = converter.convert(md)
+
+        def has_both(block: dict) -> bool:
+            for seg in block.get(block.get("type", ""), {}).get("rich_text", []):
+                ann = seg.get("annotations", {})
+                if ann.get("italic") and ann.get("strikethrough"):
+                    return True
+            return False
+
+        assert any(has_both(b) for b in result.blocks)
+
+    def test_multi_word_strikethrough_preserved(self, converter, renderer):
+        """A multi-word struck phrase must survive the round-trip."""
+        md = (FIXTURES_DIR / "strikethrough_combinations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "longer phrase" in round_tripped
