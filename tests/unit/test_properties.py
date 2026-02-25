@@ -59,7 +59,13 @@ from notionify.converter.rich_text import (
     extract_text,
     split_rich_text,
 )
-from notionify.converter.tables import _cells_to_text, build_table
+from notionify.converter.tables import (
+    _apply_table_fallback,
+    _build_row_cells,
+    _cells_to_text,
+    _table_to_plain_text,
+    build_table,
+)
 from notionify.diff.conflict import detect_conflict, take_snapshot
 from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.planner import DiffPlanner
@@ -5273,3 +5279,138 @@ class TestValidateMimeListProperties:
         mixed = [*valid_mimes, bad_mime]
         with pytest.raises(ValueError, match="Invalid MIME type"):
             _validate_mime_list("test_label", mixed)
+
+
+class TestBuildRowCellsProperties:
+    """Property tests for _build_row_cells from tables.py."""
+
+    _CONFIG = NotionifyConfig(token="test-token")
+
+    def test_empty_cells_returns_empty_list(self) -> None:
+        """No cells → no rows."""
+        result = _build_row_cells([], self._CONFIG)
+        assert result == []
+
+    @given(n=st.integers(min_value=1, max_value=8))
+    @settings(max_examples=200)
+    def test_output_length_equals_input_length(self, n: int) -> None:
+        """One output entry per input cell regardless of cell type."""
+        cells = [{"type": "table_cell", "children": []} for _ in range(n)]
+        result = _build_row_cells(cells, self._CONFIG)
+        assert len(result) == n
+
+    @given(n=st.integers(min_value=1, max_value=5))
+    @settings(max_examples=200)
+    def test_non_table_cell_produces_empty_rich_text(self, n: int) -> None:
+        """Tokens that are not table_cell produce an empty rich_text list."""
+        cells = [{"type": "paragraph", "children": []} for _ in range(n)]
+        result = _build_row_cells(cells, self._CONFIG)
+        assert all(cell == [] for cell in result)
+
+    def test_table_cell_with_text_child_produces_segment(self) -> None:
+        """A table_cell with a plain text token produces a non-empty rich_text."""
+        cell = {
+            "type": "table_cell",
+            "children": [{"type": "text", "raw": "hello"}],
+        }
+        result = _build_row_cells([cell], self._CONFIG)
+        assert len(result) == 1
+        assert len(result[0]) >= 1
+
+
+class TestTableToPlainTextProperties:
+    """Property tests for _table_to_plain_text from tables.py."""
+
+    _CONFIG = NotionifyConfig(token="test-token")
+
+    def test_empty_token_returns_table_placeholder(self) -> None:
+        """A token with no children returns '[table]'."""
+        result = _table_to_plain_text({}, self._CONFIG)
+        assert result == "[table]"
+
+    def test_always_returns_string(self) -> None:
+        """_table_to_plain_text always returns a str."""
+        token: dict = {"type": "table", "children": []}
+        result = _table_to_plain_text(token, self._CONFIG)
+        assert isinstance(result, str)
+
+    def test_token_with_table_head_produces_text(self) -> None:
+        """A table_head with cells produces text containing cell content."""
+        token: dict = {
+            "type": "table",
+            "children": [
+                {
+                    "type": "table_head",
+                    "children": [
+                        {"type": "table_cell", "children": [{"type": "text", "raw": "Col A"}]},
+                        {"type": "table_cell", "children": [{"type": "text", "raw": "Col B"}]},
+                    ],
+                }
+            ],
+        }
+        result = _table_to_plain_text(token, self._CONFIG)
+        assert "Col A" in result
+        assert "Col B" in result
+
+    def test_multiple_rows_joined_with_separator(self) -> None:
+        """Multiple body rows are joined with ' | '."""
+        make_row = lambda text: {  # noqa: E731
+            "type": "table_row",
+            "children": [
+                {"type": "table_cell", "children": [{"type": "text", "raw": text}]},
+            ],
+        }
+        token: dict = {
+            "type": "table",
+            "children": [
+                {
+                    "type": "table_body",
+                    "children": [make_row("Row1"), make_row("Row2")],
+                }
+            ],
+        }
+        result = _table_to_plain_text(token, self._CONFIG)
+        assert " | " in result
+
+
+class TestApplyTableFallbackProperties:
+    """Property tests for _apply_table_fallback from tables.py."""
+
+    _CONFIG_COMMENT = NotionifyConfig(token="test-token", table_fallback="comment")
+    _CONFIG_PARAGRAPH = NotionifyConfig(token="test-token", table_fallback="paragraph")
+    _CONFIG_RAISE = NotionifyConfig(token="test-token", table_fallback="raise")
+
+    def test_raise_fallback_raises_conversion_error(self) -> None:
+        """table_fallback='raise' must raise NotionifyConversionError."""
+        from notionify.errors import NotionifyConversionError
+
+        with pytest.raises(NotionifyConversionError):
+            _apply_table_fallback({}, self._CONFIG_RAISE, [])
+
+    def test_comment_fallback_adds_warning(self) -> None:
+        """comment fallback always adds exactly one TABLE_DISABLED warning."""
+        warnings: list = []
+        _apply_table_fallback({}, self._CONFIG_COMMENT, warnings)
+        assert len(warnings) == 1
+        assert warnings[0].code == "TABLE_DISABLED"
+
+    def test_comment_fallback_returns_paragraph_block(self) -> None:
+        """comment fallback returns a paragraph block."""
+        warnings: list = []
+        block, _ = _apply_table_fallback({}, self._CONFIG_COMMENT, warnings)
+        assert block is not None
+        assert block["type"] == "paragraph"
+
+    def test_paragraph_fallback_adds_warning(self) -> None:
+        """paragraph fallback always adds a TABLE_DISABLED warning."""
+        warnings: list = []
+        _apply_table_fallback({}, self._CONFIG_PARAGRAPH, warnings)
+        assert len(warnings) == 1
+        assert warnings[0].code == "TABLE_DISABLED"
+
+    def test_paragraph_fallback_returns_paragraph_block(self) -> None:
+        """paragraph fallback returns a paragraph block."""
+        warnings: list = []
+        block, _ = _apply_table_fallback({}, self._CONFIG_PARAGRAPH, warnings)
+        assert block is not None
+        assert block["type"] == "paragraph"
