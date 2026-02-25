@@ -5,6 +5,8 @@ markdown_escape, annotation rendering, equation handling, link wrapping,
 and edge cases.
 """
 
+import pytest
+
 from notionify.converter.inline_renderer import markdown_escape, render_rich_text
 
 # =========================================================================
@@ -272,3 +274,174 @@ class TestRenderEdgeCases:
         seg = {"type": "text", "plain_text": None, "text": {"content": "hello"}}
         result = render_rich_text([seg])
         assert result == "hello"
+
+    def test_unknown_segment_type_renders_as_text(self):
+        """Unknown types default to 'text' type handling."""
+        seg = {"type": "mention", "plain_text": "*user*"}
+        result = render_rich_text([seg])
+        assert result == r"\*user\*"
+
+    def test_equation_missing_expression_key(self):
+        """Equation segment with empty equation dict."""
+        seg = {"type": "equation", "equation": {}}
+        result = render_rich_text([seg])
+        assert result == "$$"
+
+    def test_annotations_with_false_values_no_wrapping(self):
+        """All annotations explicitly set to False produces plain text."""
+        seg = {
+            "type": "text",
+            "text": {"content": "plain"},
+            "annotations": {
+                "bold": False,
+                "italic": False,
+                "strikethrough": False,
+                "underline": False,
+                "code": False,
+            },
+        }
+        assert render_rich_text([seg]) == "plain"
+
+    def test_empty_text_with_annotations(self):
+        """Empty text with bold annotation produces empty bold wrapper."""
+        seg = {
+            "type": "text",
+            "text": {"content": ""},
+            "annotations": {"bold": True},
+        }
+        assert render_rich_text([seg]) == "****"
+
+    def test_empty_href_does_not_wrap_link(self):
+        """Empty href string should not produce a link wrapper."""
+        seg = {
+            "type": "text",
+            "text": {"content": "text"},
+            "href": "",
+        }
+        # Empty string is falsy, so no link wrapping
+        assert render_rich_text([seg]) == "text"
+
+    def test_text_fallback_plain_text_over_none_content(self):
+        """plain_text is preferred when text.content is None."""
+        seg = {"type": "text", "plain_text": "fallback", "text": {"content": None}}
+        result = render_rich_text([seg])
+        assert result == "fallback"
+
+
+# =========================================================================
+# render_rich_text: annotation combinations (parametrized)
+# =========================================================================
+
+class TestAnnotationCombinations:
+    """Exhaustive annotation combination tests per PRD section 11.2."""
+
+    @pytest.mark.parametrize(
+        ("annots", "expected_markers"),
+        [
+            ({"bold": True}, ["**"]),
+            ({"italic": True}, ["_"]),
+            ({"strikethrough": True}, ["~~"]),
+            ({"underline": True}, ["<u>", "</u>"]),
+            ({"bold": True, "italic": True}, ["**", "_"]),
+            ({"bold": True, "strikethrough": True}, ["**", "~~"]),
+            ({"bold": True, "underline": True}, ["**", "<u>"]),
+            ({"italic": True, "strikethrough": True}, ["_", "~~"]),
+            ({"italic": True, "underline": True}, ["_", "<u>"]),
+            ({"strikethrough": True, "underline": True}, ["~~", "<u>"]),
+            ({"bold": True, "italic": True, "strikethrough": True}, ["**", "_", "~~"]),
+            ({"bold": True, "italic": True, "underline": True}, ["**", "_", "<u>"]),
+            ({"bold": True, "strikethrough": True, "underline": True}, ["**", "~~", "<u>"]),
+            ({"italic": True, "strikethrough": True, "underline": True}, ["_", "~~", "<u>"]),
+            (
+                {"bold": True, "italic": True, "strikethrough": True, "underline": True},
+                ["**", "_", "~~", "<u>"],
+            ),
+        ],
+        ids=[
+            "bold-only",
+            "italic-only",
+            "strike-only",
+            "underline-only",
+            "bold+italic",
+            "bold+strike",
+            "bold+underline",
+            "italic+strike",
+            "italic+underline",
+            "strike+underline",
+            "bold+italic+strike",
+            "bold+italic+underline",
+            "bold+strike+underline",
+            "italic+strike+underline",
+            "all-four",
+        ],
+    )
+    def test_annotation_combination(self, annots, expected_markers):
+        seg = {
+            "type": "text",
+            "text": {"content": "x"},
+            "annotations": annots,
+        }
+        result = render_rich_text([seg])
+        for marker in expected_markers:
+            assert marker in result, f"Expected {marker!r} in {result!r}"
+        # "x" should still be present
+        assert "x" in result
+
+    @pytest.mark.parametrize(
+        "annots",
+        [
+            {"code": True, "bold": True},
+            {"code": True, "italic": True},
+            {"code": True, "strikethrough": True},
+            {"code": True, "underline": True},
+            {"code": True, "bold": True, "italic": True, "strikethrough": True, "underline": True},
+        ],
+        ids=[
+            "code+bold",
+            "code+italic",
+            "code+strike",
+            "code+underline",
+            "code+all",
+        ],
+    )
+    def test_code_suppresses_all_other_annotations(self, annots):
+        """Code annotation takes priority; other annotations are not applied."""
+        seg = {
+            "type": "text",
+            "text": {"content": "x"},
+            "annotations": annots,
+        }
+        result = render_rich_text([seg])
+        assert result == "`x`"
+        # None of the other markers should appear
+        assert "**" not in result
+        assert "~~" not in result
+        assert "<u>" not in result
+        # _ could appear in `x` but italic _ wrapping should not be present
+        assert not result.startswith("_")
+
+    def test_nesting_order_bold_inside_italic(self):
+        """Bold wraps first (innermost), then italic wraps outside."""
+        seg = {
+            "type": "text",
+            "text": {"content": "x"},
+            "annotations": {"bold": True, "italic": True},
+        }
+        result = render_rich_text([seg])
+        # Expected: _**x**_
+        assert result == "_**x**_"
+
+    def test_full_nesting_order(self):
+        """All four annotations nest: underline > strikethrough > italic > bold > text."""
+        seg = {
+            "type": "text",
+            "text": {"content": "x"},
+            "annotations": {
+                "bold": True,
+                "italic": True,
+                "strikethrough": True,
+                "underline": True,
+            },
+        }
+        result = render_rich_text([seg])
+        assert result == "<u>~~_**x**_~~</u>"

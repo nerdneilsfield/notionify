@@ -122,6 +122,35 @@ class TestParseRetryAfter:
         resp = make_response(headers={"retry-after": "0"})
         assert _parse_retry_after(resp) == 0.0
 
+    def test_negative_value_returns_negative_float(self):
+        resp = make_response(headers={"retry-after": "-1"})
+        assert _parse_retry_after(resp) == -1.0
+
+    def test_very_large_value_returns_float(self):
+        resp = make_response(headers={"retry-after": "86400"})
+        assert _parse_retry_after(resp) == 86400.0
+
+    def test_rfc_date_string_returns_none(self):
+        """RFC 7231 date format is not supported; returns None gracefully."""
+        resp = make_response(headers={"retry-after": "Wed, 21 Oct 2015 07:28:00 GMT"})
+        assert _parse_retry_after(resp) is None
+
+    def test_empty_string_returns_none(self):
+        resp = make_response(headers={"retry-after": ""})
+        assert _parse_retry_after(resp) is None
+
+    def test_whitespace_only_returns_none(self):
+        resp = make_response(headers={"retry-after": "   "})
+        assert _parse_retry_after(resp) is None
+
+    def test_scientific_notation_returns_float(self):
+        resp = make_response(headers={"retry-after": "1e2"})
+        assert _parse_retry_after(resp) == 100.0
+
+    def test_fractional_small_value(self):
+        resp = make_response(headers={"retry-after": "0.1"})
+        assert _parse_retry_after(resp) == pytest.approx(0.1)
+
 
 # ---------------------------------------------------------------------------
 # _raise_for_status

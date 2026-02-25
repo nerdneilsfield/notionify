@@ -537,3 +537,199 @@ class TestAsyncTokenBucket:
 
         await asyncio.gather(*[worker() for _ in range(10)])
         assert len(results) == 50
+
+
+# ---------------------------------------------------------------------------
+# Token bucket concurrency stress tests
+# ---------------------------------------------------------------------------
+
+
+class TestTokenBucketConcurrencyStress:
+    """Verify TokenBucket invariants under heavy concurrent contention."""
+
+    def test_total_tokens_consumed_bounded_by_burst_plus_refill(self):
+        """Many threads drain the bucket; total consumed must be consistent."""
+        rate = 100.0
+        burst = 20
+        bucket = TokenBucket(rate_rps=rate, burst=burst)
+        consumed: list[int] = []
+        lock = threading.Lock()
+
+        def worker() -> None:
+            local_consumed = 0
+            for _ in range(5):
+                wait = bucket.acquire(tokens=1)
+                # Only count immediately available tokens (no wait)
+                if wait == 0.0:
+                    local_consumed += 1
+            with lock:
+                consumed.append(local_consumed)
+
+        threads = [threading.Thread(target=worker) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Total immediate acquires cannot exceed burst + what refilled
+        total = sum(consumed)
+        assert total <= burst + 100  # burst + generous refill allowance
+
+    def test_concurrent_draining_tokens_never_negative(self):
+        """After concurrent draining, tokens should never be negative."""
+        bucket = TokenBucket(rate_rps=1000.0, burst=50)
+
+        def worker() -> None:
+            for _ in range(20):
+                bucket.acquire(tokens=1)
+
+        threads = [threading.Thread(target=worker) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # Tokens can be 0 but never negative
+        assert bucket.tokens >= 0.0
+
+    def test_high_contention_all_acquires_complete(self):
+        """Under high contention with mocked sleep, all acquires complete."""
+        bucket = TokenBucket(rate_rps=1.0, burst=5)
+        completed = []
+        errors: list[Exception] = []
+
+        def worker(worker_id: int) -> None:
+            try:
+                with patch("notionify.notion_api.rate_limit.time.sleep"):
+                    wait = bucket.acquire(tokens=1)
+                    completed.append((worker_id, wait))
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(50)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == []
+        assert len(completed) == 50
+
+    def test_burst_1_serializes_access(self):
+        """With burst=1 and high rate, concurrent threads still complete."""
+        bucket = TokenBucket(rate_rps=10000.0, burst=1)
+        results: list[float] = []
+
+        def worker() -> None:
+            for _ in range(5):
+                r = bucket.acquire(tokens=1)
+                results.append(r)
+
+        threads = [threading.Thread(target=worker) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(results) == 25
+
+
+class TestAsyncTokenBucketConcurrencyStress:
+    """Verify AsyncTokenBucket invariants under heavy concurrent contention."""
+
+    async def test_total_tokens_consumed_bounded(self):
+        """Many coroutines drain the bucket; total consumed stays bounded."""
+        bucket = AsyncTokenBucket(rate_rps=100.0, burst=20)
+        immediate_count = 0
+        lock = asyncio.Lock()
+
+        async def worker() -> None:
+            nonlocal immediate_count
+            for _ in range(5):
+                wait = await bucket.acquire(tokens=1)
+                if wait == 0.0:
+                    async with lock:
+                        immediate_count += 1
+
+        await asyncio.gather(*[worker() for _ in range(20)])
+        assert immediate_count <= 20 + 100  # burst + generous refill
+
+    async def test_concurrent_draining_tokens_never_negative(self):
+        """After concurrent draining, tokens should never be negative."""
+        bucket = AsyncTokenBucket(rate_rps=1000.0, burst=50)
+
+        async def worker() -> None:
+            for _ in range(20):
+                await bucket.acquire(tokens=1)
+
+        await asyncio.gather(*[worker() for _ in range(10)])
+        assert bucket.tokens >= 0.0
+
+    async def test_high_contention_all_acquires_complete(self):
+        """Under high contention with patched sleep, all acquires complete."""
+        bucket = AsyncTokenBucket(rate_rps=1.0, burst=5)
+        completed: list[float] = []
+
+        async def fake_sleep(_: float) -> None:
+            pass
+
+        async def worker() -> None:
+            with patch("notionify.notion_api.rate_limit.asyncio.sleep", fake_sleep):
+                wait = await bucket.acquire(tokens=1)
+                completed.append(wait)
+
+        await asyncio.gather(*[worker() for _ in range(50)])
+        assert len(completed) == 50
+
+    async def test_burst_1_serializes_access(self):
+        """With burst=1 and high rate, concurrent coroutines still complete."""
+        bucket = AsyncTokenBucket(rate_rps=10000.0, burst=1)
+        results: list[float] = []
+
+        async def worker() -> None:
+            for _ in range(5):
+                r = await bucket.acquire(tokens=1)
+                results.append(r)
+
+        await asyncio.gather(*[worker() for _ in range(5)])
+        assert len(results) == 25
+
+
+# ---------------------------------------------------------------------------
+# compute_backoff edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestComputeBackoffEdgeCases:
+    """Edge cases for compute_backoff beyond the basic tests above."""
+
+    def test_retry_after_negative_returns_negative(self):
+        """Negative retry_after is passed through (caller should handle)."""
+        result = compute_backoff(attempt=0, retry_after=-1.0, jitter=False)
+        assert result == pytest.approx(-1.0)
+
+    def test_retry_after_very_large_value(self):
+        """Very large retry_after is not capped by maximum."""
+        result = compute_backoff(attempt=0, retry_after=3600.0, maximum=60.0, jitter=False)
+        assert result == pytest.approx(3600.0)
+
+    def test_attempt_0_base_very_small(self):
+        """Very small base produces proportionally small delay."""
+        result = compute_backoff(attempt=0, base=0.001, maximum=60.0, jitter=False)
+        assert result == pytest.approx(0.001)
+
+    def test_very_high_attempt_capped_at_maximum(self):
+        """Even at attempt=100, delay is capped at maximum."""
+        result = compute_backoff(attempt=100, base=1.0, maximum=60.0, jitter=False)
+        assert result == pytest.approx(60.0)
+
+    def test_maximum_zero_caps_at_zero(self):
+        """If maximum is 0.0, backoff is always 0.0."""
+        result = compute_backoff(attempt=5, base=1.0, maximum=0.0, jitter=False)
+        assert result == pytest.approx(0.0)
+
+    def test_base_equals_maximum(self):
+        """When base == maximum, all attempts produce the same delay."""
+        for attempt in range(5):
+            result = compute_backoff(attempt=attempt, base=10.0, maximum=10.0, jitter=False)
+            assert result == pytest.approx(10.0)

@@ -1762,3 +1762,87 @@ class TestRemainingCoverageGaps:
         caption = blocks[0]["image"].get("caption", [])
         assert len(caption) == 1
         assert caption[0]["text"]["content"] == "myCode"
+
+
+# =========================================================================
+# Deeply nested structure tests
+# =========================================================================
+
+
+class TestDeeplyNestedStructures:
+    """Verify converter handles deeply nested Markdown gracefully."""
+
+    def test_nested_blockquotes_5_levels(self):
+        """5 levels of nested blockquotes."""
+        md = "> " * 5 + "deep"
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert(md)
+        assert len(result.blocks) >= 1
+        # Walk down the quote tree
+        block = result.blocks[0]
+        depth = 0
+        while block.get("type") == "quote":
+            depth += 1
+            children = block.get("quote", {}).get("children", [])
+            if children:
+                block = children[0]
+            else:
+                break
+        assert depth >= 2  # At least some nesting preserved
+
+    def test_nested_lists_6_levels(self):
+        """6 levels of nested unordered lists."""
+        lines = []
+        for i in range(6):
+            indent = "  " * i
+            lines.append(f"{indent}- Level {i}")
+        md = "\n".join(lines)
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert(md)
+        assert len(result.blocks) >= 1
+        assert result.blocks[0]["type"] == "bulleted_list_item"
+
+    def test_mixed_nesting_quote_list_code(self):
+        """Quote containing a list containing a code block."""
+        md = "> - item 1\n>   ```python\n>   code()\n>   ```\n> - item 2"
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert(md)
+        assert len(result.blocks) >= 1
+
+    def test_deeply_nested_bold_italic_inline(self):
+        """Multiple layers of inline formatting."""
+        md = "***~~deep~~***"
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert(md)
+        assert len(result.blocks) == 1
+        block = result.blocks[0]
+        rich_text = block[block["type"]].get("rich_text", [])
+        assert len(rich_text) >= 1
+        # The text should have bold, italic, and strikethrough annotations
+        seg = rich_text[0]
+        annotations = seg.get("annotations", {})
+        assert annotations.get("bold") is True
+        assert annotations.get("italic") is True
+        assert annotations.get("strikethrough") is True
+
+    def test_long_chain_of_inline_links(self):
+        """Many consecutive inline links in a paragraph."""
+        links = " ".join(f"[link{i}](https://example.com/{i})" for i in range(50))
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert(links)
+        assert len(result.blocks) >= 1
+        block = result.blocks[0]
+        rich_text = block[block["type"]].get("rich_text", [])
+        # Should have at least 50 link segments (possibly more with spaces)
+        link_segs = [s for s in rich_text if s.get("href")]
+        assert len(link_segs) == 50
+
+    def test_heading_then_nested_list_then_paragraph(self):
+        """Complex document structure with multiple block types."""
+        md = "# Title\n\n- item\n  - sub\n    - subsub\n\nParagraph"
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert(md)
+        types = [b["type"] for b in result.blocks]
+        assert "heading_1" in types
+        assert "bulleted_list_item" in types
+        assert "paragraph" in types
