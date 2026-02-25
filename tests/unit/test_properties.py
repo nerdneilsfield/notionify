@@ -50,8 +50,10 @@ from notionify.diff.conflict import detect_conflict, take_snapshot
 from notionify.diff.lcs_matcher import lcs_match
 from notionify.diff.planner import DiffPlanner
 from notionify.diff.signature import (
+    _ATTRS_EXTRACTORS,
     _extract_children_info,
     _extract_plain_text,
+    _extract_type_attrs,
     _normalize_rich_text,
     compute_signature,
 )
@@ -4624,3 +4626,54 @@ class TestNotionUrlProperties:
         uuid = "550e8400-e29b-41d4-a716-446655440000"
         url = _notion_url(uuid)
         assert url == "https://notion.so/550e8400e29b41d4a716446655440000"
+
+
+# ---------------------------------------------------------------------------
+# _extract_type_attrs properties
+# ---------------------------------------------------------------------------
+
+
+class TestExtractTypeAttrsProperties:
+    """_extract_type_attrs correctness for special and unknown block types."""
+
+    def test_unknown_block_type_returns_empty_dict(self) -> None:
+        """Block types not in _ATTRS_EXTRACTORS yield an empty dict."""
+        block: dict = {"unknown_type": {"key": "value"}}
+        result = _extract_type_attrs(block, "unknown_type")
+        assert result == {}
+
+    @given(
+        expression=st.text(alphabet=_SAFE_TEXT + r"^+=\/*(){}[]", min_size=0, max_size=50)
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_equation_block_always_has_expression_key(self, expression: str) -> None:
+        """For 'equation' blocks, output always contains 'expression'."""
+        block = {"equation": {"expression": expression}}
+        result = _extract_type_attrs(block, "equation")
+        assert "expression" in result
+        assert result["expression"] == expression
+
+    @given(url=st.text(alphabet=_SAFE_TEXT + "/.:?=#", min_size=1, max_size=80))
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_image_external_type_includes_url(self, url: str) -> None:
+        """For 'image' blocks with type='external', attrs includes 'url'."""
+        block = {"image": {"type": "external", "external": {"url": url}}}
+        result = _extract_type_attrs(block, "image")
+        assert result["url"] == url
+        assert result["image_type"] == "external"
+
+    @given(
+        block_type=st.sampled_from(sorted(_ATTRS_EXTRACTORS.keys())),
+    )
+    @settings(max_examples=200)
+    def test_no_spurious_keys_for_empty_type_data(self, block_type: str) -> None:
+        """An empty type-data dict never adds spurious keys (except equation)."""
+        block: dict = {block_type: {}}
+        result = _extract_type_attrs(block, block_type)
+        # equation always adds "expression", image always adds "image_type"
+        if block_type == "equation":
+            assert set(result.keys()) <= {"expression"}
+        elif block_type == "image":
+            assert set(result.keys()) <= {"image_type", "url"}
+        else:
+            assert result == {}
