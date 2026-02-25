@@ -1,0 +1,347 @@
+"""Dedicated unit tests for block_builder.py.
+
+Tests the block builder dispatch table and individual block type handlers
+directly, rather than through the full MarkdownToNotionConverter pipeline.
+"""
+
+import pytest
+
+from notionify.config import NotionifyConfig
+from notionify.converter.block_builder import build_blocks
+
+
+def _config(**kwargs):
+    return NotionifyConfig(token="test-token", **kwargs)
+
+
+def _ast_heading(level, text):
+    return {
+        "type": "heading",
+        "attrs": {"level": level},
+        "children": [{"type": "text", "raw": text}],
+    }
+
+
+def _ast_paragraph(text):
+    return {
+        "type": "paragraph",
+        "children": [{"type": "text", "raw": text}],
+    }
+
+
+# =========================================================================
+# Heading blocks
+# =========================================================================
+
+class TestBuildHeading:
+    """Test heading block building."""
+
+    @pytest.mark.parametrize("level", [1, 2, 3])
+    def test_heading_levels_1_to_3(self, level):
+        blocks, images, warnings = build_blocks([_ast_heading(level, "Title")], _config())
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == f"heading_{level}"
+        rt = blocks[0][f"heading_{level}"]["rich_text"]
+        assert rt[0]["text"]["content"] == "Title"
+
+    def test_heading_4_downgrade_mode(self):
+        blocks, _, _ = build_blocks(
+            [_ast_heading(4, "H4")], _config(heading_overflow="downgrade"),
+        )
+        assert blocks[0]["type"] == "heading_3"
+
+    def test_heading_4_paragraph_mode(self):
+        blocks, _, _ = build_blocks(
+            [_ast_heading(4, "H4")], _config(heading_overflow="paragraph"),
+        )
+        assert blocks[0]["type"] == "paragraph"
+        # Should have bold annotation
+        rt = blocks[0]["paragraph"]["rich_text"]
+        assert rt[0].get("annotations", {}).get("bold") is True
+
+
+# =========================================================================
+# Paragraph blocks
+# =========================================================================
+
+class TestBuildParagraph:
+    """Test paragraph block building."""
+
+    def test_simple_paragraph(self):
+        blocks, _, _ = build_blocks([_ast_paragraph("Hello")], _config())
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "paragraph"
+        assert blocks[0]["paragraph"]["rich_text"][0]["text"]["content"] == "Hello"
+
+    def test_empty_paragraph_skipped(self):
+        token = {"type": "paragraph", "children": []}
+        blocks, _, _ = build_blocks([token], _config())
+        assert len(blocks) == 0
+
+    def test_paragraph_with_single_image_becomes_image_block(self):
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "https://example.com/img.png"},
+                "children": [{"type": "text", "raw": "alt text"}],
+            }],
+        }
+        blocks, _, _ = build_blocks([token], _config())
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "image"
+
+
+# =========================================================================
+# Block quote blocks
+# =========================================================================
+
+class TestBuildBlockQuote:
+    """Test block quote building."""
+
+    def test_simple_blockquote(self):
+        token = {
+            "type": "block_quote",
+            "children": [_ast_paragraph("Quoted text")],
+        }
+        blocks, _, _ = build_blocks([token], _config())
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "quote"
+        rt = blocks[0]["quote"]["rich_text"]
+        assert any(s["text"]["content"] == "Quoted text" for s in rt)
+
+    def test_blockquote_with_nested_blocks(self):
+        token = {
+            "type": "block_quote",
+            "children": [
+                _ast_paragraph("Quote text"),
+                {"type": "block_code", "raw": "code", "attrs": {"info": "python"}},
+            ],
+        }
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["type"] == "quote"
+        assert "children" in blocks[0]["quote"]
+
+
+# =========================================================================
+# List blocks
+# =========================================================================
+
+class TestBuildList:
+    """Test list block building."""
+
+    def test_unordered_list(self):
+        token = {
+            "type": "list",
+            "attrs": {"ordered": False},
+            "children": [
+                {
+                    "type": "list_item",
+                    "children": [
+                        {"type": "paragraph", "children": [{"type": "text", "raw": "Item 1"}]},
+                    ],
+                },
+                {
+                    "type": "list_item",
+                    "children": [
+                        {"type": "paragraph", "children": [{"type": "text", "raw": "Item 2"}]},
+                    ],
+                },
+            ],
+        }
+        blocks, _, _ = build_blocks([token], _config())
+        assert len(blocks) == 2
+        assert all(b["type"] == "bulleted_list_item" for b in blocks)
+
+    def test_ordered_list(self):
+        token = {
+            "type": "list",
+            "attrs": {"ordered": True},
+            "children": [{
+                "type": "list_item",
+                "children": [{"type": "paragraph", "children": [{"type": "text", "raw": "First"}]}],
+            }],
+        }
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["type"] == "numbered_list_item"
+
+    def test_task_list(self):
+        token = {
+            "type": "list",
+            "attrs": {"ordered": False},
+            "children": [{
+                "type": "task_list_item",
+                "attrs": {"checked": True},
+                "children": [{"type": "paragraph", "children": [{"type": "text", "raw": "Done"}]}],
+            }],
+        }
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["type"] == "to_do"
+        assert blocks[0]["to_do"]["checked"] is True
+
+
+# =========================================================================
+# Code blocks
+# =========================================================================
+
+class TestBuildCodeBlock:
+    """Test code block building."""
+
+    def test_code_block_with_language(self):
+        token = {"type": "block_code", "raw": "print('hi')", "attrs": {"info": "python"}}
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["type"] == "code"
+        assert blocks[0]["code"]["language"] == "python"
+        assert blocks[0]["code"]["rich_text"][0]["text"]["content"] == "print('hi')"
+
+    def test_code_block_language_alias(self):
+        token = {"type": "block_code", "raw": "x", "attrs": {"info": "js"}}
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["code"]["language"] == "javascript"
+
+    def test_code_block_no_language(self):
+        token = {"type": "block_code", "raw": "code", "attrs": {}}
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["code"]["language"] == "plain text"
+
+
+# =========================================================================
+# Divider blocks
+# =========================================================================
+
+class TestBuildDivider:
+    """Test thematic break → divider building."""
+
+    def test_divider(self):
+        token = {"type": "thematic_break"}
+        blocks, _, _ = build_blocks([token], _config())
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "divider"
+
+
+# =========================================================================
+# HTML blocks (skipped with warning)
+# =========================================================================
+
+class TestBuildHtmlBlock:
+    """Test HTML block handling."""
+
+    def test_html_block_skipped_with_warning(self):
+        token = {"type": "html_block", "raw": "<div>hello</div>"}
+        blocks, _, warnings = build_blocks([token], _config())
+        assert len(blocks) == 0
+        assert len(warnings) == 1
+        assert warnings[0].code == "HTML_BLOCK_SKIPPED"
+
+
+# =========================================================================
+# Unknown blocks
+# =========================================================================
+
+class TestBuildUnknownBlock:
+    """Test unknown block type handling."""
+
+    def test_unknown_block_produces_warning(self):
+        token = {"type": "custom_widget", "raw": "data"}
+        blocks, _, warnings = build_blocks([token], _config())
+        assert len(blocks) == 0
+        assert len(warnings) == 1
+        assert warnings[0].code == "UNKNOWN_TOKEN"
+
+    def test_empty_type_no_warning(self):
+        token = {"type": ""}
+        blocks, _, warnings = build_blocks([token], _config())
+        assert len(blocks) == 0
+        assert len(warnings) == 0
+
+
+# =========================================================================
+# Image blocks
+# =========================================================================
+
+class TestBuildImageBlock:
+    """Test image block building."""
+
+    def test_external_image(self):
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "https://example.com/photo.jpg"},
+                "children": [{"type": "text", "raw": "A photo"}],
+            }],
+        }
+        blocks, images, _ = build_blocks([token], _config())
+        assert blocks[0]["type"] == "image"
+        assert blocks[0]["image"]["external"]["url"] == "https://example.com/photo.jpg"
+
+    def test_local_image_with_upload_enabled(self):
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "./photo.jpg"},
+                "children": [],
+            }],
+        }
+        blocks, images, _ = build_blocks([token], _config(image_upload=True))
+        assert len(images) == 1
+        assert images[0].src == "./photo.jpg"
+
+    def test_local_image_skip_fallback(self):
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "./photo.jpg"},
+                "children": [],
+            }],
+        }
+        blocks, _, warnings = build_blocks(
+            [token], _config(image_upload=False, image_fallback="skip"),
+        )
+        assert len(blocks) == 0
+        assert any(w.code == "IMAGE_SKIPPED" for w in warnings)
+
+    def test_local_image_placeholder_fallback(self):
+        token = {
+            "type": "paragraph",
+            "children": [{
+                "type": "image",
+                "attrs": {"url": "./photo.jpg"},
+                "children": [{"type": "text", "raw": "my photo"}],
+            }],
+        }
+        blocks, _, warnings = build_blocks(
+            [token], _config(image_upload=False, image_fallback="placeholder"),
+        )
+        assert len(blocks) == 1
+        assert blocks[0]["type"] == "paragraph"
+        assert any(w.code == "IMAGE_PLACEHOLDER" for w in warnings)
+
+
+# =========================================================================
+# Multiple blocks
+# =========================================================================
+
+class TestMultipleBlocks:
+    """Test building multiple blocks in sequence."""
+
+    def test_heading_then_paragraph(self):
+        tokens = [_ast_heading(1, "Title"), _ast_paragraph("Body text")]
+        blocks, _, _ = build_blocks(tokens, _config())
+        assert len(blocks) == 2
+        assert blocks[0]["type"] == "heading_1"
+        assert blocks[1]["type"] == "paragraph"
+
+    def test_all_block_types_together(self):
+        tokens = [
+            _ast_heading(2, "Section"),
+            _ast_paragraph("Text"),
+            {"type": "block_code", "raw": "code", "attrs": {"info": "python"}},
+            {"type": "thematic_break"},
+        ]
+        blocks, _, _ = build_blocks(tokens, _config())
+        assert len(blocks) == 4
+        types = [b["type"] for b in blocks]
+        assert types == ["heading_2", "paragraph", "code", "divider"]
