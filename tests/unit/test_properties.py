@@ -3292,3 +3292,172 @@ class TestConfigValidationProperties:
             assert f"...{token[-4:]}" in r
         else:
             assert "****" in r
+
+
+# ---------------------------------------------------------------------------
+# 19. TestTableRendererProperties
+# ---------------------------------------------------------------------------
+
+_SAFE_TEXT = string.ascii_letters + string.digits
+
+
+def _make_table_block(
+    cells_per_row: list[list[str]],
+    has_row_header: bool = False,
+    has_column_header: bool = True,
+) -> dict:
+    """Build a minimal Notion table block dict for renderer property tests."""
+    if not cells_per_row:
+        return {
+            "type": "table",
+            "table": {
+                "table_width": 0,
+                "has_row_header": has_row_header,
+                "has_column_header": has_column_header,
+                "children": [],
+            },
+        }
+    col_count = max(len(row) for row in cells_per_row) if cells_per_row else 0
+    rows = []
+    for row_cells in cells_per_row:
+        cells = [
+            [{"type": "text", "plain_text": cell, "text": {"content": cell}}]
+            for cell in row_cells
+        ]
+        rows.append({"type": "table_row", "table_row": {"cells": cells}})
+    return {
+        "type": "table",
+        "table": {
+            "table_width": col_count,
+            "has_row_header": has_row_header,
+            "has_column_header": has_column_header,
+            "children": rows,
+        },
+    }
+
+
+class TestTableRendererProperties:
+    """Property-based tests for table rendering invariants in NotionToMarkdownRenderer.
+
+    Key invariants verified:
+    - has_row_header=True wraps non-empty first cells in **...**
+    - has_row_header=True leaves empty first cells unchanged (no ****)
+    - has_row_header=False never introduces **...** wrapping on first cell
+    - Table rendering never raises on any valid input
+    - GFM separator row (|---|...) is always present
+    - Each rendered data row has exactly table_width columns
+    """
+
+    _config = NotionifyConfig(token="test-token")
+
+    @given(
+        content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50),
+        extra_cols=st.lists(st.text(alphabet=_SAFE_TEXT, max_size=30), min_size=0, max_size=4),
+        has_column_header=st.booleans(),
+    )
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_has_row_header_bolds_nonempty_first_cell(
+        self, content: str, extra_cols: list[str], has_column_header: bool
+    ) -> None:
+        """has_row_header=True wraps non-empty, markdown-safe first cell in **...**."""
+        row = [content] + extra_cols
+        block = _make_table_block([row], has_row_header=True, has_column_header=has_column_header)
+        renderer = NotionToMarkdownRenderer(self._config)
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+        # First rendered data line must contain the bold-wrapped first cell.
+        first_line = result.strip().split("\n")[0]
+        assert f"**{content}**" in first_line
+
+    @given(
+        extra_cols=st.lists(st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=30), min_size=1, max_size=5),
+    )
+    @settings(max_examples=200)
+    def test_has_row_header_empty_first_cell_stays_empty(
+        self, extra_cols: list[str]
+    ) -> None:
+        """has_row_header=True with empty first cell must NOT produce ****."""
+        row = [""] + extra_cols
+        block = _make_table_block([row], has_row_header=True)
+        renderer = NotionToMarkdownRenderer(self._config)
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+        first_line = result.strip().split("\n")[0]
+        assert "****" not in first_line
+
+    @given(
+        content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50),
+        extra_cols=st.lists(st.text(alphabet=_SAFE_TEXT, max_size=30), min_size=0, max_size=4),
+    )
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_no_row_header_does_not_bold_first_cell(
+        self, content: str, extra_cols: list[str]
+    ) -> None:
+        """has_row_header=False must not wrap the first cell in **...**."""
+        row = [content] + extra_cols
+        block = _make_table_block([row], has_row_header=False)
+        renderer = NotionToMarkdownRenderer(self._config)
+        result = renderer.render_block(block)
+        first_line = result.strip().split("\n")[0]
+        assert f"**{content}**" not in first_line
+
+    @given(
+        rows=st.lists(
+            st.lists(st.text(min_size=0, max_size=50), min_size=1, max_size=5),
+            min_size=1,
+            max_size=10,
+        ),
+        has_row_header=st.booleans(),
+        has_column_header=st.booleans(),
+    )
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_table_render_never_raises(
+        self,
+        rows: list[list[str]],
+        has_row_header: bool,
+        has_column_header: bool,
+    ) -> None:
+        """Table rendering must never raise on any valid input."""
+        block = _make_table_block(rows, has_row_header, has_column_header)
+        renderer = NotionToMarkdownRenderer(self._config)
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+
+    @given(
+        rows=st.lists(
+            st.lists(st.text(min_size=0, max_size=30), min_size=1, max_size=4),
+            min_size=1,
+            max_size=6,
+        ),
+    )
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_table_always_has_gfm_separator(self, rows: list[list[str]]) -> None:
+        """Every rendered table with at least one row must contain a GFM separator."""
+        block = _make_table_block(rows)
+        renderer = NotionToMarkdownRenderer(self._config)
+        result = renderer.render_block(block)
+        assert "---" in result
+
+    @given(
+        col_count=st.integers(min_value=1, max_value=5),
+        row_count=st.integers(min_value=1, max_value=5),
+        content=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=20),
+    )
+    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    def test_rendered_rows_have_correct_col_count(
+        self, col_count: int, row_count: int, content: str
+    ) -> None:
+        """Every data row in the rendered table has exactly col_count pipe-columns."""
+        rows = [[content] * col_count for _ in range(row_count)]
+        block = _make_table_block(rows)
+        renderer = NotionToMarkdownRenderer(self._config)
+        result = renderer.render_block(block)
+        # Inspect only non-separator rows starting with "|"
+        rendered_lines = [
+            line for line in result.strip().split("\n")
+            if line.startswith("|") and "---" not in line
+        ]
+        for line in rendered_lines:
+            # "| a | b | c |" → split by "|" → ["", " a ", " b ", " c ", ""]
+            parts = [p for p in line.split("|") if p != ""]
+            assert len(parts) == col_count
