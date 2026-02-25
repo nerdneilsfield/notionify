@@ -5901,3 +5901,80 @@ class TestBlockBuilderCodeAndQuoteProperties:
         }
         result = _build_block_quote(token, ctx)
         assert len(result[0]["quote"]["rich_text"]) >= 1
+
+
+class TestBlockBuilderParagraphAndMathProperties:
+    """Property tests for _build_paragraph and _build_block_math."""
+
+    _CONFIG = NotionifyConfig(token="test-token")
+
+    def _ctx(self) -> _BuildContext:
+        return _BuildContext(self._CONFIG)
+
+    # --- _build_paragraph ---
+
+    def test_build_paragraph_empty_children_returns_empty(self) -> None:
+        """_build_paragraph with no children returns [] (no empty paragraphs)."""
+        from notionify.converter.block_builder import _build_paragraph
+
+        ctx = self._ctx()
+        result = _build_paragraph({"children": []}, ctx)
+        assert result == []
+        assert len(ctx.blocks) == 0
+
+    @given(raw=st.text(min_size=1, max_size=100))
+    @settings(max_examples=200)
+    def test_build_paragraph_with_text_child_produces_paragraph(self, raw: str) -> None:
+        """A text child produces a paragraph block."""
+        from notionify.converter.block_builder import _build_paragraph
+
+        ctx = self._ctx()
+        token = {"children": [{"type": "text", "raw": raw}]}
+        result = _build_paragraph(token, ctx)
+        assert len(result) == 1
+        assert result[0]["type"] == "paragraph"
+
+    @given(raw=st.text(min_size=1, max_size=50))
+    @settings(max_examples=200)
+    def test_build_paragraph_paragraph_color_is_default(self, raw: str) -> None:
+        """Paragraph block always has color 'default'."""
+        from notionify.converter.block_builder import _build_paragraph
+
+        ctx = self._ctx()
+        token = {"children": [{"type": "text", "raw": raw}]}
+        result = _build_paragraph(token, ctx)
+        assert result[0]["paragraph"]["color"] == "default"
+
+    # --- _build_block_math ---
+
+    @given(expression=st.text(min_size=1, max_size=100))
+    @settings(max_examples=200)
+    def test_build_block_math_returns_list(self, expression: str) -> None:
+        """_build_block_math always returns a list (never raises)."""
+        from notionify.converter.block_builder import _build_block_math
+
+        ctx = self._ctx()
+        result = _build_block_math({"raw": expression}, ctx)
+        assert isinstance(result, list)
+
+    @given(expression=st.text(min_size=1, max_size=100))
+    @settings(max_examples=200)
+    def test_build_block_math_nonempty_expression_produces_blocks(
+        self, expression: str
+    ) -> None:
+        """A non-empty expression always produces at least one block."""
+        from notionify.converter.block_builder import _build_block_math
+
+        ctx = self._ctx()
+        result = _build_block_math({"raw": expression}, ctx)
+        assert len(result) >= 1
+
+    @given(expression=st.text(min_size=1, max_size=50))
+    @settings(max_examples=200)
+    def test_build_block_math_blocks_added_to_context(self, expression: str) -> None:
+        """All produced blocks are registered in ctx.blocks."""
+        from notionify.converter.block_builder import _build_block_math
+
+        ctx = self._ctx()
+        result = _build_block_math({"raw": expression}, ctx)
+        assert len(ctx.blocks) == len(result)
