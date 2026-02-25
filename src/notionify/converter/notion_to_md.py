@@ -523,11 +523,17 @@ class NotionToMarkdownRenderer:
 
 _BlockRenderer = _Callable[["NotionToMarkdownRenderer", dict, int], str]
 
+def _make_heading_renderer(level: int) -> _BlockRenderer:
+    """Create a heading renderer for the given level (1-3)."""
+    def _render(self: NotionToMarkdownRenderer, block: dict, depth: int) -> str:
+        return self._render_heading(block, depth, level)
+    return _render
+
+
 _BLOCK_RENDERERS: dict[str, _BlockRenderer] = {
-    **{
-        f"heading_{i}": lambda self, b, d, level=i: self._render_heading(b, d, level)
-        for i in (1, 2, 3)
-    },
+    "heading_1": _make_heading_renderer(1),
+    "heading_2": _make_heading_renderer(2),
+    "heading_3": _make_heading_renderer(3),
     "paragraph": NotionToMarkdownRenderer._render_paragraph,
     "quote": NotionToMarkdownRenderer._render_quote,
     "bulleted_list_item": NotionToMarkdownRenderer._render_bulleted_list_item,
