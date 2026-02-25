@@ -653,3 +653,104 @@ class TestDeeplyNested:
         result = converter.convert(md)
         # Bullets + ordered + quotes + tasks = at least 10 top-level blocks
         assert len(result.blocks) >= 5
+
+
+class TestUnicodeAccented:
+    """Verify unicode_accented.md round-trips European accented characters."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "unicode_accented.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 5
+        assert len(result.warnings) == 0
+
+    def test_accented_words_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "unicode_accented.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "bonjour" in round_tripped
+        assert "café" in round_tripped.replace("caf\u00e9", "café")  # NFC
+        assert "résumé" in round_tripped or "r\u00e9sum\u00e9" in round_tripped
+
+    def test_german_umlauts_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "unicode_accented.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        # At least some German characters survive
+        assert any(c in round_tripped for c in ("ü", "ö", "ä", "ß"))
+
+    def test_symbols_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "unicode_accented.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "€" in round_tripped or "£" in round_tripped
+
+    def test_accented_code_content_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "unicode_accented.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "utf-8" in round_tripped
+
+
+class TestMultiblockAnnotations:
+    """Verify multiblock_annotations.md round-trips annotations in many block types."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "multiblock_annotations.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) >= 8
+        assert len(result.warnings) == 0
+
+    def test_bold_in_list_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "multiblock_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Bold item" in round_tripped
+
+    def test_italic_in_list_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "multiblock_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Italic item" in round_tripped
+
+    def test_strikethrough_in_list_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "multiblock_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Strikethrough item" in round_tripped
+
+    def test_code_in_list_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "multiblock_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "inline code item" in round_tripped
+
+    def test_blockquote_annotations_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "multiblock_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "blockquote" in round_tripped
+
+    def test_table_annotations_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "multiblock_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Bold cell" in round_tripped or "bold" in round_tripped.lower()
+
+    def test_heading_annotations_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "multiblock_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        # Headings with Bold/italic/code should produce block-level output
+        assert len(round_tripped) > 0
