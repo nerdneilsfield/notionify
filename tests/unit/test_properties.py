@@ -28,13 +28,14 @@ from notionify.converter.inline_renderer import markdown_escape, render_rich_tex
 from notionify.converter.math import EQUATION_CHAR_LIMIT, build_block_math, build_inline_math
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import NotionToMarkdownRenderer
-from notionify.converter.rich_text import split_rich_text
+from notionify.converter.rich_text import build_rich_text, extract_text, split_rich_text
 from notionify.converter.tables import build_table
 from notionify.diff.conflict import detect_conflict, take_snapshot
 from notionify.diff.lcs_matcher import lcs_match
+from notionify.diff.planner import DiffPlanner
 from notionify.diff.signature import compute_signature
 from notionify.image.detect import detect_image_source, mime_to_extension
-from notionify.models import BlockSignature, ImageSourceType
+from notionify.models import BlockSignature, DiffOpType, ImageSourceType
 from notionify.notion_api.retries import compute_backoff, should_retry
 from notionify.utils.chunk import chunk_children
 from notionify.utils.hashing import hash_dict, md5_hash
@@ -1683,3 +1684,255 @@ class TestConflictDetectionProperties:
         modified = {**etags, first_key: etags[first_key] + "_modified"}
         s2 = _make_snapshot(page_id, t, modified)
         assert detect_conflict(s1, s2)
+
+
+# ---------------------------------------------------------------------------
+# TestRichTextBuilderProperties
+# ---------------------------------------------------------------------------
+
+class TestRichTextBuilderProperties:
+    """Property-based tests for build_rich_text and extract_text."""
+
+    _config = NotionifyConfig()
+
+    def test_empty_children_returns_empty(self) -> None:
+        """build_rich_text([]) always returns []."""
+        assert build_rich_text([], self._config) == []
+
+    @given(
+        tokens=st.lists(
+            st.fixed_dictionaries({
+                "type": st.just("text"),
+                "raw": st.text(max_size=100),
+            }),
+            max_size=10,
+        )
+    )
+    @settings(max_examples=200)
+    def test_never_raises_on_text_tokens(self, tokens: list[dict]) -> None:
+        """build_rich_text never raises on a list of text tokens."""
+        result = build_rich_text(tokens, self._config)
+        assert isinstance(result, list)
+
+    @given(
+        tokens=st.lists(
+            st.fixed_dictionaries({
+                "type": st.just("text"),
+                "raw": st.text(min_size=1, max_size=50),
+            }),
+            min_size=1,
+            max_size=5,
+        )
+    )
+    @settings(max_examples=200)
+    def test_text_tokens_produce_typed_segments(self, tokens: list[dict]) -> None:
+        """Every segment produced from text tokens has a 'type' key."""
+        result = build_rich_text(tokens, self._config)
+        for seg in result:
+            assert "type" in seg
+
+    @given(raws=st.lists(st.text(max_size=50), max_size=5))
+    @settings(max_examples=200)
+    def test_extract_text_concatenates_raws(self, raws: list[str]) -> None:
+        """extract_text on plain text tokens returns concatenated raw values."""
+        tokens = [{"type": "text", "raw": r} for r in raws]
+        assert extract_text(tokens) == "".join(raws)
+
+    def test_extract_text_empty(self) -> None:
+        """extract_text([]) returns empty string."""
+        assert extract_text([]) == ""
+
+    @given(inner_text=st.text(min_size=1, max_size=50))
+    @settings(max_examples=200)
+    def test_strong_wrapper_sets_bold(self, inner_text: str) -> None:
+        """Text wrapped in a strong token has bold=True annotation."""
+        tokens = [{"type": "strong", "children": [{"type": "text", "raw": inner_text}]}]
+        result = build_rich_text(tokens, self._config)
+        assert len(result) > 0
+        for seg in result:
+            if seg.get("type") == "text":
+                assert seg.get("annotations", {}).get("bold") is True
+
+    @given(
+        inner_text=st.text(min_size=1, max_size=50),
+        url=st.from_regex(r"https://[a-z]{3,10}\.[a-z]{2,4}/[a-z]{0,5}", fullmatch=True),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_link_token_sets_href(self, inner_text: str, url: str) -> None:
+        """Text wrapped in a link token has href set to the link URL."""
+        tokens = [{"type": "link", "attrs": {"url": url},
+                   "children": [{"type": "text", "raw": inner_text}]}]
+        result = build_rich_text(tokens, self._config)
+        assert len(result) > 0
+        for seg in result:
+            if seg.get("type") == "text":
+                assert seg.get("href") == url
+
+    @given(
+        base_bold=st.booleans(),
+        base_italic=st.booleans(),
+        override_bold=st.booleans(),
+    )
+    @settings(max_examples=200)
+    def test_merge_annotations_or_semantics(
+        self, base_bold: bool, base_italic: bool, override_bold: bool
+    ) -> None:
+        """_merge_annotations uses OR semantics: True once => always True."""
+        from notionify.converter.rich_text import _merge_annotations
+        base = {
+            "bold": base_bold, "italic": base_italic,
+            "strikethrough": False, "underline": False,
+            "code": False, "color": "default",
+        }
+        merged = _merge_annotations(base, bold=override_bold)
+        assert merged["bold"] == (base_bold or override_bold)
+        assert merged["italic"] == base_italic  # not overridden
+
+    @given(
+        tokens=st.lists(
+            st.one_of(
+                st.fixed_dictionaries({"type": st.just("softbreak")}),
+                st.fixed_dictionaries({"type": st.just("linebreak")}),
+            ),
+            min_size=1,
+            max_size=10,
+        )
+    )
+    @settings(max_examples=200)
+    def test_break_tokens_produce_whitespace(self, tokens: list[dict]) -> None:
+        """softbreak and linebreak tokens each produce a single whitespace segment."""
+        result = build_rich_text(tokens, self._config)
+        assert len(result) == len(tokens)
+        for seg in result:
+            content = seg.get("text", {}).get("content", "")
+            assert content in (" ", "\n")
+
+
+# ---------------------------------------------------------------------------
+# TestDiffPlannerProperties
+# ---------------------------------------------------------------------------
+
+# Reusable block-ID alphabet (no special chars to avoid hypothesis edge cases).
+_BLOCK_ID_ALPHABET = string.ascii_lowercase + string.digits + "-"
+
+# Strategy for a simple block with a unique-ish ID.
+_block_with_id_st = st.fixed_dictionaries({
+    "id": st.from_regex(r"[a-z0-9]{8}", fullmatch=True),
+    "type": st.sampled_from(["paragraph", "heading_1", "bulleted_list_item"]),
+})
+
+# Strategy for a new block (no ID needed by planner).
+_new_block_st = st.fixed_dictionaries({
+    "type": st.sampled_from(["paragraph", "heading_1", "bulleted_list_item"]),
+})
+
+
+class TestDiffPlannerProperties:
+    """Property-based tests for DiffPlanner.plan invariants."""
+
+    _config = NotionifyConfig()
+
+    def test_both_empty_returns_empty(self) -> None:
+        """plan([], []) returns []."""
+        planner = DiffPlanner(self._config)
+        assert planner.plan([], []) == []
+
+    @given(new_blocks=st.lists(_new_block_st, max_size=10))
+    @settings(max_examples=200)
+    def test_no_existing_all_inserts(self, new_blocks: list[dict]) -> None:
+        """plan([], new) produces only INSERT operations."""
+        planner = DiffPlanner(self._config)
+        ops = planner.plan([], new_blocks)
+        assert len(ops) == len(new_blocks)
+        assert all(op.op_type == DiffOpType.INSERT for op in ops)
+
+    @given(
+        existing_blocks=st.lists(
+            st.fixed_dictionaries({
+                "id": st.from_regex(r"[a-z0-9]{8}", fullmatch=True),
+                "type": st.just("paragraph"),
+            }),
+            min_size=1,
+            max_size=10,
+        )
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_no_new_all_deletes(self, existing_blocks: list[dict]) -> None:
+        """plan(existing, []) produces only DELETE operations."""
+        planner = DiffPlanner(self._config)
+        ops = planner.plan(existing_blocks, [])
+        assert len(ops) == len(existing_blocks)
+        assert all(op.op_type == DiffOpType.DELETE for op in ops)
+
+    @given(
+        existing_blocks=st.lists(_block_with_id_st, max_size=8),
+        new_blocks=st.lists(_new_block_st, max_size=8),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_ops_account_for_all_blocks(
+        self, existing_blocks: list[dict], new_blocks: list[dict]
+    ) -> None:
+        """All existing and new blocks are accounted for exactly once in the ops."""
+        planner = DiffPlanner(self._config)
+        ops = planner.plan(existing_blocks, new_blocks)
+
+        # Each INSERT/UPDATE/REPLACE/KEEP consumes one new block.
+        new_ops = (DiffOpType.INSERT, DiffOpType.UPDATE, DiffOpType.REPLACE, DiffOpType.KEEP)
+        old_ops = (DiffOpType.DELETE, DiffOpType.UPDATE, DiffOpType.REPLACE, DiffOpType.KEEP)
+        new_consuming = sum(1 for op in ops if op.op_type in new_ops)
+        existing_consuming = sum(1 for op in ops if op.op_type in old_ops)
+        assert new_consuming == len(new_blocks)
+        assert existing_consuming == len(existing_blocks)
+
+    @given(
+        texts=st.lists(st.text(min_size=1, max_size=30), min_size=1, max_size=8, unique=True)
+    )
+    @settings(max_examples=100)
+    def test_identical_lists_all_keep(self, texts: list[str]) -> None:
+        """Identical existing and new blocks produce only KEEP operations."""
+        import hashlib
+        planner = DiffPlanner(self._config)
+        blocks = [
+            {
+                "id": hashlib.md5(t.encode()).hexdigest()[:8],
+                "type": "paragraph",
+                "paragraph": {"rich_text": [{"type": "text", "text": {"content": t}}]},
+            }
+            for t in texts
+        ]
+        ops = planner.plan(blocks, blocks)
+        assert all(op.op_type == DiffOpType.KEEP for op in ops)
+
+    @given(
+        existing_blocks=st.lists(_block_with_id_st, max_size=8),
+        new_blocks=st.lists(_new_block_st, max_size=8),
+    )
+    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    def test_plan_never_raises(
+        self, existing_blocks: list[dict], new_blocks: list[dict]
+    ) -> None:
+        """DiffPlanner.plan never raises on valid inputs."""
+        planner = DiffPlanner(self._config)
+        ops = planner.plan(existing_blocks, new_blocks)
+        assert isinstance(ops, list)
+
+    @given(
+        existing_blocks=st.lists(
+            st.fixed_dictionaries({
+                "id": st.from_regex(r"[a-z0-9]{8}", fullmatch=True),
+                "type": st.just("paragraph"),
+            }),
+            min_size=1,
+            max_size=8,
+        ),
+    )
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_keep_ids_are_subset_of_existing(self, existing_blocks: list[dict]) -> None:
+        """KEEP op IDs must reference IDs present in existing."""
+        planner = DiffPlanner(self._config)
+        # Use same blocks as new (identical, so all KEEP).
+        ops = planner.plan(existing_blocks, existing_blocks)
+        existing_ids = {b["id"] for b in existing_blocks}
+        for op in ops:
+            if op.op_type == DiffOpType.KEEP:
+                assert op.existing_id in existing_ids
