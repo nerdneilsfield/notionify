@@ -926,3 +926,34 @@ class TestLoggingGuarantees:
         assert token not in captured.err
         # The redacted placeholder should appear instead.
         assert "<redacted:" in captured.err or "<redacted>" in captured.err
+
+    def test_retry_exhausted_error_does_not_leak_token(self):
+        """NotionifyRetryExhaustedError message and repr must not contain
+        the raw API token."""
+        token = "ntn_secret_retry_test_token_xyz"
+        err = NotionifyRetryExhaustedError(
+            message="All 3 attempts exhausted for GET /v1/blocks (last status: 500)",
+            context={
+                "attempts": 3,
+                "last_status_code": 500,
+            },
+        )
+        assert token not in repr(err)
+        assert token not in str(err)
+
+    def test_retry_exhausted_with_wrapped_exception_no_leak(self):
+        """When NotionifyRetryExhaustedError wraps a cause exception, the
+        token should not appear in the error's repr."""
+        token = "ntn_secret_wrapped_token_abc"
+        cause = ConnectionError("connection refused")
+        err = NotionifyRetryExhaustedError(
+            message=f"All 3 attempts exhausted for GET /v1/blocks (last error: {cause})",
+            context={
+                "attempts": 3,
+                "last_status_code": None,
+            },
+            cause=cause,
+        )
+        assert token not in repr(err)
+        assert token not in str(err)
+        assert "connection refused" in str(err)

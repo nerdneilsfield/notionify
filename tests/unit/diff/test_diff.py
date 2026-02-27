@@ -573,3 +573,79 @@ class TestMatchRatioBoundary:
         ops = planner.plan(existing, new)
         keep_ops = [op for op in ops if op.op_type == DiffOpType.KEEP]
         assert len(keep_ops) == 4
+
+
+# =========================================================================
+# Operation ordering: multiple simultaneous changes
+# =========================================================================
+
+
+class TestOperationOrdering:
+    """Verify op ordering when multiple blocks change at once."""
+
+    def test_multiple_updates_preserve_document_order(self):
+        """When several blocks change content, ops follow document order."""
+        planner = DiffPlanner(make_config())
+        existing = [
+            _make_paragraph_block("A", block_id="b1"),
+            _make_paragraph_block("B", block_id="b2"),
+            _make_paragraph_block("C", block_id="b3"),
+            _make_paragraph_block("D", block_id="b4"),
+        ]
+        new = [
+            _make_paragraph_block("A-changed"),
+            _make_paragraph_block("B"),
+            _make_paragraph_block("C-changed"),
+            _make_paragraph_block("D"),
+        ]
+        ops = planner.plan(existing, new)
+        # B and D should be KEEP, A and C should change
+        keep_ids = [op.existing_id for op in ops if op.op_type == DiffOpType.KEEP]
+        assert "b2" in keep_ids
+        assert "b4" in keep_ids
+        # Operations should maintain document order
+        op_ids = [op.existing_id for op in ops if op.existing_id]
+        assert op_ids == sorted(op_ids, key=lambda x: ["b1", "b2", "b3", "b4"].index(x))
+
+    def test_delete_and_insert_in_same_diff(self):
+        """Delete at start + insert at end in the same diff pass."""
+        planner = DiffPlanner(make_config())
+        existing = [
+            _make_paragraph_block("DELETE-ME", block_id="b1"),
+            _make_paragraph_block("Keep", block_id="b2"),
+            _make_paragraph_block("Keep2", block_id="b3"),
+        ]
+        new = [
+            _make_paragraph_block("Keep"),
+            _make_paragraph_block("Keep2"),
+            _make_paragraph_block("New block"),
+        ]
+        ops = planner.plan(existing, new)
+        op_types = [op.op_type for op in ops]
+        assert DiffOpType.DELETE in op_types
+        assert DiffOpType.INSERT in op_types
+        assert DiffOpType.KEEP in op_types
+
+    def test_interleaved_changes_with_keeps(self):
+        """Changes interleaved with unchanged blocks produce valid op sequence."""
+        planner = DiffPlanner(make_config())
+        existing = [
+            _make_paragraph_block("A", block_id="b1"),
+            _make_paragraph_block("B", block_id="b2"),
+            _make_paragraph_block("C", block_id="b3"),
+            _make_paragraph_block("D", block_id="b4"),
+            _make_paragraph_block("E", block_id="b5"),
+        ]
+        new = [
+            _make_paragraph_block("A-new"),
+            _make_paragraph_block("B"),
+            _make_paragraph_block("C-new"),
+            _make_paragraph_block("D"),
+            _make_paragraph_block("E-new"),
+        ]
+        ops = planner.plan(existing, new)
+        # B and D kept, A/C/E changed
+        keeps = [op for op in ops if op.op_type == DiffOpType.KEEP]
+        assert len(keeps) == 2
+        # Total ops should cover all 5 positions
+        assert len(ops) >= 5

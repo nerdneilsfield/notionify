@@ -360,6 +360,31 @@ class TestNumberedList:
         # After a paragraph, numbering should restart
         assert "1. restart" in md
 
+    def test_two_numbered_lists_separated_by_heading(self):
+        """Two separate numbered lists separated by heading each start at 1."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [
+            make_numbered_list_item("alpha"),
+            make_numbered_list_item("beta"),
+            make_heading(2, "Section"),
+            make_numbered_list_item("gamma"),
+            make_numbered_list_item("delta"),
+        ]
+        md = r.render_blocks(blocks)
+        assert "1. alpha" in md
+        assert "2. beta" in md
+        assert "1. gamma" in md
+        assert "2. delta" in md
+
+    def test_long_numbered_list_counts_correctly(self):
+        """Numbered lists with many items count correctly beyond 9."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [make_numbered_list_item(f"item {i}") for i in range(12)]
+        md = r.render_blocks(blocks)
+        assert "10. item 9" in md
+        assert "11. item 10" in md
+        assert "12. item 11" in md
+
 
 # =========================================================================
 # U-NM-008: to_do checked
