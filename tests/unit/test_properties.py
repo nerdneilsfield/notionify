@@ -950,7 +950,7 @@ class TestNotionToMarkdownRendererProperties:
         assert renderer.render_blocks([]).strip() == ""
 
     @given(block_type=st.sampled_from(_KNOWN_BLOCK_TYPES))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_render_block_known_types_return_string(self, block_type: str) -> None:
         """render_block on every known type must return a string."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -1116,7 +1116,7 @@ class TestInlineRendererProperties:
     @given(
         char=st.sampled_from(list(r'\`*_{}[]()#+-.!|')),
     )
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_each_special_char_is_escaped_in_inline_context(self, char: str) -> None:
         """Every character in ESCAPE_CHARS must be backslash-escaped in inline context."""
         result = markdown_escape(char, context="inline")
@@ -1614,7 +1614,7 @@ class TestImageDetectProperties:
             ".svg", ".bmp", ".tiff", ".tif", ".ico", ".avif",
         ])
     )
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_image_extension_is_local_file(self, ext: str) -> None:
         """A filename with a known image extension is LOCAL_FILE."""
         result = detect_image_source(f"photo{ext}")
@@ -1636,7 +1636,7 @@ class TestImageDetectProperties:
             "image/svg+xml", "image/bmp", "image/tiff",
         ])
     )
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_known_mime_types_have_known_extensions(self, mime: str) -> None:
         """Known MIME types must map to known (non-.bin) extensions."""
         result = mime_to_extension(mime)
@@ -1880,13 +1880,13 @@ class TestNormalizeLanguageProperties:
         assert _normalize_language(info) == "plain text"
 
     @given(lang=st.sampled_from(_ALL_NOTION_LANGS))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_known_notion_language_returned_unchanged(self, lang: str) -> None:
         """Known Notion language identifiers are returned as-is."""
         assert _normalize_language(lang) == lang
 
     @given(alias=st.sampled_from(_ALL_ALIASES))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_known_alias_resolves_correctly(self, alias: str) -> None:
         """Known aliases are resolved to their canonical Notion language."""
         expected = _LANGUAGE_ALIASES[alias]
@@ -1900,7 +1900,7 @@ class TestNormalizeLanguageProperties:
         assert result in _NOTION_LANGUAGES or result == "plain text"
 
     @given(lang=st.sampled_from(_ALL_NOTION_LANGS))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_case_insensitive(self, lang: str) -> None:
         """Language matching is case-insensitive."""
         assert _normalize_language(lang.upper()) == lang
@@ -3174,7 +3174,7 @@ class TestRoundTripProperties:
             max_size=100,
         ),
     )
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_latex_fence_with_detect_disabled_roundtrips_as_code(self, code: str) -> None:
         """With detect_latex_code=False, latex fence round-trips as code block."""
         cfg = NotionifyConfig(token="test-token", detect_latex_code=False)
@@ -3194,7 +3194,7 @@ class TestRoundTripProperties:
             max_size=100,
         ),
     )
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_latex_fence_with_detect_enabled_renders_as_display_math(self, code: str) -> None:
         """With detect_latex_code=True, latex fence renders to $$...$$ display math."""
         cfg = NotionifyConfig(token="test-token", detect_latex_code=True)
@@ -3318,7 +3318,7 @@ class TestLargeRichTextSegmentListProperties:
         ),
         limit=st.integers(min_value=100, max_value=2000),
     )
-    @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_large_list_total_char_count_preserved(self, texts: list[str], limit: int) -> None:
         """Total character count is preserved when splitting large segment arrays."""
         segs = [
@@ -3401,7 +3401,7 @@ class TestRetryStatusCodeProperties:
         assert should_retry(status_code=status, exception=None, attempt=0, max_attempts=3) is False
 
     @given(attempt=st.integers(min_value=0, max_value=1))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_429_always_retried_within_attempts(self, attempt: int) -> None:
         """Rate limit (429) is retried when attempt+1 < max_attempts."""
         # max_attempts=3: attempts 0 and 1 are retried; attempt 2 is the last
@@ -3409,7 +3409,7 @@ class TestRetryStatusCodeProperties:
         assert result is True
 
     @given(attempt=st.integers(min_value=3, max_value=100))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_never_retry_past_max_attempts(self, attempt: int) -> None:
         """No status code is retried past max_attempts."""
         for status in (429, 500, 502, 503, 504):
@@ -3745,7 +3745,7 @@ class TestConfigValidationProperties:
     @given(
         token_len=st.integers(min_value=0, max_value=100),
     )
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_repr_masks_token(self, token_len: int) -> None:
         """repr() must never contain the full token (when > 4 chars)."""
         # Use distinct chars so the full token differs from the masked suffix.
@@ -5130,7 +5130,7 @@ class TestDefaultAnnotationsProperties:
         assert a == b
 
     @given(key=st.sampled_from(["bold", "italic", "strikethrough", "underline", "code"]))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_mutating_one_call_does_not_affect_another(self, key: str) -> None:
         """Mutation of one returned dict must not affect a separately obtained dict."""
         a = _default_annotations()
@@ -5143,7 +5143,7 @@ class TestExtractPlainTextFromBlockProperties:
     """Property tests for _extract_plain_text (notion_to_md version) on block dicts."""
 
     @given(block=st.fixed_dictionaries({}))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_empty_block_returns_empty_string(self, block: dict) -> None:
         """An empty block dict always produces an empty string."""
         assert _extract_plain_text_from_block({}) == ""
@@ -5855,7 +5855,7 @@ class TestBlockBuilderHelperProperties:
     # --- _build_heading ---
 
     @given(level=st.integers(min_value=1, max_value=3))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_build_heading_level_1_to_3_produces_heading_block(self, level: int) -> None:
         """Heading levels 1-3 produce the matching heading_N block type."""
         ctx = self._ctx()
@@ -5865,7 +5865,7 @@ class TestBlockBuilderHelperProperties:
         assert result[0]["type"] == f"heading_{level}"
 
     @given(level=st.integers(min_value=4, max_value=6))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_build_heading_overflow_downgrade_clamps_to_3(self, level: int) -> None:
         """Heading levels > 3 with downgrade overflow produce heading_3."""
         from notionify.config import NotionifyConfig as _Config
@@ -5878,7 +5878,7 @@ class TestBlockBuilderHelperProperties:
         assert result[0]["type"] == "heading_3"
 
     @given(level=st.integers(min_value=4, max_value=6))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_build_heading_overflow_paragraph_produces_paragraph(self, level: int) -> None:
         """Heading levels > 3 with paragraph overflow produce a paragraph block."""
         from notionify.config import NotionifyConfig as _Config
@@ -5891,7 +5891,7 @@ class TestBlockBuilderHelperProperties:
         assert result[0]["type"] == "paragraph"
 
     @given(level=st.integers(min_value=1, max_value=6))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_build_heading_adds_block_to_context(self, level: int) -> None:
         """_build_heading always adds exactly one block to ctx.blocks."""
         ctx = self._ctx()
@@ -6092,7 +6092,7 @@ class TestBuildListItemProperties:
         assert len(ctx.blocks) == 1
 
     @given(ordered=st.booleans())
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_build_list_item_color_is_default(self, ordered: bool) -> None:
         """List item block always has color 'default'."""
         ctx = self._ctx()
@@ -6586,7 +6586,7 @@ class TestRendererUrlAndCalloutProperties:
         icon_url=st.text(min_size=5, max_size=60, alphabet=string.ascii_letters + ":/._-"),
         text=st.text(min_size=1, max_size=40, alphabet=string.ascii_letters + " "),
     )
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_callout_external_icon_url_appears_in_output(
         self, icon_url: str, text: str
     ) -> None:
@@ -6872,7 +6872,7 @@ class TestRendererRemainingMethodsProperties:
     # --- _make_heading_renderer ---
 
     @given(level=st.integers(min_value=1, max_value=3))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_make_heading_renderer_returns_callable(self, level: int) -> None:
         """_make_heading_renderer always returns a callable."""
         from notionify.converter.notion_to_md import _make_heading_renderer
@@ -6970,7 +6970,7 @@ class TestDiffOpModelProperties:
     """Property tests for the DiffOp dataclass."""
 
     @given(op_type=st.sampled_from(list(DiffOpType)))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_op_type_stored_correctly(self, op_type: DiffOpType) -> None:
         """op_type attribute is stored verbatim."""
         op = DiffOp(op_type=op_type)
@@ -7126,7 +7126,7 @@ class TestValidateImageProperties:
         assert "detected_mime" in exc_info.value.context
 
     @given(url=st.from_regex(r"https://example\.com/img\.(jpg|png|gif|webp)", fullmatch=True))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_known_image_extensions_always_pass_validation(self, url: str) -> None:
         """URLs with known image extensions never raise TypeError."""
         cfg = self._cfg()
@@ -7337,7 +7337,7 @@ class TestUpdateResultModelProperties:
         code=st.text(min_size=1, max_size=20, alphabet=string.ascii_uppercase + "_"),
         message=st.text(min_size=1, max_size=60),
     )
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_warnings_list_is_mutable(self, code: str, message: str) -> None:
         """Warnings can be appended to after construction."""
         result = UpdateResult(
@@ -7376,7 +7376,7 @@ class TestBlockUpdateResultModelProperties:
         assert r2.warnings == []
 
     @given(block_id=st.text(min_size=1, max_size=100))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_block_id_in_repr(self, block_id: str) -> None:
         """repr(block_id) appears in the dataclass repr for any string."""
         # Dataclass uses repr() for each field, so compare repr-to-repr.
@@ -7598,7 +7598,7 @@ class TestBuildContextMethodsProperties:
         assert idx == 0
 
     @given(n=st.integers(min_value=1, max_value=20))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_add_block_returns_sequential_indices(self, n: int) -> None:
         """add_block returns indices 0, 1, 2, ... in order."""
         ctx = self._ctx()
@@ -7695,7 +7695,7 @@ class TestNormalizeTablePartProperties:
     @given(
         t=st.sampled_from(["table_head", "table_body", "table_row", "table_cell"]),
     )
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_empty_children_not_included(self, t: str) -> None:
         """Empty children list results in no children key."""
         n = self._n()
@@ -7870,7 +7870,7 @@ class TestRenderCodeLatexProperties:
         code=st.text(min_size=0, max_size=200),
         detect=st.booleans(),
     )
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_render_code_never_raises(self, code: str, detect: bool) -> None:
         """_render_code never raises for arbitrary code content."""
         r = self._r(detect_latex=detect)
@@ -7935,7 +7935,7 @@ class TestRenderToggleProperties:
         assert result_d1 == "  - T\n"
 
     @given(text=st.text(min_size=0, max_size=100))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_render_toggle_never_raises(self, text: str) -> None:
         """_render_toggle never raises for arbitrary text content."""
         r = self._r()
@@ -8009,7 +8009,7 @@ class TestRenderBookmarkProperties:
         assert result.endswith("\n\n")
 
     @given(url=st.text(min_size=1, max_size=100, alphabet=string.ascii_letters + ":/._-"))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_render_bookmark_never_raises(self, url: str) -> None:
         """_render_bookmark never raises for arbitrary URL strings."""
         r = self._r()
@@ -8046,7 +8046,7 @@ class TestRenderLinkPreviewProperties:
         assert ">" not in result
 
     @given(url=st.text(min_size=1, max_size=100, alphabet=string.ascii_letters + ":/._-"))
-    @settings(max_examples=50)
+    @settings(max_examples=100)
     def test_render_link_preview_never_raises(self, url: str) -> None:
         """_render_link_preview never raises for arbitrary URL strings."""
         r = self._r()

@@ -1846,3 +1846,45 @@ class TestDeeplyNestedStructures:
         assert "heading_1" in types
         assert "bulleted_list_item" in types
         assert "paragraph" in types
+
+
+# =========================================================================
+# Edge case: Empty code block
+# =========================================================================
+
+
+class TestCodeBlockEmpty:
+    """Code block with no content should produce a code block with empty text."""
+
+    def test_empty_code_block(self):
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("```\n```")
+        assert len(result.blocks) >= 1
+        block = result.blocks[0]
+        assert block["type"] == "code"
+
+    def test_empty_code_block_with_language(self):
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert("```python\n```")
+        assert len(result.blocks) >= 1
+        block = result.blocks[0]
+        assert block["type"] == "code"
+        assert block["code"]["language"] == "python"
+
+
+# =========================================================================
+# Edge case: Single-column table
+# =========================================================================
+
+
+class TestTableSingleColumn:
+    """Table with only one column should convert correctly."""
+
+    def test_single_column_table(self):
+        md = "| Name |\n|------|\n| Alice |\n| Bob |"
+        c = MarkdownToNotionConverter(make_config())
+        result = c.convert(md)
+        table_blocks = [b for b in result.blocks if b.get("type") == "table"]
+        assert len(table_blocks) == 1
+        table = table_blocks[0]
+        assert table["table"]["table_width"] == 1
