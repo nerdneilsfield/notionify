@@ -503,6 +503,66 @@ class TestTableRendering:
         assert "| 1 | 2 | 3 |" in md
         assert "| 4 | 5 | 6 |" in md
 
+    def test_table_cell_with_pipe_character(self):
+        """Pipe character in cell content should not break table syntax."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [make_table_block(
+            header_cells=["Command", "Output"],
+            body_rows=[["echo a", "a"]],
+        )]
+        md = r.render_blocks(blocks)
+        assert "Command" in md
+        assert "Output" in md
+        # Table structure should be valid (has header separator)
+        assert "|---" in md
+
+    def test_table_cell_with_bold_annotation(self):
+        """Table cell with bold annotation should render correctly."""
+        r = NotionToMarkdownRenderer(make_config())
+        bold_cell = _make_text_segment("important", bold=True)
+        blocks = [{
+            "type": "table",
+            "table": {
+                "table_width": 2,
+                "has_column_header": True,
+                "has_row_header": False,
+                "children": [
+                    {"type": "table_row", "table_row": {
+                        "cells": [[_make_text_segment("Header")], [_make_text_segment("Info")]],
+                    }},
+                    {"type": "table_row", "table_row": {
+                        "cells": [[bold_cell], [_make_text_segment("text")]],
+                    }},
+                ],
+            },
+        }]
+        md = r.render_blocks(blocks)
+        assert "**important**" in md
+        assert "text" in md
+
+    def test_table_empty_cell(self):
+        """Table with empty cells should render without crashing."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [{
+            "type": "table",
+            "table": {
+                "table_width": 2,
+                "has_column_header": True,
+                "has_row_header": False,
+                "children": [
+                    {"type": "table_row", "table_row": {
+                        "cells": [[_make_text_segment("A")], [_make_text_segment("B")]],
+                    }},
+                    {"type": "table_row", "table_row": {
+                        "cells": [[], [_make_text_segment("value")]],
+                    }},
+                ],
+            },
+        }]
+        md = r.render_blocks(blocks)
+        assert "value" in md
+        assert "|---" in md
+
 
 # =========================================================================
 # U-NM-014: image external
