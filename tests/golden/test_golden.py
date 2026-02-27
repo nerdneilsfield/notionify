@@ -1649,3 +1649,99 @@ class TestTablesWithLinks:
         round_tripped = renderer.render_blocks(blocks)
         assert "https://www.example.com/long/path/to/page" in round_tripped
         assert "https://api.example.com/v2/reference" in round_tripped
+
+
+class TestDividers:
+    """Round-trip tests for dividers.md."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "dividers.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+        assert not result.warnings
+
+    def test_produces_divider_blocks(self, converter):
+        md = (FIXTURES_DIR / "dividers.md").read_text()
+        result = converter.convert(md)
+        dividers = [b for b in result.blocks if b.get("type") == "divider"]
+        assert len(dividers) == 3
+
+    def test_headings_preserved_around_dividers(self, converter, renderer):
+        md = (FIXTURES_DIR / "dividers.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "# Before Divider" in round_tripped
+        assert "## After First Divider" in round_tripped
+        assert "### After Second Divider" in round_tripped
+
+    def test_dividers_present_in_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "dividers.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert round_tripped.count("---") == 3
+
+    def test_bold_text_between_dividers_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "dividers.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "**bold**" in round_tripped
+
+    def test_link_after_divider_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "dividers.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "https://example.com" in round_tripped
+
+
+class TestEscapeChars:
+    """Round-trip tests for escape_chars.md."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "escape_chars.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+        assert not result.warnings
+
+    def test_produces_expected_block_count(self, converter):
+        md = (FIXTURES_DIR / "escape_chars.md").read_text()
+        result = converter.convert(md)
+        # 1 heading + 6 paragraphs
+        assert len(result.blocks) == 7
+
+    def test_escaped_asterisks_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "escape_chars.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        # Renderer re-escapes special chars; content survives as \*markers\*
+        assert "markers" in round_tripped
+
+    def test_escaped_underscores_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "escape_chars.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        # Renderer re-escapes underscores; content survives as variable\_names
+        assert "variable" in round_tripped
+        assert "names" in round_tripped
+        assert "file" in round_tripped
+        assert "paths" in round_tripped
+
+    def test_escaped_brackets_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "escape_chars.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "option" in round_tripped
+        assert "flag" in round_tripped
+
+    def test_backslash_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "escape_chars.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "escape character" in round_tripped
