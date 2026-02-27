@@ -317,3 +317,52 @@ class TestAsyncExecutorSkipBranches:
         result = await AsyncDiffExecutor(api, _config()).execute("page-1", ops)
         api.append_children.assert_not_awaited()
         assert result.blocks_inserted == 0
+
+
+# =========================================================================
+# Async executor: CancelledError propagation
+# =========================================================================
+
+
+class TestAsyncExecutorCancelledError:
+    """CancelledError from API calls must propagate without being swallowed."""
+
+    async def test_cancelled_during_update(self):
+        import asyncio
+
+        api = _make_async_api()
+        api.update.side_effect = asyncio.CancelledError()
+        ops = [DiffOp(op_type=DiffOpType.UPDATE, existing_id="b1", new_block=_para())]
+        with pytest.raises(asyncio.CancelledError):
+            await AsyncDiffExecutor(api, _config()).execute("page-1", ops)
+
+    async def test_cancelled_during_delete(self):
+        import asyncio
+
+        api = _make_async_api()
+        api.delete.side_effect = asyncio.CancelledError()
+        ops = [DiffOp(op_type=DiffOpType.DELETE, existing_id="b1")]
+        with pytest.raises(asyncio.CancelledError):
+            await AsyncDiffExecutor(api, _config()).execute("page-1", ops)
+
+    async def test_cancelled_during_insert_append(self):
+        import asyncio
+
+        api = _make_async_api()
+        api.append_children.side_effect = asyncio.CancelledError()
+        ops = [DiffOp(op_type=DiffOpType.INSERT, new_block=_para())]
+        with pytest.raises(asyncio.CancelledError):
+            await AsyncDiffExecutor(api, _config()).execute("page-1", ops)
+
+    async def test_cancelled_during_replace_after_delete_succeeds(self):
+        """CancelledError in append after delete already succeeded."""
+        import asyncio
+
+        api = _make_async_api()
+        api.delete.return_value = {"id": "b1"}
+        api.append_children.side_effect = asyncio.CancelledError()
+        ops = [DiffOp(op_type=DiffOpType.REPLACE, existing_id="b1", new_block=_para())]
+        with pytest.raises(asyncio.CancelledError):
+            await AsyncDiffExecutor(api, _config()).execute("page-1", ops)
+        # Delete should have been called before cancellation
+        api.delete.assert_awaited_once_with("b1")
