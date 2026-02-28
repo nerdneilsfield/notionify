@@ -1745,3 +1745,58 @@ class TestEscapeChars:
         blocks = _simulate_api_response(result.blocks)
         round_tripped = renderer.render_blocks(blocks)
         assert "escape character" in round_tripped
+
+
+class TestBlockquoteWithCode:
+    """Round-trip tests for blockquote_with_code.md."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "blockquote_with_code.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+        assert not result.warnings
+
+    def test_code_blocks_nested_in_quotes(self, converter):
+        md = (FIXTURES_DIR / "blockquote_with_code.md").read_text()
+        result = converter.convert(md)
+        quotes = [b for b in result.blocks if b.get("type") == "quote"]
+        assert len(quotes) >= 2
+        # At least one quote should have a code child
+        has_code_child = any(
+            c.get("type") == "code"
+            for q in quotes
+            for c in q.get("quote", {}).get("children", [])
+        )
+        assert has_code_child, "No quote block has a code child"
+
+    def test_python_code_survives_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "blockquote_with_code.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "def hello" in round_tripped
+        assert 'print("world")' in round_tripped
+
+    def test_bash_code_survives_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "blockquote_with_code.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "npm install" in round_tripped
+        assert "npm run build" in round_tripped
+
+    def test_json_code_survives_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "blockquote_with_code.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert '"status"' in round_tripped
+        assert '"ok"' in round_tripped
+
+    def test_plain_quote_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "blockquote_with_code.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "**bold**" in round_tripped
+        assert "`code`" in round_tripped
