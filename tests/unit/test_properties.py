@@ -110,6 +110,12 @@ from notionify.errors import (
 )
 from notionify.image.attach import build_image_block_external, build_image_block_uploaded
 from notionify.image.detect import detect_image_source, mime_to_extension
+from notionify.image.download import (
+    DEFAULT_REMOTE_IMAGE_HEADERS,
+    _build_headers,
+    _is_retryable,
+    _parse_content_type,
+)
 from notionify.image.validate import validate_image
 from notionify.models import (
     BlockSignature,
@@ -8053,4 +8059,96 @@ class TestRenderLinkPreviewProperties:
         block = {"link_preview": {"url": url}}
         result = r._render_link_preview(block, 0)
         assert isinstance(result, str)
+
+
+# =========================================================================
+# Image download helpers
+# =========================================================================
+
+
+class TestBuildHeadersProperties:
+    """_build_headers always includes User-Agent and merges custom headers."""
+
+    def _cfg(self, **kw: object) -> NotionifyConfig:
+        return NotionifyConfig(token="t", **kw)  # type: ignore[arg-type]
+
+    @given(key=st.text(min_size=1, max_size=30, alphabet=string.ascii_letters + "-"),
+           val=st.text(min_size=1, max_size=50, alphabet=string.printable))
+    @settings(max_examples=100)
+    def test_custom_header_always_present(self, key: str, val: str) -> None:
+        """User-supplied headers always appear in the result."""
+        cfg = self._cfg(remote_image_headers={key: val})
+        headers = _build_headers(cfg)
+        assert headers[key] == val
+
+    @given(ua=st.text(min_size=1, max_size=50, alphabet=string.printable))
+    @settings(max_examples=100)
+    def test_user_agent_override(self, ua: str) -> None:
+        """Custom User-Agent replaces the default."""
+        cfg = self._cfg(remote_image_headers={"User-Agent": ua})
+        headers = _build_headers(cfg)
+        assert headers["User-Agent"] == ua
+
+    def test_none_headers_returns_defaults(self) -> None:
+        cfg = self._cfg(remote_image_headers=None)
+        headers = _build_headers(cfg)
+        assert headers == DEFAULT_REMOTE_IMAGE_HEADERS
+
+
+class TestParseContentTypeProperties:
+    """_parse_content_type always returns a clean MIME type string."""
+
+    @given(mime=st.from_regex(r"[a-z]+/[a-z0-9.+-]+", fullmatch=True),
+           params=st.text(max_size=30, alphabet=string.ascii_letters + "=; "))
+    @settings(max_examples=100)
+    def test_params_stripped(self, mime: str, params: str) -> None:
+        """Semicolon-delimited parameters are stripped."""
+        import httpx as _httpx
+
+        ct = f"{mime}; {params}" if params else mime
+        resp = _httpx.Response(200, content=b"", headers={"content-type": ct})
+        result = _parse_content_type(resp)
+        assert result == mime
+
+    def test_missing_header_defaults(self) -> None:
+        import httpx as _httpx
+
+        resp = _httpx.Response(200, content=b"")
+        result = _parse_content_type(resp)
+        assert result == "application/octet-stream"
+
+
+class TestIsRetryableProperties:
+    """_is_retryable classifies HTTP errors by status code range."""
+
+    @given(status=st.integers(min_value=400, max_value=499))
+    @settings(max_examples=100)
+    def test_4xx_is_never_retryable(self, status: int) -> None:
+        """All 4xx client errors are permanent."""
+        import httpx as _httpx
+
+        req = _httpx.Request("GET", "https://example.com/img")
+        resp = _httpx.Response(status, request=req)
+        exc = _httpx.HTTPStatusError(f"{status}", request=req, response=resp)
+        assert _is_retryable(exc) is False
+
+    @given(status=st.integers(min_value=500, max_value=599))
+    @settings(max_examples=100)
+    def test_5xx_is_always_retryable(self, status: int) -> None:
+        """All 5xx server errors are transient."""
+        import httpx as _httpx
+
+        req = _httpx.Request("GET", "https://example.com/img")
+        resp = _httpx.Response(status, request=req)
+        exc = _httpx.HTTPStatusError(f"{status}", request=req, response=resp)
+        assert _is_retryable(exc) is True
+
+    @given(msg=st.text(max_size=50))
+    @settings(max_examples=100)
+    def test_non_http_error_always_retryable(self, msg: str) -> None:
+        """Non-HTTP errors (OSError, ConnectError) are always retryable."""
+        import httpx as _httpx
+
+        assert _is_retryable(_httpx.ConnectError(msg)) is True
+        assert _is_retryable(OSError(msg)) is True
 
