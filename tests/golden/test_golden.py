@@ -1800,3 +1800,53 @@ class TestBlockquoteWithCode:
         round_tripped = renderer.render_blocks(blocks)
         assert "**bold**" in round_tripped
         assert "`code`" in round_tripped
+
+
+class TestListWithBlockquote:
+    """Round-trip tests for list_with_blockquote.md."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "list_with_blockquote.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+        assert not result.warnings
+
+    def test_bulleted_list_has_quote_child(self, converter):
+        md = (FIXTURES_DIR / "list_with_blockquote.md").read_text()
+        result = converter.convert(md)
+        bullets = [b for b in result.blocks if b.get("type") == "bulleted_list_item"]
+        has_quote = any(
+            c.get("type") == "quote"
+            for b in bullets
+            for c in b.get("bulleted_list_item", {}).get("children", [])
+        )
+        assert has_quote, "No bulleted list item has a quote child"
+
+    def test_quoted_note_survives_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "list_with_blockquote.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "quoted note" in round_tripped
+
+    def test_numbered_list_warning_survives(self, converter, renderer):
+        md = (FIXTURES_DIR / "list_with_blockquote.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "do not skip" in round_tripped
+
+    def test_task_list_items_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "list_with_blockquote.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Completed task" in round_tripped
+        assert "Pending task" in round_tripped
+
+    def test_approval_quote_in_task_survives(self, converter, renderer):
+        md = (FIXTURES_DIR / "list_with_blockquote.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "approval" in round_tripped
