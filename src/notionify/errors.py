@@ -61,6 +61,7 @@ class ErrorCode(str, Enum):
     IMAGE_PARSE_ERROR = "IMAGE_PARSE_ERROR"
     UPLOAD_ERROR = "UPLOAD_ERROR"
     UPLOAD_EXPIRED = "UPLOAD_EXPIRED"
+    IMAGE_DOWNLOAD_ERROR = "IMAGE_DOWNLOAD_ERROR"
     UPLOAD_TRANSPORT_ERROR = "UPLOAD_TRANSPORT_ERROR"
     DIFF_CONFLICT = "DIFF_CONFLICT"
 
@@ -442,6 +443,26 @@ class NotionifyImageParseError(NotionifyImageError):
     ) -> None:
         super().__init__(
             code=ErrorCode.IMAGE_PARSE_ERROR,
+            message=message,
+            context=context,
+            cause=cause,
+        )
+
+
+class NotionifyImageDownloadError(NotionifyImageError):
+    """A remote image could not be downloaded for re-upload.
+
+    Context keys: ``url``, ``error``.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        context: dict[str, Any] | None = None,
+        cause: Exception | None = None,
+    ) -> None:
+        super().__init__(
+            code=ErrorCode.IMAGE_DOWNLOAD_ERROR,
             message=message,
             context=context,
             cause=cause,

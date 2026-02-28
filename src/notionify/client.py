@@ -33,11 +33,14 @@ from notionify.diff.executor import DiffExecutor
 from notionify.diff.planner import DiffPlanner
 from notionify.errors import (
     NotionifyDiffConflictError,
+    NotionifyImageDownloadError,
     NotionifyImageError,
     NotionifyImageNotFoundError,
 )
 from notionify.image import (
+    build_image_block_external,
     build_image_block_uploaded,
+    download_image,
     upload_multi,
     upload_single,
     validate_image,
@@ -713,7 +716,8 @@ class NotionifyClient:
     ) -> int:
         """Process a single pending image.  Returns 1 if uploaded, 0 otherwise."""
         if pending.source_type == ImageSourceType.EXTERNAL_URL:
-            # Already handled in block_builder as an external image block.
+            if self._config.remote_image_upload:
+                return self._download_and_upload_remote(pending, blocks, warnings)
             return 0
 
         if pending.source_type == ImageSourceType.UNKNOWN:
@@ -799,6 +803,63 @@ class NotionifyClient:
             blocks[pending.block_index] = new_block
 
         return 1
+
+    def _download_and_upload_remote(
+        self,
+        pending: PendingImage,
+        blocks: list[dict[str, Any]],
+        warnings: list[ConversionWarning],
+    ) -> int:
+        """Download a remote image, validate, upload, and replace the block.
+
+        On any failure, fall back to the original external URL and emit
+        a warning.
+        """
+        url = pending.src
+        try:
+            data, content_type = download_image(url, self._config)
+        except NotionifyImageDownloadError:
+            # Fallback: keep the original external URL block.
+            if 0 <= pending.block_index < len(blocks):
+                blocks[pending.block_index] = build_image_block_external(url)
+            warnings.append(
+                ConversionWarning(
+                    code="IMG_REMOTE_DOWNLOAD_FAILED",
+                    message=f"Failed to download remote image, using original URL: {url}",
+                    context={"url": url},
+                )
+            )
+            return 0
+
+        try:
+            mime_type, validated_data = validate_image(
+                url, ImageSourceType.LOCAL_FILE, data, self._config,
+            )
+            if validated_data is None:
+                validated_data = data
+
+            ext = mime_to_extension(content_type)
+            file_name = f"remote_image{ext}"
+
+            upload_id = self._do_upload(file_name, mime_type, validated_data)
+            new_block = build_image_block_uploaded(upload_id)
+
+            if 0 <= pending.block_index < len(blocks):
+                blocks[pending.block_index] = new_block
+
+            return 1
+        except (NotionifyImageError, Exception):
+            # Upload or validation failed: fall back to external URL.
+            if 0 <= pending.block_index < len(blocks):
+                blocks[pending.block_index] = build_image_block_external(url)
+            warnings.append(
+                ConversionWarning(
+                    code="IMG_REMOTE_UPLOAD_FAILED",
+                    message=f"Failed to upload remote image, using original URL: {url}",
+                    context={"url": url},
+                )
+            )
+            return 0
 
     def _do_upload(self, name: str, mime_type: str, data: bytes) -> str:
         """Choose single or multi-part upload based on data size."""

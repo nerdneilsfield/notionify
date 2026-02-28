@@ -57,6 +57,33 @@ def _validate_mime_list(label: str, mimes: list[str]) -> None:
             )
 
 
+def _validate_numeric_params(config: NotionifyConfig) -> None:
+    """Validate numeric configuration parameters."""
+    _checks: list[tuple[str, float, str]] = [
+        ("retry_max_attempts", 0, ">="),
+        ("retry_base_delay", 0, ">="),
+        ("retry_max_delay", 0, ">="),
+        ("rate_limit_rps", 0, ">"),
+        ("timeout_seconds", 0, ">"),
+        ("image_max_size_bytes", 0, ">"),
+        ("image_max_concurrent", 1, ">="),
+        ("remote_image_timeout_seconds", 0, ">"),
+        ("remote_image_retries", 0, ">="),
+    ]
+    for name, threshold, op in _checks:
+        val = getattr(config, name)
+        if op == ">=" and val < threshold:
+            raise ValueError(f"{name} must be >= {threshold}, got {val}")
+        if op == ">" and val <= threshold:
+            raise ValueError(f"{name} must be > {threshold}, got {val}")
+
+    if config.retry_base_delay > config.retry_max_delay:
+        raise ValueError(
+            f"retry_base_delay ({config.retry_base_delay}) must be "
+            f"<= retry_max_delay ({config.retry_max_delay})"
+        )
+
+
 @dataclass
 class NotionifyConfig:
     """Complete configuration for a notionify client.
@@ -202,6 +229,23 @@ class NotionifyConfig:
     when processing untrusted Markdown.  The value is resolved to an
     absolute path at use time."""
 
+    remote_image_upload: bool = False
+    """When ``True``, external-URL images are downloaded and uploaded to
+    Notion via the file-upload API (``image.file``).  On download or
+    upload failure the image falls back to ``image.external`` with the
+    original URL."""
+
+    remote_image_headers: dict[str, str] | None = None
+    """Optional HTTP headers merged on top of the default Chrome-style
+    ``User-Agent`` when downloading remote images.  Pass a dict to
+    override or extend the defaults."""
+
+    remote_image_timeout_seconds: float = 20.0
+    """HTTP timeout in seconds for downloading a single remote image."""
+
+    remote_image_retries: int = 3
+    """Number of retry attempts for downloading a remote image."""
+
     # ── Tables ──────────────────────────────────────────────────────────
     enable_tables: bool = True
 
@@ -254,27 +298,7 @@ class NotionifyConfig:
                 "Use HTTPS to protect your API token, or target localhost for testing."
             )
 
-        # Numeric parameter validation — catch invalid values at config
-        # time instead of letting them surface as confusing runtime errors.
-        if self.retry_max_attempts < 0:
-            raise ValueError(f"retry_max_attempts must be >= 0, got {self.retry_max_attempts}")
-        if self.retry_base_delay < 0:
-            raise ValueError(f"retry_base_delay must be >= 0, got {self.retry_base_delay}")
-        if self.retry_max_delay < 0:
-            raise ValueError(f"retry_max_delay must be >= 0, got {self.retry_max_delay}")
-        if self.rate_limit_rps <= 0:
-            raise ValueError(f"rate_limit_rps must be > 0, got {self.rate_limit_rps}")
-        if self.timeout_seconds <= 0:
-            raise ValueError(f"timeout_seconds must be > 0, got {self.timeout_seconds}")
-        if self.image_max_size_bytes <= 0:
-            raise ValueError(f"image_max_size_bytes must be > 0, got {self.image_max_size_bytes}")
-        if self.image_max_concurrent < 1:
-            raise ValueError(f"image_max_concurrent must be >= 1, got {self.image_max_concurrent}")
-        if self.retry_base_delay > self.retry_max_delay:
-            raise ValueError(
-                f"retry_base_delay ({self.retry_base_delay}) must be "
-                f"<= retry_max_delay ({self.retry_max_delay})"
-            )
+        _validate_numeric_params(self)
 
         # MIME allowlist validation
         _validate_mime_list("image_allowed_mimes_upload", self.image_allowed_mimes_upload)

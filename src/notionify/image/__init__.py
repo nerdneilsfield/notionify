@@ -10,6 +10,8 @@ upload_single / async_upload_single
     Single-part upload flow.
 upload_multi / async_upload_multi
     Multi-part upload flow.
+download_image / async_download_image
+    Download a remote image for re-upload.
 build_image_block_external
     Build a Notion image block for an external URL.
 build_image_block_uploaded
@@ -20,6 +22,7 @@ UploadStateMachine
 
 from .attach import build_image_block_external, build_image_block_uploaded
 from .detect import detect_image_source, mime_to_extension
+from .download import async_download_image, download_image
 from .state import UploadStateMachine
 from .upload_multi import async_upload_multi, upload_multi
 from .upload_single import async_upload_single, upload_single
@@ -27,11 +30,13 @@ from .validate import validate_image
 
 __all__ = [
     "UploadStateMachine",
+    "async_download_image",
     "async_upload_multi",
     "async_upload_single",
     "build_image_block_external",
     "build_image_block_uploaded",
     "detect_image_source",
+    "download_image",
     "mime_to_extension",
     "upload_multi",
     "upload_single",

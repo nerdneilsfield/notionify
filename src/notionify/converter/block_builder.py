@@ -574,6 +574,21 @@ def _build_image_block(token: dict[str, Any], ctx: _BuildContext) -> list[dict[s
     source_type = _classify_image_source(url)
 
     if source_type == ImageSourceType.EXTERNAL_URL:
+        if ctx.config.remote_image_upload:
+            # Remote upload enabled: create a placeholder and register for download+upload.
+            placeholder_data: dict[str, Any] = {
+                "type": "external",
+                "external": {"url": url},
+            }
+            if alt_text:
+                placeholder_data["caption"] = [
+                    {"type": "text", "text": {"content": alt_text}},
+                ]
+            block: dict[str, Any] = {"object": "block", "type": "image", "image": placeholder_data}
+            idx = ctx.add_block(block)
+            ctx.add_image(url, source_type, idx)
+            return [block]
+        # Default: embed as external URL immediately.
         image_data: dict[str, Any] = {
             "type": "external",
             "external": {"url": url},
@@ -582,22 +597,22 @@ def _build_image_block(token: dict[str, Any], ctx: _BuildContext) -> list[dict[s
             image_data["caption"] = [
                 {"type": "text", "text": {"content": alt_text}},
             ]
-        block: dict[str, Any] = {"object": "block", "type": "image", "image": image_data}
+        block = {"object": "block", "type": "image", "image": image_data}
         ctx.add_block(block)
         return [block]
 
     if source_type in (ImageSourceType.LOCAL_FILE, ImageSourceType.DATA_URI):
         if ctx.config.image_upload:
             # Create a placeholder block that will be patched by the upload pipeline
-            placeholder_data: dict[str, Any] = {
+            upload_placeholder: dict[str, Any] = {
                 "type": "external",
                 "external": {"url": "https://placeholder.notionify.invalid"},
             }
             if alt_text:
-                placeholder_data["caption"] = [
+                upload_placeholder["caption"] = [
                     {"type": "text", "text": {"content": alt_text}},
                 ]
-            block = {"object": "block", "type": "image", "image": placeholder_data}
+            block = {"object": "block", "type": "image", "image": upload_placeholder}
             idx = ctx.add_block(block)
             ctx.add_image(url, source_type, idx)
             return [block]

@@ -46,6 +46,7 @@ from notionify.errors import (
     NotionifyConversionError,
     NotionifyDiffConflictError,
     NotionifyError,
+    NotionifyImageDownloadError,
     NotionifyImageError,
     NotionifyImageNotFoundError,
     NotionifyImageParseError,
@@ -112,6 +113,7 @@ __all__ = [
     "NotionifyTextOverflowError",
     "NotionifyMathOverflowError",
     # Image errors
+    "NotionifyImageDownloadError",
     "NotionifyImageError",
     "NotionifyImageNotFoundError",
     "NotionifyImageTypeError",
