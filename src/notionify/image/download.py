@@ -5,6 +5,10 @@ URL into memory, applying configurable headers, timeout, and retry
 logic.  On success the raw bytes and detected content-type are returned;
 on failure a :class:`NotionifyImageDownloadError` is raised so that
 callers can fall back to embedding the original URL.
+
+Client errors (4xx) are treated as permanent and abort immediately
+without retries.  Server errors (5xx), timeouts, and connection failures
+are retried with linear backoff.
 """
 
 from __future__ import annotations
@@ -44,6 +48,19 @@ def _parse_content_type(response: httpx.Response) -> str:
     """Extract the MIME type from the Content-Type header."""
     raw: str = response.headers.get("content-type", "application/octet-stream")
     return raw.split(";")[0].strip()
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """Return ``True`` if the error is transient and worth retrying.
+
+    Client errors (4xx) are permanent — the server understood the request
+    and rejected it.  Server errors (5xx), timeouts, and connection
+    failures are transient.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code >= 500
+    # TimeoutException, ConnectError, OSError, etc. are all transient.
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -100,20 +117,31 @@ def download_image(
             return _try_download(url, headers, timeout)
         except (httpx.HTTPError, OSError) as exc:  # noqa: PERF203
             last_error = exc
+            retryable = _is_retryable(exc)
+            status_code = (
+                exc.response.status_code
+                if isinstance(exc, httpx.HTTPStatusError)
+                else None
+            )
             log.debug(
-                "Remote image download retry",
+                "Remote image download attempt failed",
                 extra={"extra_fields": {
                     "url": url,
                     "attempt": attempt + 1,
                     "max_attempts": max_attempts,
+                    "status_code": status_code,
+                    "retryable": retryable,
                     "error": str(exc),
                 }},
             )
+            if not retryable:
+                break
             if attempt < max_attempts - 1:
                 time.sleep(min(attempt + 1, 5))
 
+    attempts_used = attempt + 1 if last_error is not None else max_attempts
     raise NotionifyImageDownloadError(
-        message=f"Failed to download remote image after {max_attempts} attempt(s): {url}",
+        message=f"Failed to download remote image after {attempts_used} attempt(s): {url}",
         context={"url": url, "error": str(last_error)},
     )
 
@@ -174,19 +202,30 @@ async def async_download_image(
             return await _async_try_download(url, headers, timeout)
         except (httpx.HTTPError, OSError) as exc:  # noqa: PERF203
             last_error = exc
+            retryable = _is_retryable(exc)
+            status_code = (
+                exc.response.status_code
+                if isinstance(exc, httpx.HTTPStatusError)
+                else None
+            )
             log.debug(
-                "Remote image download retry",
+                "Remote image download attempt failed",
                 extra={"extra_fields": {
                     "url": url,
                     "attempt": attempt + 1,
                     "max_attempts": max_attempts,
+                    "status_code": status_code,
+                    "retryable": retryable,
                     "error": str(exc),
                 }},
             )
+            if not retryable:
+                break
             if attempt < max_attempts - 1:
                 await asyncio.sleep(min(attempt + 1, 5))
 
+    attempts_used = attempt + 1 if last_error is not None else max_attempts
     raise NotionifyImageDownloadError(
-        message=f"Failed to download remote image after {max_attempts} attempt(s): {url}",
+        message=f"Failed to download remote image after {attempts_used} attempt(s): {url}",
         context={"url": url, "error": str(last_error)},
     )

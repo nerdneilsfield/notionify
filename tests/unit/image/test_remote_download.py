@@ -26,6 +26,7 @@ from notionify.image.download import (
     DEFAULT_REMOTE_IMAGE_HEADERS,
     _async_try_download,
     _build_headers,
+    _is_retryable,
     _parse_content_type,
     _try_download,
     async_download_image,
@@ -249,6 +250,90 @@ class TestRemoteImageConfigValidation:
         assert config.remote_image_headers is None
         assert config.remote_image_timeout_seconds == 20.0
         assert config.remote_image_retries == 3
+
+
+# =========================================================================
+# Retryable classification
+# =========================================================================
+
+
+class TestIsRetryable:
+    """_is_retryable distinguishes transient from permanent errors."""
+
+    def test_404_is_not_retryable(self):
+        resp = httpx.Response(404, request=httpx.Request("GET", "https://x.com/img"))
+        exc = httpx.HTTPStatusError("Not Found", request=resp.request, response=resp)
+        assert _is_retryable(exc) is False
+
+    def test_403_is_not_retryable(self):
+        resp = httpx.Response(403, request=httpx.Request("GET", "https://x.com/img"))
+        exc = httpx.HTTPStatusError("Forbidden", request=resp.request, response=resp)
+        assert _is_retryable(exc) is False
+
+    def test_500_is_retryable(self):
+        resp = httpx.Response(500, request=httpx.Request("GET", "https://x.com/img"))
+        exc = httpx.HTTPStatusError("Server Error", request=resp.request, response=resp)
+        assert _is_retryable(exc) is True
+
+    def test_502_is_retryable(self):
+        resp = httpx.Response(502, request=httpx.Request("GET", "https://x.com/img"))
+        exc = httpx.HTTPStatusError("Bad Gateway", request=resp.request, response=resp)
+        assert _is_retryable(exc) is True
+
+    def test_connect_error_is_retryable(self):
+        assert _is_retryable(httpx.ConnectError("fail")) is True
+
+    def test_timeout_is_retryable(self):
+        assert _is_retryable(httpx.ReadTimeout("timeout")) is True
+
+    def test_os_error_is_retryable(self):
+        assert _is_retryable(OSError("network")) is True
+
+
+# =========================================================================
+# Early abort on permanent errors
+# =========================================================================
+
+
+class TestPermanentErrorAbort:
+    """4xx errors abort immediately without exhausting retries."""
+
+    @patch("notionify.image.download._try_download")
+    def test_404_aborts_immediately_sync(self, mock_try: MagicMock):
+        resp = httpx.Response(404, request=httpx.Request("GET", "https://x.com/img"))
+        mock_try.side_effect = httpx.HTTPStatusError(
+            "Not Found", request=resp.request, response=resp,
+        )
+        config = _config(remote_image_retries=5)
+        with pytest.raises(NotionifyImageDownloadError, match="1 attempt"):
+            download_image("https://x.com/img", config)
+        assert mock_try.call_count == 1  # no retries
+
+    @patch("notionify.image.download._try_download")
+    def test_500_retries_sync(self, mock_try: MagicMock):
+        resp = httpx.Response(500, request=httpx.Request("GET", "https://x.com/img"))
+        mock_try.side_effect = httpx.HTTPStatusError(
+            "Server Error", request=resp.request, response=resp,
+        )
+        config = _config(remote_image_retries=2)
+        with pytest.raises(NotionifyImageDownloadError, match="3 attempt"):
+            download_image("https://x.com/img", config)
+        assert mock_try.call_count == 3  # 1 initial + 2 retries
+
+    @patch("notionify.image.download._async_try_download")
+    async def test_403_aborts_immediately_async(self, mock_try: MagicMock):
+        from unittest.mock import AsyncMock
+
+        resp = httpx.Response(403, request=httpx.Request("GET", "https://x.com/img"))
+        mock_try.side_effect = AsyncMock(
+            side_effect=httpx.HTTPStatusError(
+                "Forbidden", request=resp.request, response=resp,
+            ),
+        )
+        config = _config(remote_image_retries=5)
+        with pytest.raises(NotionifyImageDownloadError, match="1 attempt"):
+            await async_download_image("https://x.com/img", config)
+        assert mock_try.call_count == 1
 
 
 # =========================================================================
