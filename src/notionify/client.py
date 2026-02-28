@@ -819,6 +819,10 @@ class NotionifyClient:
         try:
             data, content_type = download_image(url, self._config)
         except NotionifyImageDownloadError:
+            self._metrics.increment(
+                "notionify.download_failure_total",
+                tags={"reason": "download"},
+            )
             # Fallback: keep the original external URL block.
             if 0 <= pending.block_index < len(blocks):
                 blocks[pending.block_index] = build_image_block_external(url)
@@ -830,6 +834,8 @@ class NotionifyClient:
                 )
             )
             return 0
+
+        self._metrics.increment("notionify.download_success_total")
 
         try:
             mime_type, validated_data = validate_image(
@@ -849,6 +855,10 @@ class NotionifyClient:
 
             return 1
         except (NotionifyImageError, Exception):
+            self._metrics.increment(
+                "notionify.download_failure_total",
+                tags={"reason": "upload"},
+            )
             # Upload or validation failed: fall back to external URL.
             if 0 <= pending.block_index < len(blocks):
                 blocks[pending.block_index] = build_image_block_external(url)

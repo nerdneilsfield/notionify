@@ -25,6 +25,8 @@ Emitted metric names (see PRD section 17.3 for the full table):
 * ``notionify.upload_failure_total``     -- counter
 * ``notionify.conversion_warnings_total``-- counter
 * ``notionify.diff_ops_total``           -- counter
+* ``notionify.download_success_total``   -- counter
+* ``notionify.download_failure_total``   -- counter
 * ``notionify.page_export_duration_ms``  -- timing
 """
 
