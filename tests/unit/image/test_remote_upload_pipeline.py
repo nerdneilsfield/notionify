@@ -278,6 +278,68 @@ class TestSyncClientRemoteUpload:
         result = client._process_single_image(pending, [], [])
         assert result == 0
 
+    @patch("notionify.client.download_image")
+    def test_download_failure_out_of_range_index(self, mock_download: MagicMock):
+        """Download failure with out-of-range block_index still emits warning."""
+        mock_download.side_effect = NotionifyImageDownloadError(
+            message="fail", context={"url": "https://example.com/img.png"},
+        )
+        client = self._make_client_internals()
+        pending = PendingImage(
+            src="https://example.com/img.png",
+            source_type=ImageSourceType.EXTERNAL_URL,
+            block_index=99,
+        )
+        blocks: list[dict] = [{"type": "image"}]  # type: ignore[type-arg]
+        warnings: list[ConversionWarning] = []
+        result = client._download_and_upload_remote(pending, blocks, warnings)
+        assert result == 0
+        assert len(warnings) == 1
+        assert warnings[0].code == "IMG_REMOTE_DOWNLOAD_FAILED"
+
+    @patch("notionify.client.download_image")
+    @patch("notionify.client.validate_image")
+    @patch("notionify.client.upload_single")
+    def test_upload_success_out_of_range_index(
+        self, mock_upload: MagicMock, mock_validate: MagicMock, mock_download: MagicMock,
+    ):
+        """Upload success with out-of-range block_index still returns 1."""
+        mock_download.return_value = (b"PNG", "image/png")
+        mock_validate.return_value = ("image/png", b"PNG")
+        mock_upload.return_value = "upload-id"
+        client = self._make_client_internals()
+        pending = PendingImage(
+            src="https://example.com/img.png",
+            source_type=ImageSourceType.EXTERNAL_URL,
+            block_index=99,
+        )
+        blocks: list[dict] = [{"type": "image"}]  # type: ignore[type-arg]
+        warnings: list[ConversionWarning] = []
+        result = client._download_and_upload_remote(pending, blocks, warnings)
+        assert result == 1
+
+    @patch("notionify.client.download_image")
+    @patch("notionify.client.validate_image")
+    def test_upload_failure_out_of_range_index(
+        self, mock_validate: MagicMock, mock_download: MagicMock,
+    ):
+        """Upload failure with out-of-range block_index still emits warning."""
+        mock_download.return_value = (b"PNG", "image/png")
+        mock_validate.side_effect = NotionifyImageError(
+            code="IMAGE_TYPE_ERROR", message="Bad",
+        )
+        client = self._make_client_internals()
+        pending = PendingImage(
+            src="https://example.com/img.png",
+            source_type=ImageSourceType.EXTERNAL_URL,
+            block_index=99,
+        )
+        blocks: list[dict] = [{"type": "image"}]  # type: ignore[type-arg]
+        warnings: list[ConversionWarning] = []
+        result = client._download_and_upload_remote(pending, blocks, warnings)
+        assert result == 0
+        assert warnings[0].code == "IMG_REMOTE_UPLOAD_FAILED"
+
 
 # =========================================================================
 # Async Client: _download_and_upload_remote
@@ -422,6 +484,76 @@ class TestAsyncClientRemoteUpload:
             result = await client._process_single_image(pending, [], [])
             mock.assert_called_once()
             assert result == 1
+
+    @patch("notionify.async_client.async_download_image")
+    async def test_download_failure_out_of_range_index(self, mock_download: MagicMock):
+        """Download failure with out-of-range block_index still emits warning."""
+        from unittest.mock import AsyncMock
+
+        mock_download.side_effect = AsyncMock(
+            side_effect=NotionifyImageDownloadError(
+                message="fail", context={"url": "https://example.com/img.png"},
+            ),
+        )
+        client = self._make_async_client_internals()
+        pending = PendingImage(
+            src="https://example.com/img.png",
+            source_type=ImageSourceType.EXTERNAL_URL,
+            block_index=99,
+        )
+        blocks: list[dict] = [{"type": "image"}]  # type: ignore[type-arg]
+        warnings: list[ConversionWarning] = []
+        result = await client._download_and_upload_remote(pending, blocks, warnings)
+        assert result == 0
+        assert len(warnings) == 1
+        assert warnings[0].code == "IMG_REMOTE_DOWNLOAD_FAILED"
+
+    @patch("notionify.async_client.async_download_image")
+    @patch("notionify.async_client.validate_image")
+    @patch("notionify.async_client.async_upload_single")
+    async def test_upload_success_out_of_range_index(
+        self, mock_upload: MagicMock, mock_validate: MagicMock, mock_download: MagicMock,
+    ):
+        """Upload success with out-of-range block_index still returns 1."""
+        from unittest.mock import AsyncMock
+
+        mock_download.side_effect = AsyncMock(return_value=(b"PNG", "image/png"))
+        mock_validate.return_value = ("image/png", b"PNG")
+        mock_upload.side_effect = AsyncMock(return_value="upload-id")
+        client = self._make_async_client_internals()
+        pending = PendingImage(
+            src="https://example.com/img.png",
+            source_type=ImageSourceType.EXTERNAL_URL,
+            block_index=99,
+        )
+        blocks: list[dict] = [{"type": "image"}]  # type: ignore[type-arg]
+        warnings: list[ConversionWarning] = []
+        result = await client._download_and_upload_remote(pending, blocks, warnings)
+        assert result == 1
+
+    @patch("notionify.async_client.async_download_image")
+    @patch("notionify.async_client.validate_image")
+    async def test_upload_failure_out_of_range_index(
+        self, mock_validate: MagicMock, mock_download: MagicMock,
+    ):
+        """Upload failure with out-of-range block_index still emits warning."""
+        from unittest.mock import AsyncMock
+
+        mock_download.side_effect = AsyncMock(return_value=(b"PNG", "image/png"))
+        mock_validate.side_effect = NotionifyImageError(
+            code="IMAGE_TYPE_ERROR", message="Bad",
+        )
+        client = self._make_async_client_internals()
+        pending = PendingImage(
+            src="https://example.com/img.png",
+            source_type=ImageSourceType.EXTERNAL_URL,
+            block_index=99,
+        )
+        blocks: list[dict] = [{"type": "image"}]  # type: ignore[type-arg]
+        warnings: list[ConversionWarning] = []
+        result = await client._download_and_upload_remote(pending, blocks, warnings)
+        assert result == 0
+        assert warnings[0].code == "IMG_REMOTE_UPLOAD_FAILED"
 
 
 # =========================================================================

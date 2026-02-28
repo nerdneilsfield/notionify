@@ -7,6 +7,7 @@ Covers:
 - Custom headers merging
 - Content-Type parsing (stripping charset params)
 - Default Chrome User-Agent header
+- Raw HTTP helpers via respx transport mocking
 
 PRD hardening: remote image upload feature, iteration 29.
 """
@@ -17,13 +18,16 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
+import respx
 
 from notionify.config import NotionifyConfig
 from notionify.errors import NotionifyImageDownloadError
 from notionify.image.download import (
     DEFAULT_REMOTE_IMAGE_HEADERS,
+    _async_try_download,
     _build_headers,
     _parse_content_type,
+    _try_download,
     async_download_image,
     download_image,
 )
@@ -245,3 +249,75 @@ class TestRemoteImageConfigValidation:
         assert config.remote_image_headers is None
         assert config.remote_image_timeout_seconds == 20.0
         assert config.remote_image_retries == 3
+
+
+# =========================================================================
+# Raw HTTP helpers (via respx)
+# =========================================================================
+
+
+class TestTryDownloadSync:
+    """_try_download exercises the real httpx.Client code path."""
+
+    @respx.mock
+    def test_success_returns_bytes_and_content_type(self):
+        respx.get("https://example.com/photo.jpg").mock(
+            return_value=httpx.Response(
+                200, content=b"JPEG_BYTES",
+                headers={"content-type": "image/jpeg"},
+            ),
+        )
+        data, ct = _try_download(
+            "https://example.com/photo.jpg", {"User-Agent": "test"}, 10.0,
+        )
+        assert data == b"JPEG_BYTES"
+        assert ct == "image/jpeg"
+
+    @respx.mock
+    def test_raises_on_http_error(self):
+        respx.get("https://example.com/missing.png").mock(
+            return_value=httpx.Response(404),
+        )
+        with pytest.raises(httpx.HTTPStatusError):
+            _try_download(
+                "https://example.com/missing.png", {}, 10.0,
+            )
+
+    @respx.mock
+    def test_follows_redirects(self):
+        respx.get("https://example.com/redir").mock(
+            return_value=httpx.Response(
+                200, content=b"REDIRECTED",
+                headers={"content-type": "image/png"},
+            ),
+        )
+        data, ct = _try_download("https://example.com/redir", {}, 10.0)
+        assert data == b"REDIRECTED"
+
+
+class TestAsyncTryDownload:
+    """_async_try_download exercises the real httpx.AsyncClient code path."""
+
+    @respx.mock
+    async def test_success_returns_bytes_and_content_type(self):
+        respx.get("https://example.com/photo.jpg").mock(
+            return_value=httpx.Response(
+                200, content=b"ASYNC_JPEG",
+                headers={"content-type": "image/jpeg; charset=utf-8"},
+            ),
+        )
+        data, ct = await _async_try_download(
+            "https://example.com/photo.jpg", {"User-Agent": "test"}, 10.0,
+        )
+        assert data == b"ASYNC_JPEG"
+        assert ct == "image/jpeg"
+
+    @respx.mock
+    async def test_raises_on_http_error(self):
+        respx.get("https://example.com/gone.png").mock(
+            return_value=httpx.Response(403),
+        )
+        with pytest.raises(httpx.HTTPStatusError):
+            await _async_try_download(
+                "https://example.com/gone.png", {}, 10.0,
+            )
