@@ -68,6 +68,28 @@ def _render_code_span(content: str) -> str:
     return f"{fence}{content}{fence}"
 
 
+def _render_segment_text(seg: dict[str, Any]) -> str:
+    """Render a single segment's text with annotations (but not the link wrapper)."""
+    seg_type = seg.get("type", "text")
+    annotations = seg.get("annotations") or {}
+
+    if seg_type == "equation":
+        expression = (seg.get("equation") or {}).get("expression") or ""
+        return f"${expression}$"
+
+    plain_text = seg.get("plain_text") or (seg.get("text") or {}).get("content") or ""
+    is_code = annotations.get("code", False)
+
+    if is_code:
+        return _render_code_span(plain_text)
+
+    text = markdown_escape(plain_text)
+    for key, prefix, suffix in _ANNOTATION_WRAPPERS:
+        if annotations.get(key, False):
+            text = f"{prefix}{text}{suffix}"
+    return text
+
+
 def render_rich_text(segments: list[dict[str, Any]]) -> str:
     """Render a Notion rich_text array to a Markdown string.
 
@@ -76,6 +98,9 @@ def render_rich_text(segments: list[dict[str, Any]]) -> str:
 
     * ``"text"`` -- plain text with optional link and annotations.
     * ``"equation"`` -- inline LaTeX rendered as ``$expression$``.
+
+    Adjacent segments sharing the same ``href`` are merged into a single
+    Markdown link, preserving per-segment annotations.
 
     Annotation combination order (innermost first)::
 
@@ -97,42 +122,24 @@ def render_rich_text(segments: list[dict[str, Any]]) -> str:
         return ""
 
     parts: list[str] = []
+    i = 0
 
-    for seg in segments:
-        seg_type = seg.get("type", "text")
-        annotations = seg.get("annotations") or {}
+    while i < len(segments):
+        seg = segments[i]
         href = seg.get("href")
 
-        # --- Equation segments bypass normal text handling ---------------
-        if seg_type == "equation":
-            expression = (seg.get("equation") or {}).get("expression") or ""
-            text = f"${expression}$"
-            # Equations may still have a link
-            if href:
-                text = f"[{text}]({markdown_escape(href, 'url')})"
-            parts.append(text)
-            continue
-
-        # --- Text segments -----------------------------------------------
-        # API responses use "plain_text"; locally-built blocks use "text.content".
-        plain_text = seg.get("plain_text") or (seg.get("text") or {}).get("content") or ""
-
-        is_code = annotations.get("code", False)
-
-        if is_code:
-            text = _render_code_span(plain_text)
-        else:
-            text = markdown_escape(plain_text)
-            # Apply annotations in the specified order (innermost first):
-            # code (already applied above) -> bold -> italic -> strikethrough -> underline
-            for key, prefix, suffix in _ANNOTATION_WRAPPERS:
-                if annotations.get(key, False):
-                    text = f"{prefix}{text}{suffix}"
-
-        # Link (outermost wrapping)
         if href:
-            text = f"[{text}]({markdown_escape(href, 'url')})"
-
-        parts.append(text)
+            # Merge adjacent segments sharing the same href into one link.
+            link_texts: list[str] = [_render_segment_text(seg)]
+            j = i + 1
+            while j < len(segments) and segments[j].get("href") == href:
+                link_texts.append(_render_segment_text(segments[j]))
+                j += 1
+            combined = "".join(link_texts)
+            parts.append(f"[{combined}]({markdown_escape(href, 'url')})")
+            i = j
+        else:
+            parts.append(_render_segment_text(seg))
+            i += 1
 
     return "".join(parts)

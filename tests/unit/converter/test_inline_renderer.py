@@ -223,6 +223,48 @@ class TestRenderLinks:
         assert "%28" in result
         assert "%29" in result
 
+    def test_adjacent_same_href_merged(self):
+        """Adjacent segments with the same href produce a single Markdown link."""
+        seg1 = {
+            "type": "text",
+            "text": {"content": "bold "},
+            "annotations": {"bold": True},
+            "href": "https://example.com",
+        }
+        seg2 = {
+            "type": "text",
+            "text": {"content": "italic"},
+            "annotations": {"italic": True},
+            "href": "https://example.com",
+        }
+        result = render_rich_text([seg1, seg2])
+        assert result == "[**bold **_italic_](https://example.com)"
+
+    def test_adjacent_different_href_not_merged(self):
+        """Adjacent segments with different hrefs remain separate links."""
+        seg1 = {
+            "type": "text",
+            "text": {"content": "link A"},
+            "href": "https://a.com",
+        }
+        seg2 = {
+            "type": "text",
+            "text": {"content": "link B"},
+            "href": "https://b.com",
+        }
+        result = render_rich_text([seg1, seg2])
+        assert result == "[link A](https://a.com)[link B](https://b.com)"
+
+    def test_three_segments_same_href_merged(self):
+        """Three adjacent segments with the same href produce one link."""
+        segs = [
+            {"type": "text", "text": {"content": "a"}, "href": "https://x.com"},
+            {"type": "text", "text": {"content": "b"}, "href": "https://x.com"},
+            {"type": "text", "text": {"content": "c"}, "href": "https://x.com"},
+        ]
+        result = render_rich_text(segs)
+        assert result == "[abc](https://x.com)"
+
 
 # =========================================================================
 # render_rich_text: equations
