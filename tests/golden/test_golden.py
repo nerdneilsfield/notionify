@@ -2098,3 +2098,52 @@ class TestTableRichAnnotations:
         round_tripped = renderer.render_blocks(blocks)
         assert "click here" in round_tripped
         assert "example.com" in round_tripped
+
+
+class TestLinksInLists:
+    """Round-trip tests for links_in_lists.md."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "links_in_lists.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+        assert not result.warnings
+
+    def test_bulleted_list_links_survive_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "links_in_lists.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "the documentation" in round_tripped
+        assert "example.com/docs" in round_tripped
+
+    def test_numbered_list_links_survive_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "links_in_lists.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "the introduction" in round_tripped
+        assert "example.com/intro" in round_tripped
+
+    def test_task_list_links_survive_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "links_in_lists.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Phase 1" in round_tripped
+        assert "Phase 2" in round_tripped
+
+    def test_nested_list_links_survive_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "links_in_lists.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "example.com/child" in round_tripped
+
+    def test_multiple_links_in_same_item_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "links_in_lists.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Getting Started" in round_tripped
+        assert "API Reference" in round_tripped
