@@ -51,7 +51,8 @@ def _validate_mime_list(label: str, mimes: list[str]) -> None:
     if not mimes:
         raise ValueError(f"{label} must not be empty")
     for mime in mimes:
-        if "/" not in mime:
+        parts = mime.split("/", 1)
+        if len(parts) != 2 or not parts[0] or not parts[1]:
             raise ValueError(
                 f"Invalid MIME type in {label}: {mime!r} (expected 'type/subtype')"
             )

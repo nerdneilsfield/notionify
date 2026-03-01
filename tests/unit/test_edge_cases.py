@@ -133,6 +133,21 @@ class TestNumericConfigValidation:
         with pytest.raises(ValueError, match=r"Invalid MIME type.*image_allowed_mimes_external"):
             NotionifyConfig(token="test", image_allowed_mimes_external=["jpeg"])
 
+    def test_slash_only_mime_rejected(self):
+        """Bare '/' is not a valid MIME type."""
+        with pytest.raises(ValueError, match=r"Invalid MIME type"):
+            NotionifyConfig(token="test", image_allowed_mimes_upload=["/"])
+
+    def test_trailing_slash_mime_rejected(self):
+        """'image/' has an empty subtype and must be rejected."""
+        with pytest.raises(ValueError, match=r"Invalid MIME type"):
+            NotionifyConfig(token="test", image_allowed_mimes_upload=["image/"])
+
+    def test_leading_slash_mime_rejected(self):
+        """'/png' has an empty type and must be rejected."""
+        with pytest.raises(ValueError, match=r"Invalid MIME type"):
+            NotionifyConfig(token="test", image_allowed_mimes_upload=["/png"])
+
     def test_custom_valid_mimes_accepted(self):
         config = NotionifyConfig(
             token="test",
