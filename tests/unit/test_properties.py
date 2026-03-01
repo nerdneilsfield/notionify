@@ -3649,6 +3649,29 @@ class TestAdditionalBlockTypeRendererProperties:
         result = renderer.render_block(block)
         assert isinstance(result, str)
 
+    @given(
+        text=st.text(max_size=200),
+        passthrough_type=st.sampled_from(["synced_block", "template", "column", "column_list"]),
+    )
+    @settings(max_examples=200)
+    def test_passthrough_block_never_raises(
+        self, text: str, passthrough_type: str
+    ) -> None:
+        """Layout passthrough block types always render without raising."""
+        renderer = NotionToMarkdownRenderer(self._config)
+        rt_seg = {"type": "text", "plain_text": text, "text": {"content": text}}
+        inner = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [rt_seg]},
+        }
+        block = {
+            "type": passthrough_type,
+            passthrough_type: {},
+            "children": [inner],
+        }
+        result = renderer.render_block(block)
+        assert isinstance(result, str)
+
 
 # ---------------------------------------------------------------------------
 # TestRoundTripProperties (PRD section 1.2 - round-trip fidelity)
