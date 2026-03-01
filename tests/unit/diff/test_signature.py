@@ -81,6 +81,18 @@ class TestExtractTypeAttrs:
         assert attrs["image_type"] == "file"
         assert attrs["url"] == "https://s3.amazonaws.com/img.png"
 
+    def test_image_file_upload(self):
+        """Uploaded images use 'file_upload' type with 'id' instead of 'url'."""
+        block = {
+            "image": {
+                "type": "file_upload",
+                "file_upload": {"id": "abc-123-upload"},
+            }
+        }
+        attrs = _extract_type_attrs(block, "image")
+        assert attrs["image_type"] == "file_upload"
+        assert attrs["upload_id"] == "abc-123-upload"
+
     def test_equation_expression(self):
         block = {"equation": {"expression": "E = mc^2"}}
         attrs = _extract_type_attrs(block, "equation")
@@ -383,3 +395,23 @@ class TestNormalizeRichText:
     def test_missing_block_type(self):
         block = {}
         assert _normalize_rich_text(block, "paragraph") == []
+
+    def test_text_field_none_does_not_raise(self):
+        """rich_text segment with text=None must not raise AttributeError."""
+        block = {
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": None}]
+            }
+        }
+        result = _normalize_rich_text(block, "paragraph")
+        assert result[0]["text"] == ""
+
+    def test_extract_plain_text_null_text(self):
+        """_extract_plain_text handles text=None without crashing."""
+        block = {
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": None}]
+            }
+        }
+        result = _extract_plain_text(block, "paragraph")
+        assert result == ""

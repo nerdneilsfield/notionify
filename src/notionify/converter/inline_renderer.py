@@ -101,7 +101,7 @@ def render_rich_text(segments: list[dict[str, Any]]) -> str:
 
         # --- Text segments -----------------------------------------------
         # API responses use "plain_text"; locally-built blocks use "text.content".
-        plain_text = seg.get("plain_text") or seg.get("text", {}).get("content") or ""
+        plain_text = seg.get("plain_text") or (seg.get("text") or {}).get("content") or ""
 
         is_code = annotations.get("code", False)
 

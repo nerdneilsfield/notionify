@@ -327,6 +327,18 @@ class TestRenderEdgeCases:
         result = render_rich_text([seg])
         assert result == "fallback"
 
+    def test_text_field_none_does_not_raise(self):
+        """text=None (not a dict) must not raise AttributeError."""
+        seg = {"type": "text", "text": None}
+        result = render_rich_text([seg])
+        assert result == ""
+
+    def test_text_field_none_with_plain_text_fallback(self):
+        """plain_text is used when text field is None."""
+        seg = {"type": "text", "plain_text": "safe", "text": None}
+        result = render_rich_text([seg])
+        assert result == "safe"
+
 
 # =========================================================================
 # render_rich_text: annotation combinations (parametrized)

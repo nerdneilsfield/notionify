@@ -47,7 +47,7 @@ def _extract_plain_text(block: dict[str, Any], block_type: str) -> str:
     for rt in rich_text:
         text = rt.get("plain_text", "")
         if not text:
-            text = rt.get("text", {}).get("content") or ""
+            text = (rt.get("text") or {}).get("content") or ""
         parts.append(text)
     return "".join(parts)
 
@@ -65,7 +65,7 @@ def _normalize_rich_text(block: dict[str, Any], block_type: str) -> list[dict[st
     for rt in rich_text:
         text = rt.get("plain_text", "")
         if not text:
-            text = rt.get("text", {}).get("content") or ""
+            text = (rt.get("text") or {}).get("content") or ""
         segment: dict[str, Any] = {"text": text}
         annotations = rt.get("annotations")
         if annotations:
@@ -115,6 +115,9 @@ def _extract_type_attrs(block: dict[str, Any], block_type: str) -> dict[str, Any
         elif img_type == "file":
             file_info = type_data.get("file", {})
             attrs["url"] = file_info.get("url", "")
+        elif img_type == "file_upload":
+            file_upload = type_data.get("file_upload", {})
+            attrs["upload_id"] = file_upload.get("id", "")
 
     return attrs
 

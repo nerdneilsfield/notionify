@@ -351,7 +351,7 @@ def split_rich_text(segments: list[dict[str, Any]], limit: int = 2000) -> list[d
             continue
 
         # Extract content from the text segment
-        content = segment.get("text", {}).get("content") or ""
+        content = (segment.get("text") or {}).get("content") or ""
 
         if len(content) <= limit:
             output.append(segment)

@@ -421,3 +421,20 @@ class TestExtractText:
             {"type": "strong", "children": [{"type": "text", "raw": "world"}]},
         ]
         assert extract_text(tokens) == "hello world"
+
+
+class TestSplitRichTextNullSafety:
+    """split_rich_text handles segments with text=None gracefully."""
+
+    def test_text_field_none_does_not_raise(self):
+        """Segment with text=None must not raise AttributeError."""
+        seg = {"type": "text", "text": None}
+        result = split_rich_text([seg])
+        # Empty content passes through unchanged
+        assert len(result) == 1
+
+    def test_text_field_none_content_treated_as_empty(self):
+        """Segment with text=None is treated as empty string content."""
+        seg = {"type": "text", "text": None}
+        result = split_rich_text([seg])
+        assert result[0]["type"] == "text"
