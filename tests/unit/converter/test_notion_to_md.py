@@ -1391,6 +1391,29 @@ class TestEmbedRendering:
         md = r.render_blocks([block])
         assert "[Embed]" in md
 
+    def test_embed_with_caption(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "embed",
+            "embed": {
+                "url": "https://youtube.com/watch?v=abc",
+                "caption": [_make_text_segment("Watch this video")],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "Embed" in md
+        assert "youtube.com" in md
+        assert "> Watch this video" in md
+
+    def test_embed_without_caption_no_blockquote(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "embed",
+            "embed": {"url": "https://example.com", "caption": []},
+        }
+        md = r.render_blocks([block])
+        assert ">" not in md
+
     def test_embed_url_with_parens_encoded(self):
         r = NotionToMarkdownRenderer(make_config())
         block = {

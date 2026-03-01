@@ -444,7 +444,14 @@ class NotionToMarkdownRenderer:
         block_data = block.get("embed", {})
         url = block_data.get("url", "")
         escaped_url = markdown_escape(url, "url")
-        return f"[Embed]({escaped_url})\n\n"
+        result = f"[Embed]({escaped_url})"
+
+        caption_segments = block_data.get("caption", [])
+        caption = render_rich_text(caption_segments) if caption_segments else ""
+        if caption:
+            result += f"\n> {caption}"
+
+        return result + "\n\n"
 
     def _render_bookmark(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("bookmark", {})
