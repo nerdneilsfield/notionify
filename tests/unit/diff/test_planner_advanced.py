@@ -39,6 +39,22 @@ def _heading(text: str, block_id: str | None = None) -> dict:
     return block
 
 
+def _table_row(cells: list[list[str]], block_id: str | None = None) -> dict:
+    """Build a minimal table_row block from a list of cell text lists."""
+    block = {
+        "type": "table_row",
+        "table_row": {
+            "cells": [
+                [{"plain_text": text} for text in cell_texts]
+                for cell_texts in cells
+            ],
+        },
+    }
+    if block_id:
+        block["id"] = block_id
+    return block
+
+
 def _code(text: str, block_id: str | None = None) -> dict:
     block = {
         "type": "code",
@@ -919,3 +935,68 @@ class TestUpgradeToUpdatesBlockWithNoId:
         # Should produce a REPLACE for the changed block and KEEP for the anchor
         op_types = {o.op_type for o in ops}
         assert DiffOpType.REPLACE in op_types or DiffOpType.DELETE in op_types
+
+
+class TestTableRowDiffing:
+    """Planner-level tests for table_row block diff correctness.
+
+    Validates that cell-content changes in table_row blocks are detected by
+    the diff planner (relying on the fixed _normalize_table_row_cells
+    signature logic).
+    """
+
+    def test_unchanged_table_rows_produce_keep(self):
+        """Two identical table_row blocks → KEEP (no change)."""
+        existing = [_table_row([["A"], ["B"]], "r1")]
+        new = [_table_row([["A"], ["B"]])]
+        planner = DiffPlanner(NotionifyConfig(token="test"))
+        ops = planner.plan(existing, new)
+        assert len(ops) == 1
+        assert ops[0].op_type == DiffOpType.KEEP
+
+    def test_changed_cell_content_produces_replace(self):
+        """A table_row with different cell content triggers REPLACE, not KEEP."""
+        existing = [_table_row([["Old value"], ["B"]], "r1")]
+        new = [_table_row([["New value"], ["B"]])]
+        planner = DiffPlanner(NotionifyConfig(token="test"))
+        ops = planner.plan(existing, new)
+        op_types = {o.op_type for o in ops}
+        # Must detect the change — cannot be a KEEP
+        assert DiffOpType.KEEP not in op_types
+        assert DiffOpType.DELETE in op_types or DiffOpType.REPLACE in op_types
+
+    def test_added_column_produces_replace(self):
+        """Adding a column (more cells) triggers REPLACE, not KEEP."""
+        existing = [_table_row([["A"], ["B"]], "r1")]
+        new = [_table_row([["A"], ["B"], ["C"]])]
+        planner = DiffPlanner(NotionifyConfig(token="test"))
+        ops = planner.plan(existing, new)
+        op_types = {o.op_type for o in ops}
+        assert DiffOpType.KEEP not in op_types
+
+    def test_reordered_cells_produces_replace(self):
+        """Swapping two cells (["A","B"] → ["B","A"]) triggers REPLACE."""
+        existing = [_table_row([["A"], ["B"]], "r1")]
+        new = [_table_row([["B"], ["A"]])]
+        planner = DiffPlanner(NotionifyConfig(token="test"))
+        ops = planner.plan(existing, new)
+        op_types = {o.op_type for o in ops}
+        assert DiffOpType.KEEP not in op_types
+
+    def test_multiple_rows_partial_change(self):
+        """In a sequence of rows, only the changed row differs; others are KEEP."""
+        existing = [
+            _table_row([["H1"], ["H2"]], "r1"),
+            _table_row([["original"], ["data"]], "r2"),
+            _table_row([["footer"], ["end"]], "r3"),
+        ]
+        new = [
+            _table_row([["H1"], ["H2"]]),
+            _table_row([["updated"], ["data"]]),  # changed
+            _table_row([["footer"], ["end"]]),
+        ]
+        planner = DiffPlanner(NotionifyConfig(token="test"))
+        ops = planner.plan(existing, new)
+        keep_ops = [o for o in ops if o.op_type == DiffOpType.KEEP]
+        # At least the unchanged rows (H1/H2 and footer) must be KEEPs
+        assert len(keep_ops) >= 2

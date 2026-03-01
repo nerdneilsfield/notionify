@@ -14,6 +14,7 @@ from notionify.utils.hashing import hash_dict, md5_hash
 
 # Block types that carry type-specific attributes worth tracking.
 _ATTRS_EXTRACTORS: dict[str, list[str]] = {
+    "paragraph": ["color"],
     "code": ["language", "caption"],
     "to_do": ["checked"],
     "heading_1": ["is_toggleable", "color"],

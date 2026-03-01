@@ -445,6 +445,42 @@ class TestComputeSignature:
         assert attrs["icon"] == {"type": "emoji", "emoji": "💡"}
         assert attrs["color"] == "yellow_background"
 
+    def test_paragraph_color_attr(self):
+        """Paragraph block extracts color attribute."""
+        block = {"type": "paragraph", "paragraph": {"rich_text": [], "color": "red"}}
+        attrs = _extract_type_attrs(block, "paragraph")
+        assert attrs["color"] == "red"
+
+    def test_paragraph_no_color_empty_attrs(self):
+        """Paragraph without color produces empty attrs (color is optional)."""
+        block = {"type": "paragraph", "paragraph": {"rich_text": []}}
+        attrs = _extract_type_attrs(block, "paragraph")
+        assert attrs == {}
+
+    def test_paragraph_different_colors_different_signatures(self):
+        """Two identical paragraphs with different colors differ in signature."""
+        block_default = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [{"plain_text": "hi"}], "color": "default"},
+        }
+        block_red = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [{"plain_text": "hi"}], "color": "red"},
+        }
+        assert compute_signature(block_default) != compute_signature(block_red)
+
+    def test_paragraph_same_color_same_signature(self):
+        """Two identical paragraphs with the same color produce equal signatures."""
+        block_a = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [{"plain_text": "hello"}], "color": "blue"},
+        }
+        block_b = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": [{"plain_text": "hello"}], "color": "blue"},
+        }
+        assert compute_signature(block_a) == compute_signature(block_b)
+
     def test_link_to_page_page_id_extracted(self):
         """link_to_page block extracts the page_id so different targets differ."""
         block = {
