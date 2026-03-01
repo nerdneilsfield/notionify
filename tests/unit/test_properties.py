@@ -2453,6 +2453,15 @@ class TestTokenBucketProperties:
             wait = bucket.acquire(requested)
         assert wait >= 0.0
 
+    @given(requested=st.integers(max_value=0))
+    @settings(max_examples=200)
+    def test_acquire_negative_or_zero_raises(self, requested: int) -> None:
+        """acquire() with non-positive tokens raises ValueError."""
+        from notionify.notion_api.rate_limit import TokenBucket
+        bucket = TokenBucket(rate_rps=1.0, burst=10)
+        with pytest.raises(ValueError, match="must be >= 1"):
+            bucket.acquire(requested)
+
 
 # ---------------------------------------------------------------------------
 # TestImageMimeSniffProperties
@@ -2517,6 +2526,20 @@ class TestImageMimeSniffProperties:
         """BM magic bytes always yield 'image/bmp'."""
         from notionify.image.validate import _sniff_mime
         assert _sniff_mime(_BMP_MAGIC + suffix) == "image/bmp"
+
+    @given(suffix=st.binary(max_size=20))
+    @settings(max_examples=200)
+    def test_tiff_le_magic_detected(self, suffix: bytes) -> None:
+        """TIFF little-endian magic bytes always yield 'image/tiff'."""
+        from notionify.image.validate import _sniff_mime
+        assert _sniff_mime(b"II\x2a\x00" + suffix) == "image/tiff"
+
+    @given(suffix=st.binary(max_size=20))
+    @settings(max_examples=200)
+    def test_tiff_be_magic_detected(self, suffix: bytes) -> None:
+        """TIFF big-endian magic bytes always yield 'image/tiff'."""
+        from notionify.image.validate import _sniff_mime
+        assert _sniff_mime(b"MM\x00\x2a" + suffix) == "image/tiff"
 
     @given(data=st.binary(max_size=3))
     @settings(max_examples=200)
@@ -2961,6 +2984,49 @@ class TestUploadStateMachineProperties:
         sm = UploadStateMachine(upload_id)
         assert sm.state == UploadState.PENDING
         assert sm.upload_id == upload_id
+
+
+# ---------------------------------------------------------------------------
+# TestUploadMultiChunkSizeProperties
+# ---------------------------------------------------------------------------
+
+
+class TestUploadMultiChunkSizeProperties:
+    """Property-based tests for chunk_size validation in upload_multi."""
+
+    @given(chunk_size=st.integers(max_value=0))
+    @settings(max_examples=200)
+    def test_sync_upload_multi_rejects_non_positive_chunk_size(
+        self, chunk_size: int
+    ) -> None:
+        """upload_multi raises ValueError for chunk_size <= 0."""
+        from notionify.image.upload_multi import upload_multi
+        with pytest.raises(ValueError, match="chunk_size must be >= 1"):
+            upload_multi(
+                file_api=None,  # type: ignore[arg-type]
+                name="test.png",
+                content_type="image/png",
+                data=b"test",
+                chunk_size=chunk_size,
+            )
+
+    @given(chunk_size=st.integers(max_value=0))
+    @settings(max_examples=200)
+    def test_async_upload_multi_rejects_non_positive_chunk_size(
+        self, chunk_size: int
+    ) -> None:
+        """async_upload_multi raises ValueError for chunk_size <= 0."""
+        import asyncio
+
+        from notionify.image.upload_multi import async_upload_multi
+        with pytest.raises(ValueError, match="chunk_size must be >= 1"):
+            asyncio.run(async_upload_multi(
+                file_api=None,  # type: ignore[arg-type]
+                name="test.png",
+                content_type="image/png",
+                data=b"test",
+                chunk_size=chunk_size,
+            ))
 
 
 # ---------------------------------------------------------------------------
@@ -5874,6 +5940,33 @@ class TestLinkAndMathHandlerProperties:
             {"raw": expression}, self._CONFIG, self._base_anns(), None, []
         )
         assert len(result) >= 1
+
+    @given(
+        expression=st.text(min_size=1, max_size=50),
+        url=st.text(min_size=1, max_size=100),
+    )
+    @settings(max_examples=200)
+    def test_handle_inline_math_propagates_href(
+        self, expression: str, url: str
+    ) -> None:
+        """_handle_inline_math propagates href to every returned segment."""
+        result = _handle_inline_math(
+            {"raw": expression}, self._CONFIG, self._base_anns(), url, []
+        )
+        for seg in result:
+            assert seg.get("href") == url
+
+    @given(expression=st.text(min_size=1, max_size=50))
+    @settings(max_examples=200)
+    def test_handle_inline_math_no_href_when_none(
+        self, expression: str
+    ) -> None:
+        """_handle_inline_math does not add href when href is None."""
+        result = _handle_inline_math(
+            {"raw": expression}, self._CONFIG, self._base_anns(), None, []
+        )
+        for seg in result:
+            assert "href" not in seg
 
 
 class TestBlockBuilderHelperProperties:
