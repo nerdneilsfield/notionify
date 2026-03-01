@@ -53,7 +53,14 @@ class TokenBucket:
 
         Returns the number of seconds the caller had to wait (``0.0`` if
         tokens were immediately available).
+
+        Raises
+        ------
+        ValueError
+            If *tokens* is less than 1.
         """
+        if tokens < 1:
+            raise ValueError(f"tokens must be >= 1, got {tokens}")
         with self._lock:
             now = time.monotonic()
             elapsed = now - self.last_refill
@@ -114,7 +121,14 @@ class AsyncTokenBucket:
 
         Returns the number of seconds the caller had to wait (``0.0`` if
         tokens were immediately available).
+
+        Raises
+        ------
+        ValueError
+            If *tokens* is less than 1.
         """
+        if tokens < 1:
+            raise ValueError(f"tokens must be >= 1, got {tokens}")
         async with self._lock:
             now = time.monotonic()
             elapsed = now - self.last_refill

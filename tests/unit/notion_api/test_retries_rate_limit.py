@@ -399,6 +399,18 @@ class TestTokenBucket:
         result = bucket.acquire(tokens=1)
         assert isinstance(result, float)
 
+    # -- validation -----------------------------------------------------------
+
+    def test_acquire_rejects_zero_tokens(self):
+        bucket = TokenBucket(rate_rps=10.0, burst=10)
+        with pytest.raises(ValueError, match="tokens must be >= 1"):
+            bucket.acquire(tokens=0)
+
+    def test_acquire_rejects_negative_tokens(self):
+        bucket = TokenBucket(rate_rps=10.0, burst=10)
+        with pytest.raises(ValueError, match="tokens must be >= 1"):
+            bucket.acquire(tokens=-1)
+
 
 # ---------------------------------------------------------------------------
 # AsyncTokenBucket
@@ -537,6 +549,20 @@ class TestAsyncTokenBucket:
 
         await asyncio.gather(*[worker() for _ in range(10)])
         assert len(results) == 50
+
+    # -- validation -----------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_acquire_rejects_zero_tokens(self):
+        bucket = AsyncTokenBucket(rate_rps=10.0, burst=10)
+        with pytest.raises(ValueError, match="tokens must be >= 1"):
+            await bucket.acquire(tokens=0)
+
+    @pytest.mark.asyncio
+    async def test_acquire_rejects_negative_tokens(self):
+        bucket = AsyncTokenBucket(rate_rps=10.0, burst=10)
+        with pytest.raises(ValueError, match="tokens must be >= 1"):
+            await bucket.acquire(tokens=-1)
 
 
 # ---------------------------------------------------------------------------
