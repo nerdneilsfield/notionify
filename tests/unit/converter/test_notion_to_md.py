@@ -1669,6 +1669,25 @@ class TestChildPageAndDatabaseRendering:
         md = r.render_blocks([block])
         assert r"DB \[v2\]" in md
 
+    def test_child_page_missing_id_produces_base_notion_url(self):
+        """Child page without 'id' produces https://notion.so/ as URL base."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {"type": "child_page", "child_page": {"title": "Orphan"}}
+        md = r.render_blocks([block])
+        assert "Orphan" in md
+        assert "https://notion.so/" in md
+
+    def test_child_page_empty_title_string_renders_empty_label(self):
+        """Child page with title='' renders without Untitled fallback."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "child_page",
+            "id": "abc123",
+            "child_page": {"title": ""},
+        }
+        md = r.render_blocks([block])
+        assert "[Page: ]" in md
+
 
 # =========================================================================
 # Branch coverage tests
