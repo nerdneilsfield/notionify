@@ -2852,6 +2852,48 @@ class TestComputeSignatureProperties:
         sig2 = compute_signature(block)
         assert sig1 == sig2
 
+    @given(
+        id_a=st.text(
+            alphabet=string.ascii_lowercase + string.digits + "-",
+            min_size=4, max_size=36,
+        ),
+        id_b=st.text(
+            alphabet=string.ascii_lowercase + string.digits + "-",
+            min_size=4, max_size=36,
+        ),
+    )
+    @settings(max_examples=200)
+    def test_link_to_page_different_page_ids_different_signatures(
+        self, id_a: str, id_b: str
+    ) -> None:
+        """link_to_page blocks targeting different pages produce different signatures."""
+        assume(id_a != id_b)
+
+        def _make_block(page_id: str) -> dict:
+            return {
+                "type": "link_to_page",
+                "link_to_page": {"type": "page_id", "page_id": page_id},
+            }
+
+        sig_a = compute_signature(_make_block(id_a))
+        sig_b = compute_signature(_make_block(id_b))
+        assert sig_a != sig_b
+
+    @given(
+        page_id=st.text(
+            alphabet=string.ascii_lowercase + string.digits + "-",
+            min_size=4, max_size=36,
+        ),
+    )
+    @settings(max_examples=200)
+    def test_link_to_page_same_page_id_same_signature(self, page_id: str) -> None:
+        """link_to_page blocks targeting the same page always produce identical signatures."""
+        block = {
+            "type": "link_to_page",
+            "link_to_page": {"type": "page_id", "page_id": page_id},
+        }
+        assert compute_signature(block) == compute_signature(block)
+
 
 # ---------------------------------------------------------------------------
 # TestDataUriParseProperties
