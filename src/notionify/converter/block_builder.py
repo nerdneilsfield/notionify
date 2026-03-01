@@ -17,6 +17,7 @@ This module handles ALL block types from PRD section 10.1:
 
 from __future__ import annotations
 
+import functools
 import re
 from collections.abc import Callable as _Callable
 from typing import Any
@@ -84,6 +85,7 @@ _LANGUAGE_ALIASES: dict[str, str] = {
 }
 
 
+@functools.lru_cache(maxsize=64)
 def _normalize_language(info: str | None) -> str:
     """Map a code fence info string to a Notion-accepted language name."""
     if not info:

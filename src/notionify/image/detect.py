@@ -53,6 +53,11 @@ def detect_image_source(src: str) -> ImageSourceType:
     if parsed is not None and parsed.scheme in ("http", "https"):
         return ImageSourceType.EXTERNAL_URL
 
+    # Non-http URL schemes (ftp://, sftp://, etc.) are unsupported — bail
+    # out before the path-based heuristics can misclassify them as local.
+    if parsed is not None and parsed.scheme and parsed.scheme not in ("file", ""):
+        return ImageSourceType.UNKNOWN
+
     # Local file check -- either absolute path, relative path with known
     # extension, or starts with ./ or ../.
     # Check for absolute path.

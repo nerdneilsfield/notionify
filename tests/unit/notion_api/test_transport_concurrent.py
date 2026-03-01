@@ -184,9 +184,14 @@ class TestSyncTransportConcurrentAccess:
         for t in threads:
             t.join()
 
-        # We don't assert errors==[] because close() mid-flight is undefined,
-        # but it should not raise SystemExit or crash the process
-        assert True  # No crash = pass
+        # close() mid-flight may cause some requests to fail with transport
+        # errors, but must never raise SystemExit or crash the process.
+        # All threads must have completed (joined above), and any errors
+        # should be regular exceptions, not fatal.
+        for err in errors:
+            assert not isinstance(err, (SystemExit, KeyboardInterrupt)), (
+                f"Fatal error during concurrent close: {err!r}"
+            )
 
 
 # ---------------------------------------------------------------------------

@@ -52,6 +52,23 @@ def _blockquote_caption(caption: str) -> str:
     return "\n".join(f"> {line}" for line in caption.split("\n"))
 
 
+def _extract_notion_file_url(block_data: dict[str, Any]) -> str:
+    """Extract the public URL from a Notion file-typed sub-object.
+
+    Handles the ``external``, ``file``, and ``file_upload`` sub-types used
+    by image, file, video, audio, and pdf blocks.  ``file_upload`` has no
+    public URL (opaque upload ID only), so returns ``""``.
+    """
+    file_type = block_data.get("type", "")
+    if file_type == "external":
+        url: str = (block_data.get("external") or {}).get("url", "")
+        return url
+    if file_type == "file":
+        url = (block_data.get("file") or {}).get("url", "")
+        return url
+    return ""
+
+
 class NotionToMarkdownRenderer:
     """Stateful renderer that converts Notion blocks to Markdown.
 
@@ -350,16 +367,7 @@ class NotionToMarkdownRenderer:
     def _render_image(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("image", {})
         image_type = block_data.get("type", "")
-
-        # Get URL from the appropriate sub-object.
-        # file_upload has no public URL (opaque upload ID only).
-        url = ""
-        if image_type == "external":
-            url = (block_data.get("external") or {}).get("url", "")
-        elif image_type == "file":
-            url = (block_data.get("file") or {}).get("url", "")
-        elif image_type == "file_upload":
-            url = ""
+        url = _extract_notion_file_url(block_data)
 
         # Caption from rich_text in the image's caption field
         caption_segments = block_data.get("caption", [])
@@ -504,16 +512,7 @@ class NotionToMarkdownRenderer:
 
     def _render_file(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("file", {})
-        file_type = block_data.get("type", "")
-
-        # file_upload has no public URL (opaque upload ID only).
-        url = ""
-        if file_type == "external":
-            url = (block_data.get("external") or {}).get("url", "")
-        elif file_type == "file":
-            url = (block_data.get("file") or {}).get("url", "")
-        elif file_type == "file_upload":
-            url = ""
+        url = _extract_notion_file_url(block_data)
 
         # Build display name: prefer caption (already Markdown-escaped by
         # render_rich_text), fall back to raw name or URL-derived filename
@@ -533,16 +532,7 @@ class NotionToMarkdownRenderer:
     def _render_media(self, block: dict[str, Any], depth: int, block_type: str) -> str:
         """Render video/audio/pdf blocks as [Label](url)."""
         block_data = block.get(block_type, {})
-        media_type = block_data.get("type", "")
-
-        # file_upload has no public URL (opaque upload ID only).
-        url = ""
-        if media_type == "external":
-            url = (block_data.get("external") or {}).get("url", "")
-        elif media_type == "file":
-            url = (block_data.get("file") or {}).get("url", "")
-        elif media_type == "file_upload":
-            url = ""
+        url = _extract_notion_file_url(block_data)
 
         label = _MEDIA_TYPES.get(block_type, block_type.capitalize())
         escaped_url = markdown_escape(url, "url")

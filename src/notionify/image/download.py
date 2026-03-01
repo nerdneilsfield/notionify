@@ -13,6 +13,7 @@ are retried with linear backoff.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from urllib.parse import urlparse
 
@@ -190,8 +191,6 @@ async def async_download_image(
     NotionifyImageDownloadError
         If all attempts fail or the URL scheme is not http/https.
     """
-    import asyncio
-
     _validate_url_scheme(url)
     headers = _build_headers(config)
     timeout = config.remote_image_timeout_seconds
