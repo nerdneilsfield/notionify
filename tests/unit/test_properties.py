@@ -2894,6 +2894,30 @@ class TestComputeSignatureProperties:
         }
         assert compute_signature(block) == compute_signature(block)
 
+    # equation expression signature properties
+    @given(
+        expr_a=st.text(min_size=1, max_size=50),
+        expr_b=st.text(min_size=1, max_size=50),
+    )
+    @settings(max_examples=200)
+    def test_equation_different_expressions_different_signatures(
+        self, expr_a: str, expr_b: str
+    ) -> None:
+        """Equation blocks with different expressions produce different signatures."""
+        assume(expr_a != expr_b)
+
+        def _eq(expression: str) -> dict:
+            return {"type": "equation", "equation": {"expression": expression}}
+
+        assert compute_signature(_eq(expr_a)) != compute_signature(_eq(expr_b))
+
+    @given(expr=st.text(min_size=0, max_size=50))
+    @settings(max_examples=200)
+    def test_equation_same_expression_same_signature(self, expr: str) -> None:
+        """Identical equation blocks always produce the same signature."""
+        block = {"type": "equation", "equation": {"expression": expr}}
+        assert compute_signature(block) == compute_signature(block)
+
     # bookmark/embed/link_preview URL signature properties
     @given(
         url_a=st.text(min_size=1, max_size=60),
