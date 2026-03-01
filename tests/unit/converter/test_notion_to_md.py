@@ -583,6 +583,20 @@ class TestImageRendering:
         md = r.render_blocks(blocks)
         assert "![](https://example.com/img.png)" in md
 
+    def test_image_file_upload_renders_empty_url(self):
+        """file_upload images have no public URL; renders ![]()."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [{
+            "type": "image",
+            "image": {
+                "type": "file_upload",
+                "file_upload": {"id": "upload-img-1"},
+                "caption": [_make_text_segment("uploaded pic")],
+            },
+        }]
+        md = r.render_blocks(blocks)
+        assert "![uploaded pic]()" in md
+
     def test_notion_hosted_image_expiry_warning(self):
         r = NotionToMarkdownRenderer(make_config(image_expiry_warnings=True))
         blocks = [{
@@ -824,6 +838,27 @@ class TestMediaBlockRendering:
         block = {"type": "video", "video": {"type": "external", "external": {}}}
         md = r.render_blocks([block])
         assert "[Video]" in md
+
+    def test_video_file_upload_renders_empty_url(self):
+        """file_upload media blocks have no public URL; renders empty link."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "video",
+            "video": {"type": "file_upload", "file_upload": {"id": "upload-vid-1"}},
+        }
+        md = r.render_blocks([block])
+        assert "[Video]" in md
+        assert "()" in md
+
+    def test_pdf_file_upload_renders_empty_url(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "pdf",
+            "pdf": {"type": "file_upload", "file_upload": {"id": "upload-pdf-1"}},
+        }
+        md = r.render_blocks([block])
+        assert "[PDF]" in md
+        assert "()" in md
 
 
 class TestNestedChildrenRendering:
@@ -1247,6 +1282,21 @@ class TestFileBlockRendering:
         }
         md = r.render_blocks([block])
         assert "data.csv" in md
+
+    def test_file_upload_renders_name_with_empty_url(self):
+        """file_upload file blocks have no public URL; renders [name]()."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "file",
+            "file": {
+                "type": "file_upload",
+                "file_upload": {"id": "upload-file-1"},
+                "name": "document.docx",
+                "caption": [],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "[document.docx]()" in md
 
     def test_file_no_url_renders_file_label(self):
         r = NotionToMarkdownRenderer(make_config())

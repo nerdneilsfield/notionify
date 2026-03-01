@@ -329,12 +329,15 @@ class NotionToMarkdownRenderer:
         block_data = block.get("image", {})
         image_type = block_data.get("type", "")
 
-        # Get URL from the appropriate sub-object
+        # Get URL from the appropriate sub-object.
+        # file_upload has no public URL (opaque upload ID only).
         url = ""
         if image_type == "external":
             url = (block_data.get("external") or {}).get("url", "")
         elif image_type == "file":
             url = (block_data.get("file") or {}).get("url", "")
+        elif image_type == "file_upload":
+            url = ""
 
         # Caption from rich_text in the image's caption field
         caption_segments = block_data.get("caption", [])
@@ -461,11 +464,14 @@ class NotionToMarkdownRenderer:
         block_data = block.get("file", {})
         file_type = block_data.get("type", "")
 
+        # file_upload has no public URL (opaque upload ID only).
         url = ""
         if file_type == "external":
             url = (block_data.get("external") or {}).get("url", "")
         elif file_type == "file":
             url = (block_data.get("file") or {}).get("url", "")
+        elif file_type == "file_upload":
+            url = ""
 
         # Try to get a filename from the caption or name field
         name = block_data.get("name", "")
@@ -483,11 +489,14 @@ class NotionToMarkdownRenderer:
         block_data = block.get(block_type, {})
         media_type = block_data.get("type", "")
 
+        # file_upload has no public URL (opaque upload ID only).
         url = ""
         if media_type == "external":
             url = (block_data.get("external") or {}).get("url", "")
         elif media_type == "file":
             url = (block_data.get("file") or {}).get("url", "")
+        elif media_type == "file_upload":
+            url = ""
 
         label = _MEDIA_TYPES.get(block_type, block_type.capitalize())
         escaped_url = markdown_escape(url, "url")
