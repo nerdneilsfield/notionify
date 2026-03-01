@@ -3181,6 +3181,125 @@ class TestComputeSignatureProperties:
 
         assert compute_signature(_heading(True)) != compute_signature(_heading(False))
 
+    # table structural attribute signature properties
+    @given(
+        width_a=st.integers(min_value=1, max_value=20),
+        width_b=st.integers(min_value=1, max_value=20),
+    )
+    @settings(max_examples=200)
+    def test_table_different_widths_different_signatures(
+        self, width_a: int, width_b: int
+    ) -> None:
+        """Table blocks with different table_width produce different signatures."""
+        assume(width_a != width_b)
+
+        def _table(width: int) -> dict:
+            return {
+                "type": "table",
+                "table": {
+                    "table_width": width,
+                    "has_column_header": False,
+                    "has_row_header": False,
+                },
+            }
+
+        assert compute_signature(_table(width_a)) != compute_signature(_table(width_b))
+
+    @given(has_header=st.booleans())
+    @settings(max_examples=200)
+    def test_table_column_header_changes_signature(self, has_header: bool) -> None:
+        """Table blocks that differ only in has_column_header produce different signatures."""
+
+        def _table(col_header: bool) -> dict:
+            return {
+                "type": "table",
+                "table": {
+                    "table_width": 3,
+                    "has_column_header": col_header,
+                    "has_row_header": False,
+                },
+            }
+
+        assert compute_signature(_table(True)) != compute_signature(_table(False))
+
+    # code language signature properties
+    @given(
+        text=st.text(min_size=1, max_size=30),
+        lang_a=st.sampled_from(["python", "javascript", "typescript", "rust", "go"]),
+        lang_b=st.sampled_from(["python", "javascript", "typescript", "rust", "go"]),
+    )
+    @settings(max_examples=200)
+    def test_code_different_languages_different_signatures(
+        self, text: str, lang_a: str, lang_b: str
+    ) -> None:
+        """Code blocks with identical content but different languages differ in signature."""
+        assume(lang_a != lang_b)
+
+        def _code(lang: str) -> dict:
+            return {
+                "type": "code",
+                "code": {
+                    "rich_text": [{"type": "text", "text": {"content": text}, "plain_text": text}],
+                    "language": lang,
+                    "caption": [],
+                },
+            }
+
+        assert compute_signature(_code(lang_a)) != compute_signature(_code(lang_b))
+
+    # callout color signature properties
+    @given(
+        text=st.text(min_size=1, max_size=30),
+        color_a=st.sampled_from(_NOTION_COLORS),
+        color_b=st.sampled_from(_NOTION_COLORS),
+    )
+    @settings(max_examples=200)
+    def test_callout_different_colors_different_signatures(
+        self, text: str, color_a: str, color_b: str
+    ) -> None:
+        """Callout blocks with different colors produce different signatures."""
+        assume(color_a != color_b)
+
+        def _callout(color: str) -> dict:
+            return {
+                "type": "callout",
+                "callout": {
+                    "rich_text": [{"type": "text", "text": {"content": text}, "plain_text": text}],
+                    "icon": {"type": "emoji", "emoji": "💡"},
+                    "color": color,
+                },
+            }
+
+        assert compute_signature(_callout(color_a)) != compute_signature(_callout(color_b))
+
+    # link_to_page database_id signature properties
+    @given(
+        id_a=st.text(
+            alphabet=string.ascii_lowercase + string.digits + "-",
+            min_size=4, max_size=36,
+        ),
+        id_b=st.text(
+            alphabet=string.ascii_lowercase + string.digits + "-",
+            min_size=4, max_size=36,
+        ),
+    )
+    @settings(max_examples=200)
+    def test_link_to_page_different_database_ids_different_signatures(
+        self, id_a: str, id_b: str
+    ) -> None:
+        """link_to_page blocks targeting different databases produce different signatures."""
+        assume(id_a != id_b)
+
+        def _make_block(database_id: str) -> dict:
+            return {
+                "type": "link_to_page",
+                "link_to_page": {"type": "database_id", "database_id": database_id},
+            }
+
+        sig_a = compute_signature(_make_block(id_a))
+        sig_b = compute_signature(_make_block(id_b))
+        assert sig_a != sig_b
+
 
 # ---------------------------------------------------------------------------
 # TestDataUriParseProperties
