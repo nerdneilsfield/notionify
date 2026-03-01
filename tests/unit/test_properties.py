@@ -4405,6 +4405,87 @@ class TestDiffPlannerAlgebraicProperties:
         ops2 = planner.plan(existing, new_blocks)
         assert ops1 == ops2
 
+    @given(
+        shared_texts=st.lists(
+            st.text(min_size=1, max_size=20), min_size=2, max_size=6
+        ),
+        extra_existing=st.lists(
+            st.text(min_size=1, max_size=20), min_size=0, max_size=4
+        ),
+        extra_new=st.lists(
+            st.text(min_size=1, max_size=20), min_size=0, max_size=4
+        ),
+    )
+    @settings(max_examples=200)
+    def test_no_adjacent_delete_insert_pairs_in_build_ops_path(
+        self,
+        shared_texts: list[str],
+        extra_existing: list[str],
+        extra_new: list[str],
+    ) -> None:
+        """When match ratio is high enough, _build_ops produces no adjacent DELETE+INSERT.
+
+        The full-overwrite path (triggered by low match ratio) intentionally
+        produces DELETE followed by INSERT; this test exercises only the
+        _build_ops path, which runs _upgrade_to_updates to eliminate such pairs.
+        """
+        config = NotionifyConfig(token="test")
+        planner = DiffPlanner(config)
+
+        # Shared blocks ensure match ratio >= 0.3 so _build_ops is chosen.
+        existing = [
+            _make_block(text=t, block_id=f"bid-{i}")
+            for i, t in enumerate(shared_texts + extra_existing)
+        ]
+        # new has shared blocks at the front, plus extra blocks
+        new_blocks = [_make_block(text=t) for t in shared_texts + extra_new]
+
+        ops = planner.plan(existing, new_blocks)
+
+        # If full overwrite was triggered (low ratio), skip the check.
+        keep_ops = [op for op in ops if op.op_type == DiffOpType.KEEP]
+        if not keep_ops:
+            return  # full overwrite path; invariant doesn't apply here
+
+        for k in range(len(ops) - 1):
+            assert not (
+                ops[k].op_type == DiffOpType.DELETE
+                and ops[k + 1].op_type == DiffOpType.INSERT
+            ), f"Adjacent DELETE+INSERT at positions {k},{k+1}"
+
+    @given(
+        existing_texts=st.lists(
+            st.text(min_size=1, max_size=30), min_size=2, max_size=12
+        ),
+        new_texts=st.lists(
+            st.text(min_size=1, max_size=30), min_size=1, max_size=12
+        ),
+    )
+    @settings(max_examples=200)
+    def test_no_existing_id_referenced_by_both_keep_and_delete(
+        self, existing_texts: list[str], new_texts: list[str]
+    ) -> None:
+        """No block ID appears in both a KEEP op and a destructive op (DELETE/UPDATE/REPLACE)."""
+        config = NotionifyConfig(token="test")
+        planner = DiffPlanner(config)
+
+        existing = [
+            _make_block(text=t, block_id=f"uid-{i}")
+            for i, t in enumerate(existing_texts)
+        ]
+        new_blocks = [_make_block(text=t) for t in new_texts]
+
+        ops = planner.plan(existing, new_blocks)
+
+        keep_ids = {op.existing_id for op in ops if op.op_type == DiffOpType.KEEP}
+        destructive_ids = {
+            op.existing_id
+            for op in ops
+            if op.op_type in (DiffOpType.DELETE, DiffOpType.UPDATE, DiffOpType.REPLACE)
+        }
+        overlap = keep_ids & destructive_ids
+        assert overlap == set(), f"IDs referenced by both KEEP and destructive ops: {overlap}"
+
 
 # ---------------------------------------------------------------------------
 # 17. TestDiffPlannerUpgradeProperties
