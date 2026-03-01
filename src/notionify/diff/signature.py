@@ -110,13 +110,13 @@ def _extract_type_attrs(block: dict[str, Any], block_type: str) -> dict[str, Any
         img_type = type_data.get("type", "")
         attrs["image_type"] = img_type
         if img_type == "external":
-            external = type_data.get("external", {})
+            external = type_data.get("external") or {}
             attrs["url"] = external.get("url", "")
         elif img_type == "file":
-            file_info = type_data.get("file", {})
+            file_info = type_data.get("file") or {}
             attrs["url"] = file_info.get("url", "")
         elif img_type == "file_upload":
-            file_upload = type_data.get("file_upload", {})
+            file_upload = type_data.get("file_upload") or {}
             attrs["upload_id"] = file_upload.get("id", "")
 
     return attrs

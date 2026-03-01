@@ -442,7 +442,8 @@ class NotionToMarkdownRenderer:
 
         # Title: use the URL as the display text (Notion bookmarks
         # don't store a separate title in the block data).
-        result = f"[{url}]({escaped_url})"
+        display_url = _escape_link_text(url)
+        result = f"[{display_url}]({escaped_url})"
 
         if caption:
             result += f"\n> {caption}"
@@ -453,7 +454,8 @@ class NotionToMarkdownRenderer:
         block_data = block.get("link_preview", {})
         url = block_data.get("url", "")
         escaped_url = markdown_escape(url, "url")
-        return f"[{url}]({escaped_url})\n\n"
+        display_url = _escape_link_text(url)
+        return f"[{display_url}]({escaped_url})\n\n"
 
     def _render_file(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("file", {})
@@ -574,6 +576,11 @@ _BLOCK_RENDERERS: dict[str, _BlockRenderer] = {
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
+
+def _escape_link_text(text: str) -> str:
+    """Escape ``[`` and ``]`` so the text is safe inside ``[...]`` link text."""
+    return text.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
 
 
 def _sanitize_comment(text: str) -> str:

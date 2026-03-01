@@ -1174,6 +1174,20 @@ class TestBookmarkRendering:
         assert "(" not in md.split("](")[1] if "](" in md else True
 
 
+    def test_bookmark_url_with_brackets_escaped(self):
+        """URL containing ] is escaped in the display text to prevent broken link."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "bookmark",
+            "bookmark": {"url": "https://example.com/page]test", "caption": []},
+        }
+        md = r.render_blocks([block])
+        # The ] in display text must be escaped
+        assert "\\]" in md
+        # The URL target should NOT have the backslash
+        assert "](https://example.com/page]test)" in md
+
+
 class TestFileBlockRendering:
     """_render_file produces a Markdown link for external/hosted files."""
 
@@ -1295,6 +1309,18 @@ class TestLinkPreviewRendering:
         block = {"type": "link_preview", "link_preview": {"url": ""}}
         md = r.render_blocks([block])
         assert md is not None
+
+
+    def test_link_preview_url_with_brackets_escaped(self):
+        """URL containing [] is escaped in the display text."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "link_preview",
+            "link_preview": {"url": "https://example.com/[test]"},
+        }
+        md = r.render_blocks([block])
+        assert "\\[" in md
+        assert "\\]" in md
 
 
 class TestChildPageAndDatabaseRendering:
