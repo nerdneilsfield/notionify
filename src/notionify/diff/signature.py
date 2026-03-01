@@ -14,7 +14,7 @@ from notionify.utils.hashing import hash_dict, md5_hash
 
 # Block types that carry type-specific attributes worth tracking.
 _ATTRS_EXTRACTORS: dict[str, list[str]] = {
-    "code": ["language"],
+    "code": ["language", "caption"],
     "to_do": ["checked"],
     "heading_1": ["is_toggleable", "color"],
     "heading_2": ["is_toggleable", "color"],
@@ -24,14 +24,18 @@ _ATTRS_EXTRACTORS: dict[str, list[str]] = {
     "toggle": ["color"],
     "bulleted_list_item": ["color"],
     "numbered_list_item": ["color"],
-    "bookmark": ["url"],
-    "embed": ["url"],
-    "image": ["type"],
+    "bookmark": ["url", "caption"],
+    "embed": ["url", "caption"],
+    "image": ["type", "caption"],
     "equation": ["expression"],
     "link_to_page": ["type"],
     "table": ["has_column_header", "has_row_header", "table_width"],
     "column_list": [],
     "divider": [],
+    "video": ["type", "caption"],
+    "audio": ["type", "caption"],
+    "pdf": ["type", "caption"],
+    "file": ["type", "caption"],
 }
 
 

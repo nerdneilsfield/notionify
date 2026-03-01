@@ -415,3 +415,49 @@ class TestNormalizeRichText:
         }
         result = _extract_plain_text(block, "paragraph")
         assert result == ""
+
+
+class TestCaptionInSignature:
+    """Caption changes produce different signatures for caption-bearing blocks."""
+
+    def test_code_block_different_captions_different_signature(self):
+        b1 = {
+            "type": "code",
+            "code": {
+                "rich_text": [{"plain_text": "x = 1"}],
+                "language": "python",
+                "caption": [{"plain_text": "Example A"}],
+            },
+        }
+        b2 = {
+            "type": "code",
+            "code": {
+                "rich_text": [{"plain_text": "x = 1"}],
+                "language": "python",
+                "caption": [{"plain_text": "Example B"}],
+            },
+        }
+        assert compute_signature(b1) != compute_signature(b2)
+
+    def test_image_caption_included_in_attrs(self):
+        block = {
+            "type": "image",
+            "image": {
+                "type": "external",
+                "external": {"url": "https://img.example.com/a.png"},
+                "caption": [{"plain_text": "A photo"}],
+            },
+        }
+        attrs = _extract_type_attrs(block, "image")
+        assert "caption" in attrs
+
+    def test_bookmark_caption_included_in_attrs(self):
+        block = {
+            "type": "bookmark",
+            "bookmark": {
+                "url": "https://example.com",
+                "caption": [{"plain_text": "See more"}],
+            },
+        }
+        attrs = _extract_type_attrs(block, "bookmark")
+        assert "caption" in attrs
