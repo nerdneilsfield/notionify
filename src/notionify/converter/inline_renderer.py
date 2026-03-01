@@ -107,7 +107,16 @@ def render_rich_text(segments: list[dict[str, Any]]) -> str:
 
         if is_code:
             # Inside code spans, no markdown escaping is needed.
-            text = f"`{plain_text}`"
+            # Per CommonMark, use a longer backtick run if content
+            # contains backticks, and add space padding when content
+            # starts or ends with a backtick.
+            fence = "`"
+            while fence in plain_text:
+                fence += "`"
+            if plain_text.startswith("`") or plain_text.endswith("`"):
+                text = f"{fence} {plain_text} {fence}"
+            else:
+                text = f"{fence}{plain_text}{fence}"
         else:
             text = markdown_escape(plain_text)
             # Apply annotations in the specified order (innermost first):

@@ -147,6 +147,35 @@ class TestRenderAnnotations:
         assert "~~" in result
         assert "<u>" in result
 
+    def test_code_with_backtick_uses_double_fence(self):
+        """Content containing ` must use `` as delimiter."""
+        seg = {
+            "type": "text",
+            "text": {"content": "a`b"},
+            "annotations": {"code": True},
+        }
+        result = render_rich_text([seg])
+        assert result == "``a`b``"
+
+    def test_code_starting_with_backtick_adds_space(self):
+        """Content starting/ending with ` needs space padding per CommonMark."""
+        seg = {
+            "type": "text",
+            "text": {"content": "`cmd`"},
+            "annotations": {"code": True},
+        }
+        result = render_rich_text([seg])
+        assert result == "`` `cmd` ``"
+
+    def test_code_with_double_backtick_uses_triple_fence(self):
+        seg = {
+            "type": "text",
+            "text": {"content": "a``b"},
+            "annotations": {"code": True},
+        }
+        result = render_rich_text([seg])
+        assert result == "```a``b```"
+
     def test_code_suppresses_other_annotations(self):
         """When code is True, other annotations are not applied."""
         seg = {
