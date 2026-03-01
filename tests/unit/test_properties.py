@@ -2853,6 +2853,62 @@ class TestComputeSignatureProperties:
         assert sig1 == sig2
 
     @given(
+        media_type=st.sampled_from(["video", "audio", "pdf", "file"]),
+        upload_id_a=st.text(
+            alphabet=string.ascii_lowercase + string.digits + "-",
+            min_size=4, max_size=36,
+        ),
+        upload_id_b=st.text(
+            alphabet=string.ascii_lowercase + string.digits + "-",
+            min_size=4, max_size=36,
+        ),
+    )
+    @settings(max_examples=200)
+    def test_media_blocks_different_upload_ids_different_signatures(
+        self, media_type: str, upload_id_a: str, upload_id_b: str
+    ) -> None:
+        """Media blocks with different file_upload IDs produce different signatures."""
+        assume(upload_id_a != upload_id_b)
+
+        def _make_block(uid: str) -> dict:
+            return {
+                "type": media_type,
+                media_type: {
+                    "type": "file_upload",
+                    "file_upload": {"id": uid},
+                },
+            }
+
+        sig_a = compute_signature(_make_block(upload_id_a))
+        sig_b = compute_signature(_make_block(upload_id_b))
+        assert sig_a != sig_b
+
+    @given(
+        media_type=st.sampled_from(["video", "audio", "pdf", "file"]),
+        url_a=st.text(min_size=1, max_size=80),
+        url_b=st.text(min_size=1, max_size=80),
+    )
+    @settings(max_examples=200)
+    def test_media_blocks_different_file_urls_different_signatures(
+        self, media_type: str, url_a: str, url_b: str
+    ) -> None:
+        """Media blocks with different Notion-hosted file URLs produce different signatures."""
+        assume(url_a != url_b)
+
+        def _make_block(url: str) -> dict:
+            return {
+                "type": media_type,
+                media_type: {
+                    "type": "file",
+                    "file": {"url": url, "expiry_time": "2099-01-01T00:00:00.000Z"},
+                },
+            }
+
+        sig_a = compute_signature(_make_block(url_a))
+        sig_b = compute_signature(_make_block(url_b))
+        assert sig_a != sig_b
+
+    @given(
         id_a=st.text(
             alphabet=string.ascii_lowercase + string.digits + "-",
             min_size=4, max_size=36,

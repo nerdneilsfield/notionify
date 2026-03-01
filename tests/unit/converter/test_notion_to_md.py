@@ -977,6 +977,56 @@ class TestMediaBlockRendering:
         assert "[PDF]" in md
         assert "()" in md
 
+    def test_video_file_hosted(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "video",
+            "video": {"type": "file", "file": {"url": "https://cdn.notion.so/vid.mp4"}},
+        }
+        md = r.render_blocks([block])
+        assert "[Video]" in md
+        assert "cdn.notion.so/vid.mp4" in md
+
+    def test_audio_external(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "audio",
+            "audio": {"type": "external", "external": {"url": "https://example.com/song.mp3"}},
+        }
+        md = r.render_blocks([block])
+        assert "[Audio]" in md
+        assert "song.mp3" in md
+
+    def test_audio_file_upload_renders_empty_url(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "audio",
+            "audio": {"type": "file_upload", "file_upload": {"id": "upload-aud-1"}},
+        }
+        md = r.render_blocks([block])
+        assert "[Audio]" in md
+        assert "()" in md
+
+    def test_pdf_external(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "pdf",
+            "pdf": {"type": "external", "external": {"url": "https://example.com/doc.pdf"}},
+        }
+        md = r.render_blocks([block])
+        assert "[PDF]" in md
+        assert "doc.pdf" in md
+
+    def test_pdf_file_hosted(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "pdf",
+            "pdf": {"type": "file", "file": {"url": "https://cdn.notion.so/doc.pdf"}},
+        }
+        md = r.render_blocks([block])
+        assert "[PDF]" in md
+        assert "cdn.notion.so/doc.pdf" in md
+
 
 class TestNestedChildrenRendering:
     """Nested children in quote, bulleted, numbered, to_do (lines 193-202, 228, 241)."""
