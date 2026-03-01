@@ -301,6 +301,36 @@ class TestComputeSignature:
         attrs = _extract_type_attrs(block, "divider")
         assert attrs == {}
 
+    def test_child_page_title_attr(self):
+        """child_page block extracts title attribute."""
+        block = {"type": "child_page", "child_page": {"title": "My nested page"}}
+        attrs = _extract_type_attrs(block, "child_page")
+        assert attrs["title"] == "My nested page"
+
+    def test_child_database_title_attr(self):
+        """child_database block extracts title attribute."""
+        block = {"type": "child_database", "child_database": {"title": "My database"}}
+        attrs = _extract_type_attrs(block, "child_database")
+        assert attrs["title"] == "My database"
+
+    def test_child_page_different_titles_different_signatures(self):
+        """Two child_page blocks with different titles produce different signatures."""
+        block_a = {"type": "child_page", "child_page": {"title": "Page Alpha"}}
+        block_b = {"type": "child_page", "child_page": {"title": "Page Beta"}}
+        assert compute_signature(block_a) != compute_signature(block_b)
+
+    def test_child_database_different_titles_different_signatures(self):
+        """Two child_database blocks with different titles produce different signatures."""
+        block_a = {"type": "child_database", "child_database": {"title": "DB Alpha"}}
+        block_b = {"type": "child_database", "child_database": {"title": "DB Beta"}}
+        assert compute_signature(block_a) != compute_signature(block_b)
+
+    def test_child_page_same_title_same_signature(self):
+        """Two child_page blocks with the same title produce equal signatures."""
+        block_a = {"type": "child_page", "child_page": {"title": "Shared Title"}}
+        block_b = {"type": "child_page", "child_page": {"title": "Shared Title"}}
+        assert compute_signature(block_a) == compute_signature(block_b)
+
     def test_plain_text_segment_missing_key(self):
         """Rich text segment without 'plain_text' key defaults to empty."""
         block = {"paragraph": {"rich_text": [{"type": "text"}]}}
