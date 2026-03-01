@@ -2971,6 +2971,49 @@ class TestComputeSignatureProperties:
         }
         assert compute_signature(block) == compute_signature(block)
 
+    # to_do color properties
+    @given(
+        text=st.text(min_size=1, max_size=30),
+        color_a=st.sampled_from(_NOTION_COLORS),
+        color_b=st.sampled_from(_NOTION_COLORS),
+        checked=st.booleans(),
+    )
+    @settings(max_examples=200)
+    def test_to_do_different_colors_different_signatures(
+        self, text: str, color_a: str, color_b: str, checked: bool
+    ) -> None:
+        """to_do blocks with identical text/checked but different colors differ."""
+        assume(color_a != color_b)
+
+        def _todo(color: str) -> dict:
+            return {
+                "type": "to_do",
+                "to_do": {
+                    "rich_text": [{"type": "text", "text": {"content": text}, "plain_text": text}],
+                    "checked": checked,
+                    "color": color,
+                },
+            }
+
+        assert compute_signature(_todo(color_a)) != compute_signature(_todo(color_b))
+
+    @given(
+        checked=st.booleans(),
+        color=st.sampled_from(_NOTION_COLORS),
+    )
+    @settings(max_examples=200)
+    def test_to_do_checked_changes_signature(self, checked: bool, color: str) -> None:
+        """to_do blocks that differ only in checked state produce different signatures."""
+        block_checked = {
+            "type": "to_do",
+            "to_do": {"rich_text": [], "checked": True, "color": color},
+        }
+        block_unchecked = {
+            "type": "to_do",
+            "to_do": {"rich_text": [], "checked": False, "color": color},
+        }
+        assert compute_signature(block_checked) != compute_signature(block_unchecked)
+
 
 # ---------------------------------------------------------------------------
 # TestDataUriParseProperties
