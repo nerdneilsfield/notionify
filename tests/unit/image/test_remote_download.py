@@ -29,6 +29,7 @@ from notionify.image.download import (
     _is_retryable,
     _parse_content_type,
     _try_download,
+    _validate_url_scheme,
     async_download_image,
     download_image,
 )
@@ -467,3 +468,58 @@ class TestDownloadErrorContext:
         ctx = exc_info.value.context
         assert ctx["last_status_code"] is None
         assert ctx["is_permanent"] is False
+
+
+# =========================================================================
+# URL scheme validation (SSRF prevention)
+# =========================================================================
+
+
+class TestValidateUrlScheme:
+    """_validate_url_scheme rejects non-HTTP(S) URLs."""
+
+    def test_http_allowed(self):
+        _validate_url_scheme("http://example.com/img.png")
+
+    def test_https_allowed(self):
+        _validate_url_scheme("https://example.com/img.png")
+
+    def test_file_rejected(self):
+        with pytest.raises(NotionifyImageDownloadError, match="not allowed"):
+            _validate_url_scheme("file:///etc/passwd")
+
+    def test_ftp_rejected(self):
+        with pytest.raises(NotionifyImageDownloadError, match="not allowed"):
+            _validate_url_scheme("ftp://example.com/img.png")
+
+    def test_data_rejected(self):
+        with pytest.raises(NotionifyImageDownloadError, match="not allowed"):
+            _validate_url_scheme("data:image/png;base64,abc")
+
+    def test_javascript_rejected(self):
+        with pytest.raises(NotionifyImageDownloadError, match="not allowed"):
+            _validate_url_scheme("javascript:alert(1)")
+
+    def test_empty_scheme_rejected(self):
+        with pytest.raises(NotionifyImageDownloadError, match="not allowed"):
+            _validate_url_scheme("://example.com/img.png")
+
+    def test_error_context_includes_scheme(self):
+        with pytest.raises(NotionifyImageDownloadError) as exc_info:
+            _validate_url_scheme("ftp://example.com/img.png")
+        assert exc_info.value.context["scheme"] == "ftp"
+
+
+class TestDownloadImageSchemeValidation:
+    """download_image and async_download_image reject non-HTTP(S) URLs."""
+
+    def test_sync_rejects_file_scheme(self):
+        config = _config()
+        with pytest.raises(NotionifyImageDownloadError, match="not allowed"):
+            download_image("file:///etc/passwd", config)
+
+    @pytest.mark.asyncio
+    async def test_async_rejects_file_scheme(self):
+        config = _config()
+        with pytest.raises(NotionifyImageDownloadError, match="not allowed"):
+            await async_download_image("file:///etc/passwd", config)

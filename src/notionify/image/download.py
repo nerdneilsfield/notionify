@@ -14,6 +14,7 @@ are retried with linear backoff.
 from __future__ import annotations
 
 import time
+from urllib.parse import urlparse
 
 import httpx
 
@@ -48,6 +49,19 @@ def _parse_content_type(response: httpx.Response) -> str:
     """Extract the MIME type from the Content-Type header."""
     raw: str = response.headers.get("content-type", "application/octet-stream")
     return raw.split(";")[0].strip()
+
+
+_ALLOWED_SCHEMES = frozenset({"http", "https"})
+
+
+def _validate_url_scheme(url: str) -> None:
+    """Reject non-HTTP(S) URLs to prevent SSRF via file://, ftp://, etc."""
+    parsed = urlparse(url)
+    if parsed.scheme.lower() not in _ALLOWED_SCHEMES:
+        raise NotionifyImageDownloadError(
+            message=f"URL scheme {parsed.scheme!r} is not allowed; only http/https are supported",
+            context={"url": url, "scheme": parsed.scheme},
+        )
 
 
 def _is_retryable(exc: Exception) -> bool:
@@ -103,8 +117,9 @@ def download_image(
     Raises
     ------
     NotionifyImageDownloadError
-        If all attempts fail.
+        If all attempts fail or the URL scheme is not http/https.
     """
+    _validate_url_scheme(url)
     headers = _build_headers(config)
     timeout = config.remote_image_timeout_seconds
     max_attempts = config.remote_image_retries + 1  # retries + initial attempt
@@ -199,10 +214,11 @@ async def async_download_image(
     Raises
     ------
     NotionifyImageDownloadError
-        If all attempts fail.
+        If all attempts fail or the URL scheme is not http/https.
     """
     import asyncio
 
+    _validate_url_scheme(url)
     headers = _build_headers(config)
     timeout = config.remote_image_timeout_seconds
     max_attempts = config.remote_image_retries + 1
