@@ -32,7 +32,7 @@ from notionify.errors import (
     NotionifyRetryExhaustedError,
     NotionifyValidationError,
 )
-from notionify.observability import NoopMetricsHook, get_logger
+from notionify.observability import MetricsHook, NoopMetricsHook, get_logger
 from notionify.utils.redact import redact
 
 from .rate_limit import AsyncTokenBucket, TokenBucket
@@ -155,7 +155,7 @@ def _dump_payload(
 
 def _handle_network_exception(
     config: NotionifyConfig,
-    metrics: Any,
+    metrics: MetricsHook,
     method: str,
     path: str,
     exc: Exception,
