@@ -204,7 +204,7 @@ class TestDeepNestingExport:
         for line in result.splitlines():
             if "Three deep" in line:
                 gt_count = line.count(">")
-                assert gt_count >= 2  # At least some nesting visible
+                assert gt_count == 3  # Exactly 3 levels of nesting
 
 
 # =========================================================================

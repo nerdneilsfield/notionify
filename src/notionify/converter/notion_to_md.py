@@ -175,7 +175,7 @@ class NotionToMarkdownRenderer:
     def _render_quote(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("quote", {})
         text = render_rich_text(block_data.get("rich_text", []))
-        prefix = "> " * (depth + 1) if depth > 0 else "> "
+        prefix = "> "
         parts: list[str] = [f"{prefix}{line}" for line in text.split("\n")]
 
         # Render nested children as deeper quotes

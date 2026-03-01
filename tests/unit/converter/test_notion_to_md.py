@@ -998,6 +998,53 @@ class TestExtractPlainTextHelper:
         assert _extract_plain_text({}) == ""
 
 
+class TestNestedQuoteMarkerCount:
+    """Nested blockquotes produce exactly the right number of > markers."""
+
+    def test_double_nested_quote_has_two_markers(self):
+        """Inner quote at depth 2 has exactly two > markers."""
+        r = NotionToMarkdownRenderer(make_config())
+        inner = {"type": "quote", "quote": {"rich_text": [_make_text_segment("inner")]}}
+        outer = {
+            "type": "quote",
+            "quote": {"rich_text": [_make_text_segment("outer")], "children": [inner]},
+        }
+        md = r.render_blocks([outer])
+        for line in md.splitlines():
+            if "inner" in line:
+                assert line.count(">") == 2
+            elif "outer" in line:
+                assert line.count(">") == 1
+
+    def test_triple_nested_quote_has_three_markers(self):
+        """Innermost quote at depth 3 has exactly three > markers."""
+        r = NotionToMarkdownRenderer(make_config())
+        l3 = {"type": "quote", "quote": {"rich_text": [_make_text_segment("L3")]}}
+        l2 = {"type": "quote", "quote": {"rich_text": [_make_text_segment("L2")], "children": [l3]}}
+        l1 = {"type": "quote", "quote": {"rich_text": [_make_text_segment("L1")], "children": [l2]}}
+        md = r.render_blocks([l1])
+        for line in md.splitlines():
+            if "L3" in line:
+                assert line.count(">") == 3
+            elif "L2" in line:
+                assert line.count(">") == 2
+            elif "L1" in line:
+                assert line.count(">") == 1
+
+    def test_quote_with_paragraph_child_one_marker(self):
+        """Paragraph inside a quote gets exactly one > prefix."""
+        r = NotionToMarkdownRenderer(make_config())
+        child = {"type": "paragraph", "paragraph": {"rich_text": [_make_text_segment("child")]}}
+        block = {
+            "type": "quote",
+            "quote": {"rich_text": [_make_text_segment("parent")], "children": [child]},
+        }
+        md = r.render_blocks([block])
+        for line in md.splitlines():
+            if "child" in line:
+                assert line.count(">") == 1
+
+
 class TestQuoteEmptyChildLineBranch:
     """Quote children with multiple blocks produce internal empty lines (line 201)."""
 
