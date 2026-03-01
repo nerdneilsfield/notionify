@@ -313,9 +313,18 @@ def build_rich_text(
     segments: list[dict[str, Any]] = []
 
     for token in children:
-        handler = _INLINE_HANDLERS.get(token.get("type", ""))
+        token_type = token.get("type", "")
+        handler = _INLINE_HANDLERS.get(token_type)
         if handler is not None:
             segments.extend(handler(token, config, annotations, href, warnings))
+        elif token_type and warnings is not None:
+            warnings.append(
+                ConversionWarning(
+                    code="UNKNOWN_INLINE",
+                    message=f"Unknown inline token type '{token_type}' was skipped.",
+                    context={"token_type": token_type},
+                )
+            )
 
     return segments
 

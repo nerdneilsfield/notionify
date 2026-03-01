@@ -399,6 +399,34 @@ class TestBuildRichTextInlineMathList:
         assert result[1]["text"]["content"] == "=mc^2"
 
 
+class TestBuildRichTextUnknownInline:
+    """Unknown inline token types emit UNKNOWN_INLINE warning."""
+
+    def test_unknown_inline_emits_warning(self):
+        from notionify.models import ConversionWarning
+        warnings: list[ConversionWarning] = []
+        tokens = [{"type": "some_unknown_widget", "raw": "data"}]
+        result = build_rich_text(tokens, make_config(), warnings=warnings)
+        assert result == []
+        assert len(warnings) == 1
+        assert warnings[0].code == "UNKNOWN_INLINE"
+        assert "some_unknown_widget" in warnings[0].message
+
+    def test_unknown_inline_no_warning_when_warnings_none(self):
+        """When warnings list is None, unknown tokens are silently skipped."""
+        tokens = [{"type": "some_unknown_widget", "raw": "data"}]
+        result = build_rich_text(tokens, make_config(), warnings=None)
+        assert result == []
+
+    def test_empty_type_no_warning(self):
+        """Tokens with empty type string should not emit a warning."""
+        from notionify.models import ConversionWarning
+        warnings: list[ConversionWarning] = []
+        tokens = [{"type": "", "raw": "data"}]
+        build_rich_text(tokens, make_config(), warnings=warnings)
+        assert len(warnings) == 0
+
+
 class TestExtractText:
     """Tests for _extract_text recursive helper (lines 289-300)."""
 
