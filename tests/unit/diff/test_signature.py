@@ -479,6 +479,18 @@ class TestComputeSignature:
         attrs = _extract_type_attrs(block, "column_list")
         assert attrs == {}
 
+    def test_table_of_contents_color_attr(self):
+        """table_of_contents block extracts color attribute."""
+        block = {"type": "table_of_contents", "table_of_contents": {"color": "gray_background"}}
+        attrs = _extract_type_attrs(block, "table_of_contents")
+        assert attrs["color"] == "gray_background"
+
+    def test_table_of_contents_different_colors_different_signatures(self):
+        """Two table_of_contents blocks with different colors produce different signatures."""
+        block_a = {"type": "table_of_contents", "table_of_contents": {"color": "default"}}
+        block_b = {"type": "table_of_contents", "table_of_contents": {"color": "gray_background"}}
+        assert compute_signature(block_a) != compute_signature(block_b)
+
     def test_callout_icon_and_color(self):
         """Callout block extracts icon and color."""
         block = {

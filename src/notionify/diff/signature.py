@@ -34,6 +34,7 @@ _ATTRS_EXTRACTORS: dict[str, list[str]] = {
     "table": ["has_column_header", "has_row_header", "table_width"],
     "column_list": [],
     "divider": [],
+    "table_of_contents": ["color"],
     "child_page": ["title"],
     "child_database": ["title"],
     "video": ["type", "caption"],
