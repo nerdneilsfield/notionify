@@ -26,6 +26,7 @@ _ATTRS_EXTRACTORS: dict[str, list[str]] = {
     "numbered_list_item": ["color"],
     "bookmark": ["url", "caption"],
     "embed": ["url", "caption"],
+    "link_preview": ["url"],
     "image": ["type", "caption"],
     "equation": ["expression"],
     "link_to_page": ["type", "page_id", "database_id"],

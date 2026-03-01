@@ -396,6 +396,18 @@ class TestComputeSignature:
         attrs = _extract_type_attrs(block, "embed")
         assert attrs["url"] == "https://youtube.com/watch?v=123"
 
+    def test_link_preview_url_attr(self):
+        """link_preview block extracts URL from type-specific attributes."""
+        block = {"type": "link_preview", "link_preview": {"url": "https://example.com/post"}}
+        attrs = _extract_type_attrs(block, "link_preview")
+        assert attrs["url"] == "https://example.com/post"
+
+    def test_link_preview_different_urls_different_signatures(self):
+        """Two link_preview blocks with different URLs produce different signatures."""
+        block_a = {"type": "link_preview", "link_preview": {"url": "https://a.com"}}
+        block_b = {"type": "link_preview", "link_preview": {"url": "https://b.com"}}
+        assert compute_signature(block_a) != compute_signature(block_b)
+
     def test_toggle_color_attr(self):
         """Toggle block extracts color attribute."""
         block = {"type": "toggle", "toggle": {"rich_text": [], "color": "red"}}
