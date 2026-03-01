@@ -1105,11 +1105,27 @@ class TestColumnPassthroughBlocks:
         md = r.render_blocks([block])
         assert "col content" in md
 
+    def test_column_passthrough(self):
+        r = NotionToMarkdownRenderer(make_config())
+        inner = make_paragraph([_make_text_segment("column content")])
+        block = {"type": "column", "column": {}, "children": [inner]}
+        md = r.render_blocks([block])
+        assert "column content" in md
+
     def test_passthrough_no_children(self):
         r = NotionToMarkdownRenderer(make_config())
         block = {"type": "column_list", "column_list": {}}
         md = r.render_blocks([block])
         assert md == ""
+
+    def test_nested_column_passthrough(self):
+        """column_list → column → paragraph renders inner content."""
+        r = NotionToMarkdownRenderer(make_config())
+        inner = make_paragraph([_make_text_segment("nested")])
+        column = {"type": "column", "column": {}, "children": [inner]}
+        column_list = {"type": "column_list", "column_list": {}, "children": [column]}
+        md = r.render_blocks([column_list])
+        assert "nested" in md
 
 
 class TestUnsupportedBlockWithText:

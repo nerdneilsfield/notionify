@@ -858,3 +858,56 @@ class TestNormalizeTableRowCells:
         segments = _normalize_table_row_cells(block)
         text_segs = [s for s in segments if "text" in s]
         assert text_segs[0]["href"] == "https://example.com"
+
+
+class TestLayoutWrapperSignatures:
+    """Signatures for layout wrapper block types (column_list, column, synced_block, template)."""
+
+    def test_column_list_no_type_attrs(self):
+        """column_list block produces empty attrs (no distinguishing type attributes)."""
+        block = {"type": "column_list", "column_list": {}}
+        attrs = _extract_type_attrs(block, "column_list")
+        assert attrs == {}
+
+    def test_column_no_type_attrs(self):
+        """column block produces empty attrs (no distinguishing type attributes)."""
+        block = {"type": "column", "column": {}}
+        attrs = _extract_type_attrs(block, "column")
+        assert attrs == {}
+
+    def test_synced_block_no_type_attrs(self):
+        """synced_block produces empty attrs (no distinguishing type attributes)."""
+        block = {"type": "synced_block", "synced_block": {"synced_from": None}}
+        attrs = _extract_type_attrs(block, "synced_block")
+        assert attrs == {}
+
+    def test_template_no_type_attrs(self):
+        """template block produces empty attrs (no distinguishing type attributes)."""
+        block = {"type": "template", "template": {"rich_text": []}}
+        attrs = _extract_type_attrs(block, "template")
+        assert attrs == {}
+
+    def test_column_list_signature_stable(self):
+        """Identical column_list blocks always produce the same signature."""
+        block = {"type": "column_list", "column_list": {}}
+        assert compute_signature(block) == compute_signature(block)
+
+    def test_column_signature_stable(self):
+        """Identical column blocks always produce the same signature."""
+        block = {"type": "column", "column": {}}
+        assert compute_signature(block) == compute_signature(block)
+
+    def test_synced_block_signature_stable(self):
+        """Identical synced_block blocks always produce the same signature."""
+        block = {"type": "synced_block", "synced_block": {}}
+        assert compute_signature(block) == compute_signature(block)
+
+    def test_template_signature_stable(self):
+        """Identical template blocks always produce the same signature."""
+        block = {
+            "type": "template",
+            "template": {
+                "rich_text": [{"plain_text": "Click to add"}],
+            },
+        }
+        assert compute_signature(block) == compute_signature(block)
