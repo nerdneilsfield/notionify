@@ -17,7 +17,7 @@ from datetime import datetime
 from datetime import timezone as _tz
 
 import pytest
-from hypothesis import HealthCheck, assume, given, settings
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
 from notionify.config import NotionifyConfig, _validate_mime_list
@@ -617,7 +617,6 @@ class TestRedactProperties:
             max_size=10,
         ),
     )
-    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_non_sensitive_plain_values_unchanged(self, payload: dict) -> None:
         """Non-sensitive keys with plain text values are left unchanged."""
         result = redact(payload)
@@ -769,7 +768,7 @@ class TestConverterProperties:
     _converter = MarkdownToNotionConverter(_config)
 
     @given(text=st.text(min_size=0, max_size=5000))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_converter_never_crashes(self, text: str) -> None:
         """The full pipeline must never raise, regardless of input."""
         result = self._converter.convert(text)
@@ -778,7 +777,7 @@ class TestConverterProperties:
         assert isinstance(result.images, list)
 
     @given(text=st.text(min_size=0, max_size=5000))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_all_blocks_have_type(self, text: str) -> None:
         """Every block produced must have a 'type' key."""
         result = self._converter.convert(text)
@@ -787,7 +786,7 @@ class TestConverterProperties:
             assert "type" in block
 
     @given(text=st.text(min_size=0, max_size=3000))
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_signature_computation_never_crashes(self, text: str) -> None:
         """Signature computation must handle all converter-produced blocks."""
         result = self._converter.convert(text)
@@ -796,7 +795,7 @@ class TestConverterProperties:
             assert sig.block_type == block["type"]
 
     @given(text=st.text(min_size=0, max_size=3000))
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_convert_is_deterministic(self, text: str) -> None:
         """Converting the same markdown twice produces identical block types."""
         r1 = self._converter.convert(text)
@@ -809,7 +808,7 @@ class TestConverterProperties:
         level=st.integers(min_value=4, max_value=6),
         text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=60),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_heading_overflow_downgrade_produces_no_h4_h5_h6(
         self, level: int, text: str
     ) -> None:
@@ -827,7 +826,7 @@ class TestConverterProperties:
         level=st.integers(min_value=4, max_value=6),
         text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=60),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_heading_overflow_paragraph_produces_paragraph_not_heading(
         self, level: int, text: str
     ) -> None:
@@ -847,7 +846,7 @@ class TestConverterProperties:
         row_count=st.integers(min_value=1, max_value=4),
         content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_enable_tables_false_produces_no_table_blocks(
         self, col_count: int, row_count: int, content: str
     ) -> None:
@@ -930,7 +929,7 @@ class TestNotionToMarkdownRendererProperties:
             max_size=20,
         )
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_render_blocks_never_raises(self, blocks: list[dict]) -> None:
         """render_blocks must never raise on arbitrary block dicts."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -943,7 +942,7 @@ class TestNotionToMarkdownRendererProperties:
             max_size=20,
         )
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_render_blocks_is_deterministic(self, blocks: list[dict]) -> None:
         """Same block list must always produce the same Markdown output."""
         r1 = NotionToMarkdownRenderer(self._config).render_blocks(blocks)
@@ -982,7 +981,7 @@ class TestNotionToMarkdownRendererProperties:
     @given(
         text=st.text(min_size=0, max_size=500),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_paragraph_rich_text_always_renders(self, text: str) -> None:
         """Paragraphs with arbitrary rich text content always render."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -997,7 +996,7 @@ class TestNotionToMarkdownRendererProperties:
         text=st.text(min_size=0, max_size=300),
         depth=st.integers(min_value=0, max_value=5),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_list_items_depth_never_raises(self, text: str, depth: int) -> None:
         """Bulleted/numbered list items at arbitrary depth always render."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -1012,7 +1011,7 @@ class TestNotionToMarkdownRendererProperties:
     @given(
         text=st.text(min_size=0, max_size=3000),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_round_trip_block_types_preserved(self, text: str) -> None:
         """Block types produced by the converter are handled by the renderer."""
         converter = MarkdownToNotionConverter(self._config)
@@ -1025,7 +1024,7 @@ class TestNotionToMarkdownRendererProperties:
     @given(
         text=st.text(min_size=0, max_size=2000),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_signature_stable_on_renderer_output_roundtrip(self, text: str) -> None:
         """compute_signature is deterministic on all converter-produced blocks."""
         converter = MarkdownToNotionConverter(self._config)
@@ -1093,7 +1092,7 @@ class TestInlineRendererProperties:
             max_size=10,
         )
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_render_rich_text_never_raises(self, segments: list[dict]) -> None:
         """render_rich_text must never raise on arbitrary text segments."""
         result = render_rich_text(segments)
@@ -1270,7 +1269,7 @@ class TestInlineRendererProperties:
         text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50),
         url=st.from_regex(r"https://[a-z]{3,10}\.com/[a-z]{0,10}", fullmatch=True),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_href_produces_markdown_link(self, text: str, url: str) -> None:
         """A text segment with href renders as [text](url)."""
         seg = {
@@ -1683,7 +1682,7 @@ class TestMathBuilderProperties:
         strategy=st.sampled_from(_MATH_STRATEGIES),
         overflow_block=st.sampled_from(_MATH_OVERFLOW_BLOCK),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_build_block_math_never_raises(
         self, expression: str, strategy: str, overflow_block: str
     ) -> None:
@@ -1698,7 +1697,7 @@ class TestMathBuilderProperties:
         strategy=st.sampled_from(_MATH_STRATEGIES),
         overflow_inline=st.sampled_from(_MATH_OVERFLOW_INLINE),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_build_inline_math_never_raises(
         self, expression: str, strategy: str, overflow_inline: str
     ) -> None:
@@ -1820,7 +1819,7 @@ class TestTableBuilderProperties:
     _config = NotionifyConfig(token="test", base_url="https://api.notion.com/v1")
 
     @given(token=_table_token_st)
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_build_table_never_raises(self, token: dict) -> None:
         """build_table must never raise on any table AST token."""
         block, warnings = build_table(token, self._config)
@@ -1828,7 +1827,7 @@ class TestTableBuilderProperties:
         assert isinstance(warnings, list)
 
     @given(token=_table_token_st)
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_build_table_enabled_returns_table_or_none(self, token: dict) -> None:
         """With enable_tables=True, result is either a table block or None."""
         block, _ = build_table(token, self._config)
@@ -1836,7 +1835,7 @@ class TestTableBuilderProperties:
             assert block.get("type") == "table"
 
     @given(token=_table_token_st)
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_build_table_disabled_returns_none_or_paragraph(
         self, token: dict
     ) -> None:
@@ -1851,7 +1850,7 @@ class TestTableBuilderProperties:
         assert block is None or block.get("type") in ("paragraph", "code")
 
     @given(token=_table_token_st)
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_build_table_is_deterministic(self, token: dict) -> None:
         """build_table must return the same result for identical inputs."""
         block1, w1 = build_table(token, self._config)
@@ -1984,7 +1983,7 @@ class TestConflictDetectionProperties:
         t2=_dt_st,
         etags=_etags_st,
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_different_timestamps_always_conflict(
         self, page_id: str, t1: datetime, t2: datetime, etags: dict
     ) -> None:
@@ -2010,7 +2009,7 @@ class TestConflictDetectionProperties:
             max_size=10,
         ),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_take_snapshot_never_raises(
         self, page_id: str, page: dict, blocks: list[dict]
     ) -> None:
@@ -2025,7 +2024,7 @@ class TestConflictDetectionProperties:
         t=_dt_st,
         etags=_etags_st,
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_changed_block_etag_triggers_conflict(
         self,
         page_id: str,
@@ -2049,7 +2048,7 @@ class TestConflictDetectionProperties:
         new_block_id=st.text(min_size=1, max_size=36),
         new_etag=st.text(min_size=1, max_size=30),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_extra_blocks_in_current_do_not_conflict_alone(
         self,
         page_id: str,
@@ -2075,7 +2074,7 @@ class TestConflictDetectionProperties:
         t=_dt_st,
         etags=_etags_st,
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_detect_conflict_is_reflexive(
         self, page_id: str, t: datetime, etags: dict
     ) -> None:
@@ -2094,7 +2093,7 @@ class TestConflictDetectionProperties:
             max_size=10,
         ),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_take_snapshot_captures_all_blocks_with_id_and_time(
         self, page_id: str, blocks: list[dict]
     ) -> None:
@@ -2179,7 +2178,7 @@ class TestRichTextBuilderProperties:
         inner_text=st.text(min_size=1, max_size=50),
         url=st.from_regex(r"https://[a-z]{3,10}\.[a-z]{2,4}/[a-z]{0,5}", fullmatch=True),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_link_token_sets_href(self, inner_text: str, url: str) -> None:
         """Text wrapped in a link token has href set to the link URL."""
         tokens = [{"type": "link", "attrs": {"url": url},
@@ -2278,7 +2277,7 @@ class TestDiffPlannerProperties:
             max_size=10,
         )
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_no_new_all_deletes(self, existing_blocks: list[dict]) -> None:
         """plan(existing, []) produces only DELETE operations."""
         planner = DiffPlanner(self._config)
@@ -2290,7 +2289,7 @@ class TestDiffPlannerProperties:
         existing_blocks=st.lists(_block_with_id_st, max_size=8),
         new_blocks=st.lists(_new_block_st, max_size=8),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_ops_account_for_all_blocks(
         self, existing_blocks: list[dict], new_blocks: list[dict]
     ) -> None:
@@ -2329,7 +2328,7 @@ class TestDiffPlannerProperties:
         existing_blocks=st.lists(_block_with_id_st, max_size=8),
         new_blocks=st.lists(_new_block_st, max_size=8),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_plan_never_raises(
         self, existing_blocks: list[dict], new_blocks: list[dict]
     ) -> None:
@@ -2348,7 +2347,7 @@ class TestDiffPlannerProperties:
             max_size=8,
         ),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_keep_ids_are_subset_of_existing(self, existing_blocks: list[dict]) -> None:
         """KEEP op IDs must reference IDs present in existing."""
         planner = DiffPlanner(self._config)
@@ -2961,7 +2960,7 @@ class TestAdditionalBlockTypeRendererProperties:
         text=st.text(max_size=200),
         depth=st.integers(min_value=0, max_value=4),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_toggle_block_never_raises(self, text: str, depth: int) -> None:
         """Toggle blocks with arbitrary rich_text always render."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -2977,7 +2976,7 @@ class TestAdditionalBlockTypeRendererProperties:
         url=st.text(max_size=200),
         file_type=st.sampled_from(["external", "file", ""]),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_file_block_never_raises(self, url: str, file_type: str) -> None:
         """File blocks with arbitrary URL and type fields always render."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -3053,7 +3052,7 @@ class TestAdditionalBlockTypeRendererProperties:
         url=st.text(max_size=300),
         caption=st.text(max_size=200),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_bookmark_block_never_raises(self, url: str, caption: str) -> None:
         """Bookmark blocks with arbitrary URL and caption always render."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -3097,7 +3096,7 @@ class TestRoundTripProperties:
         return result.blocks, md_out
 
     @given(text=st.text(min_size=0, max_size=2000))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_full_roundtrip_pipeline_never_raises(self, text: str) -> None:
         """The combined MD→Notion→MD pipeline must never raise on any input."""
         converter = MarkdownToNotionConverter(self._config)
@@ -3141,7 +3140,7 @@ class TestRoundTripProperties:
             max_size=8,
         ),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_bullet_list_survives_roundtrip(self, items: list[str]) -> None:
         """Bullet list items must round-trip as bulleted_list_item blocks."""
         cleaned = [i.strip() for i in items if i.strip()]
@@ -3165,7 +3164,7 @@ class TestRoundTripProperties:
             max_size=150,
         ),
     )
-    @settings(max_examples=80, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=80)
     def test_code_block_survives_roundtrip(self, lang: str, code: str) -> None:
         """Fenced code blocks must round-trip as code blocks."""
         md = f"```{lang}\n{code}\n```"
@@ -3182,7 +3181,7 @@ class TestRoundTripProperties:
             max_size=200,
         ),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_plain_paragraph_content_survives_roundtrip(self, content: str) -> None:
         """Plain text paragraphs must preserve their content through the round-trip."""
         text = content.strip()
@@ -3252,7 +3251,7 @@ class TestCalloutRenderingNeverRaiseProperties:
         text=st.text(max_size=300),
         depth=st.integers(min_value=0, max_value=5),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_callout_no_icon_never_raises(self, text: str, depth: int) -> None:
         """Callout without icon always renders."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -3266,7 +3265,7 @@ class TestCalloutRenderingNeverRaiseProperties:
         text=st.text(max_size=200),
         emoji=st.text(min_size=1, max_size=4),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_callout_emoji_icon_never_raises(self, text: str, emoji: str) -> None:
         """Callout with emoji icon (arbitrary emoji string) always renders."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -3286,7 +3285,7 @@ class TestCalloutRenderingNeverRaiseProperties:
         text=st.text(max_size=200),
         url=st.text(max_size=300),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_callout_external_icon_never_raises(self, text: str, url: str) -> None:
         """Callout with external URL icon always renders."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -3302,7 +3301,7 @@ class TestCalloutRenderingNeverRaiseProperties:
         assert isinstance(result, str)
 
     @given(text=st.text(max_size=200))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_callout_output_always_starts_with_blockquote(self, text: str) -> None:
         """The rendered callout always starts the first line with '>'."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -3312,7 +3311,7 @@ class TestCalloutRenderingNeverRaiseProperties:
         assert result.lstrip().startswith(">")
 
     @given(text=st.text(max_size=200))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_callout_always_ends_with_double_newline(self, text: str) -> None:
         """Callout rendering always ends with double newline."""
         renderer = NotionToMarkdownRenderer(self._config)
@@ -3342,7 +3341,7 @@ class TestLargeRichTextSegmentListProperties:
         ),
         limit=st.integers(min_value=100, max_value=2000),
     )
-    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=100)
     def test_large_list_total_char_count_preserved(self, texts: list[str], limit: int) -> None:
         """Total character count is preserved when splitting large segment arrays."""
         segs = [
@@ -3372,7 +3371,7 @@ class TestLargeRichTextSegmentListProperties:
             max_size=1000,
         ),
     )
-    @settings(max_examples=30, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=30)
     def test_large_list_never_raises(self, texts: list[str]) -> None:
         """split_rich_text with 100-1000 segments never raises."""
         segs = [
@@ -3846,7 +3845,7 @@ class TestTableRendererProperties:
         extra_cols=st.lists(st.text(alphabet=_SAFE_TEXT, max_size=30), min_size=0, max_size=4),
         has_column_header=st.booleans(),
     )
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_has_row_header_bolds_nonempty_first_cell(
         self, content: str, extra_cols: list[str], has_column_header: bool
     ) -> None:
@@ -3884,7 +3883,7 @@ class TestTableRendererProperties:
         content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50),
         extra_cols=st.lists(st.text(alphabet=_SAFE_TEXT, max_size=30), min_size=0, max_size=4),
     )
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_no_row_header_does_not_bold_first_cell(
         self, content: str, extra_cols: list[str]
     ) -> None:
@@ -3905,7 +3904,7 @@ class TestTableRendererProperties:
         has_row_header=st.booleans(),
         has_column_header=st.booleans(),
     )
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_table_render_never_raises(
         self,
         rows: list[list[str]],
@@ -3925,7 +3924,7 @@ class TestTableRendererProperties:
             max_size=6,
         ),
     )
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_table_always_has_gfm_separator(self, rows: list[list[str]]) -> None:
         """Every rendered table with at least one row must contain a GFM separator."""
         block = _make_table_block(rows)
@@ -3938,7 +3937,7 @@ class TestTableRendererProperties:
         row_count=st.integers(min_value=1, max_value=5),
         content=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=20),
     )
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_rendered_rows_have_correct_col_count(
         self, col_count: int, row_count: int, content: str
     ) -> None:
@@ -3973,7 +3972,7 @@ class TestExtractBlockIdsProperties:
     """Property-based tests for :func:`extract_block_ids`."""
 
     @given(results=st.lists(_result_with_id_st, min_size=0, max_size=20))
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_length_equals_results_with_id(
         self, results: list[dict]
     ) -> None:
@@ -3983,7 +3982,7 @@ class TestExtractBlockIdsProperties:
         assert len(ids) == len(results)
 
     @given(results=st.lists(_result_st, min_size=0, max_size=20))
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_results_without_id_are_filtered(
         self, results: list[dict]
     ) -> None:
@@ -3994,7 +3993,7 @@ class TestExtractBlockIdsProperties:
         assert ids == expected
 
     @given(results=st.lists(_result_with_id_st, min_size=0, max_size=20))
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_all_output_values_are_strings(
         self, results: list[dict]
     ) -> None:
@@ -4007,7 +4006,7 @@ class TestExtractBlockIdsProperties:
         assert extract_block_ids({}) == []
 
     @given(results=st.lists(_result_with_id_st, min_size=1, max_size=20))
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_order_preserved(self, results: list[dict]) -> None:
         """IDs appear in the same order as their source results."""
         ids = extract_block_ids({"results": results})
@@ -4037,7 +4036,7 @@ class TestStructuredFormatterProperties:
         )
 
     @given(msg=st.text(min_size=0, max_size=200))
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_output_is_always_valid_json(self, msg: str) -> None:
         """format() must always return a valid JSON string."""
         record = self._make_record(msg)
@@ -4046,7 +4045,7 @@ class TestStructuredFormatterProperties:
         assert isinstance(parsed, dict)
 
     @given(msg=st.text(min_size=0, max_size=200))
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_required_keys_always_present(self, msg: str) -> None:
         """Formatted output always has ts, level, logger, and message keys."""
         record = self._make_record(msg)
@@ -4062,7 +4061,7 @@ class TestStructuredFormatterProperties:
             max_size=5,
         ),
     )
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_extra_fields_merged_into_output(
         self, msg: str, extra: dict
     ) -> None:
@@ -4079,7 +4078,7 @@ class TestStructuredFormatterProperties:
             _logging.DEBUG, _logging.INFO, _logging.WARNING, _logging.ERROR,
         ]),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_level_name_matches_record(self, msg: str, level: int) -> None:
         """The 'level' field in the JSON matches the record's levelname."""
         record = self._make_record(msg, level=level)
@@ -4099,7 +4098,7 @@ class TestNoopMetricsHookProperties:
         name=st.text(min_size=1, max_size=50),
         value=st.integers(min_value=1, max_value=1000),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_increment_always_returns_none(self, name: str, value: int) -> None:
         """NoopMetricsHook.increment always returns None."""
         assert NoopMetricsHook().increment(name, value) is None
@@ -4108,7 +4107,7 @@ class TestNoopMetricsHookProperties:
         name=st.text(min_size=1, max_size=50),
         ms=st.floats(min_value=0.0, max_value=1e6, allow_nan=False),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_timing_always_returns_none(self, name: str, ms: float) -> None:
         """NoopMetricsHook.timing always returns None."""
         assert NoopMetricsHook().timing(name, ms) is None
@@ -4117,7 +4116,7 @@ class TestNoopMetricsHookProperties:
         name=st.text(min_size=1, max_size=50),
         value=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_gauge_always_returns_none(self, name: str, value: float) -> None:
         """NoopMetricsHook.gauge always returns None."""
         assert NoopMetricsHook().gauge(name, value) is None
@@ -4135,7 +4134,7 @@ class TestNotionifyErrorProperties:
         code=st.text(min_size=1, max_size=50),
         message=st.text(min_size=0, max_size=200),
     )
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_str_equals_message(self, code: str, message: str) -> None:
         """str(error) must equal the message argument."""
         err = NotionifyError(code, message)
@@ -4145,7 +4144,7 @@ class TestNotionifyErrorProperties:
         code=st.text(min_size=1, max_size=50),
         message=st.text(min_size=0, max_size=200),
     )
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_code_and_message_attributes(self, code: str, message: str) -> None:
         """error.code and error.message always match constructor arguments."""
         err = NotionifyError(code, message)
@@ -4156,7 +4155,7 @@ class TestNotionifyErrorProperties:
         code=st.text(min_size=1, max_size=50),
         message=st.text(min_size=0, max_size=200),
     )
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_context_defaults_to_empty_dict(self, code: str, message: str) -> None:
         """context defaults to an empty dict when not supplied."""
         err = NotionifyError(code, message)
@@ -4166,7 +4165,7 @@ class TestNotionifyErrorProperties:
         code=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
         message=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_pickle_roundtrip_preserves_code_and_message(
         self, code: str, message: str
     ) -> None:
@@ -4179,7 +4178,7 @@ class TestNotionifyErrorProperties:
     @given(
         message=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_validation_error_pickle_roundtrip(self, message: str) -> None:
         """Pickle round-trip preserves message for NotionifyValidationError."""
         err = NotionifyValidationError(message)
@@ -4190,7 +4189,7 @@ class TestNotionifyErrorProperties:
         code=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
         message=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_repr_contains_code_and_message(self, code: str, message: str) -> None:
         """repr(error) contains both code and message."""
         err = NotionifyError(code, message)
@@ -4201,7 +4200,7 @@ class TestNotionifyErrorProperties:
     @given(
         message=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_all_subclasses_are_instances_of_notionify_error(
         self, message: str
     ) -> None:
@@ -4226,7 +4225,7 @@ class TestNotionifyErrorProperties:
         code=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
         message=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=100),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_error_with_cause_has_cause_attr(
         self, code: str, message: str
     ) -> None:
@@ -4246,13 +4245,13 @@ class TestClassifyImageSourceProperties:
     """_classify_image_source always returns a valid ImageSourceType."""
 
     @given(suffix=st.text(alphabet=_SAFE_TEXT + "/.:?=#", min_size=1, max_size=50))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_data_uri_prefix_always_data_uri(self, suffix: str) -> None:
         """Any string starting with 'data:' is DATA_URI regardless of suffix."""
         assert _classify_image_source(f"data:{suffix}") == ImageSourceType.DATA_URI
 
     @given(path=st.text(alphabet=_SAFE_TEXT + "/.:?=#", min_size=1, max_size=50))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_http_https_scheme_always_external_url(self, path: str) -> None:
         """URLs with http or https scheme are EXTERNAL_URL."""
         assert _classify_image_source(f"http://{path}") == ImageSourceType.EXTERNAL_URL
@@ -4263,7 +4262,7 @@ class TestClassifyImageSourceProperties:
         assert _classify_image_source("") == ImageSourceType.UNKNOWN
 
     @given(url=st.text(min_size=0, max_size=80))
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_result_is_always_a_valid_image_source_type(self, url: str) -> None:
         """Result is always one of the four ImageSourceType enum members."""
         result = _classify_image_source(url)
@@ -4291,7 +4290,7 @@ class TestHasNonDefaultAnnotationsProperties:
         assert _has_non_default_annotations({flag: True}) is True
 
     @given(color=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_non_default_color_returns_true(self, color: str) -> None:
         """color != 'default' makes result True."""
         assume(color != "default")
@@ -4350,7 +4349,7 @@ class TestExtractPlainTextProperties:
             st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20), min_size=0, max_size=5
         ),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_result_is_always_a_string(self, block_type: str, texts: list[str]) -> None:
         """_extract_plain_text always returns a str, never raises."""
         rich_text = [{"plain_text": t} for t in texts]
@@ -4364,7 +4363,7 @@ class TestExtractPlainTextProperties:
             st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20), min_size=1, max_size=5
         ),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_plain_text_fields_are_concatenated(
         self, block_type: str, texts: list[str]
     ) -> None:
@@ -4377,7 +4376,7 @@ class TestExtractPlainTextProperties:
         block_type=st.sampled_from(["paragraph", "heading_1"]),
         content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_falls_back_to_text_content(self, block_type: str, content: str) -> None:
         """When plain_text absent, falls back to text.content."""
         rich_text = [{"text": {"content": content}}]
@@ -4430,7 +4429,7 @@ class TestCloneTextSegmentProperties:
         content=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=50),
         new_content=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=50),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_new_content_replaces_original(self, content: str, new_content: str) -> None:
         """Clone always carries new_content, not the original."""
         segment = {"type": "text", "text": {"content": content}}
@@ -4443,7 +4442,7 @@ class TestCloneTextSegmentProperties:
         bold=st.booleans(),
         italic=st.booleans(),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_annotations_are_deep_copied(
         self, content: str, new_content: str, bold: bool, italic: bool
     ) -> None:
@@ -4464,7 +4463,7 @@ class TestCloneTextSegmentProperties:
         new_content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
         href=st.text(alphabet=_SAFE_TEXT + "/.:?=#", min_size=1, max_size=50),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_href_is_preserved(self, content: str, new_content: str, href: str) -> None:
         """Clone always carries the href from the source segment."""
         segment = {"type": "text", "text": {"content": content}, "href": href}
@@ -4475,7 +4474,7 @@ class TestCloneTextSegmentProperties:
         content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
         new_content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_no_annotations_key_when_original_has_none(
         self, content: str, new_content: str
     ) -> None:
@@ -4497,7 +4496,7 @@ class TestTruncateSrcProperties:
         src=st.text(min_size=0, max_size=300),
         max_len=st.integers(min_value=1, max_value=200),
     )
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_result_never_exceeds_max_len_plus_three(
         self, src: str, max_len: int
     ) -> None:
@@ -4508,7 +4507,7 @@ class TestTruncateSrcProperties:
         assert len(result) <= max_len + 3
 
     @given(src=st.text(min_size=0, max_size=100))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_short_strings_returned_unchanged(self, src: str) -> None:
         """Strings at or below the default 200-char limit are unchanged."""
         from notionify.image.validate import _truncate_src
@@ -4517,7 +4516,7 @@ class TestTruncateSrcProperties:
         assert _truncate_src(src) == src
 
     @given(extra=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_truncated_strings_end_with_ellipsis(self, extra: str) -> None:
         """Strings exceeding the limit always end with '...'."""
         from notionify.image.validate import _truncate_src
@@ -4541,7 +4540,7 @@ class TestNormalizeRichTextProperties:
             st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20), min_size=0, max_size=5
         ),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_output_length_equals_rich_text_input_length(
         self, block_type: str, texts: list[str]
     ) -> None:
@@ -4557,7 +4556,7 @@ class TestNormalizeRichTextProperties:
             st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=20), min_size=1, max_size=5
         ),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_every_segment_has_text_key(
         self, block_type: str, texts: list[str]
     ) -> None:
@@ -4573,7 +4572,7 @@ class TestNormalizeRichTextProperties:
         text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
         bold=st.booleans(),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_annotations_preserved_when_present(
         self, block_type: str, text: str, bold: bool
     ) -> None:
@@ -4600,21 +4599,21 @@ class TestMakeTextSegmentProperties:
     """_make_text_segment structure and annotation-elision invariants."""
 
     @given(content=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=50))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_type_is_always_text(self, content: str) -> None:
         """Segment type is always 'text'."""
         seg = _make_text_segment(content, {})
         assert seg["type"] == "text"
 
     @given(content=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=50))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_content_equals_input(self, content: str) -> None:
         """text.content always equals the input content string."""
         seg = _make_text_segment(content, {})
         assert seg["text"]["content"] == content
 
     @given(content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_all_default_annotations_elided(self, content: str) -> None:
         """When all annotations are default, no 'annotations' key is emitted."""
         default_annots = {
@@ -4632,7 +4631,7 @@ class TestMakeTextSegmentProperties:
         content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
         flag=st.sampled_from(["bold", "italic", "strikethrough", "underline", "code"]),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_non_default_annotation_included(self, content: str, flag: str) -> None:
         """When any annotation is non-default, 'annotations' key is emitted."""
         annots = {flag: True}
@@ -4643,7 +4642,7 @@ class TestMakeTextSegmentProperties:
         content=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30),
         href=st.text(alphabet=_SAFE_TEXT + "/.:?=#", min_size=1, max_size=50),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_href_included_when_truthy(self, content: str, href: str) -> None:
         """href is included in segment when truthy."""
         seg = _make_text_segment(content, {}, href=href)
@@ -4711,21 +4710,21 @@ class TestSanitizeCommentProperties:
     """_sanitize_comment never leaves bare '--' in output."""
 
     @given(text=st.text(min_size=0, max_size=100))
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_result_never_contains_bare_double_dash(self, text: str) -> None:
         """Result must never contain the literal '--' sequence."""
         result = _sanitize_comment(text)
         assert "--" not in result
 
     @given(text=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=50))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_text_without_dashes_unchanged(self, text: str) -> None:
         """Text with no dashes passes through unchanged."""
         result = _sanitize_comment(text)
         assert result == text
 
     @given(text=st.text(min_size=0, max_size=100))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_result_length_at_least_input_length(self, text: str) -> None:
         """Escaping only adds characters; result is never shorter than input."""
         result = _sanitize_comment(text)
@@ -4741,14 +4740,14 @@ class TestNotionUrlProperties:
     """_notion_url always produces a well-formed Notion URL."""
 
     @given(block_id=st.text(alphabet=_SAFE_TEXT + "-", min_size=1, max_size=40))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_url_starts_with_notion_prefix(self, block_id: str) -> None:
         """All URLs start with 'https://notion.so/'."""
         url = _notion_url(block_id)
         assert url.startswith("https://notion.so/")
 
     @given(block_id=st.text(alphabet=_SAFE_TEXT + "-", min_size=1, max_size=40))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_dashes_are_stripped_from_id(self, block_id: str) -> None:
         """Dashes in block_id are removed from the URL path."""
         url = _notion_url(block_id)
@@ -4779,7 +4778,7 @@ class TestExtractTypeAttrsProperties:
     @given(
         expression=st.text(alphabet=_SAFE_TEXT + r"^+=\/*(){}[]", min_size=0, max_size=50)
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_equation_block_always_has_expression_key(self, expression: str) -> None:
         """For 'equation' blocks, output always contains 'expression'."""
         block = {"equation": {"expression": expression}}
@@ -4788,7 +4787,7 @@ class TestExtractTypeAttrsProperties:
         assert result["expression"] == expression
 
     @given(url=st.text(alphabet=_SAFE_TEXT + "/.:?=#", min_size=1, max_size=80))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_image_external_type_includes_url(self, url: str) -> None:
         """For 'image' blocks with type='external', attrs includes 'url'."""
         block = {"image": {"type": "external", "external": {"url": url}}}
@@ -4826,7 +4825,7 @@ class TestExtractTextProperties:
         assert extract_text([]) == ""
 
     @given(raw=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_single_text_token_returns_raw(self, raw: str) -> None:
         """A single text token returns its 'raw' value."""
         tokens = [{"type": "text", "raw": raw}]
@@ -4839,21 +4838,21 @@ class TestExtractTextProperties:
             max_size=5,
         )
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_multiple_text_tokens_are_concatenated(self, parts: list[str]) -> None:
         """Multiple text tokens produce their raw values joined."""
         tokens = [{"type": "text", "raw": p} for p in parts]
         assert extract_text(tokens) == "".join(parts)
 
     @given(raw=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_nested_children_are_recursed(self, raw: str) -> None:
         """Tokens with 'children' are recursed into."""
         tokens = [{"type": "strong", "children": [{"type": "text", "raw": raw}]}]
         assert extract_text(tokens) == raw
 
     @given(raw=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_non_text_token_with_raw_uses_raw(self, raw: str) -> None:
         """Non-text tokens without children but with 'raw' use their raw value."""
         tokens = [{"type": "softline", "raw": raw}]
@@ -4869,13 +4868,13 @@ class TestLooksBinaryProperties:
     """_looks_binary returns False for short and printable strings."""
 
     @given(text=st.text(min_size=0, max_size=255))
-    @settings(max_examples=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=300)
     def test_short_strings_never_binary(self, text: str) -> None:
         """Strings shorter than 256 chars always return False."""
         assert _looks_binary(text) is False
 
     @given(text=st.text(alphabet=_SAFE_TEXT, min_size=256, max_size=600))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_pure_printable_long_strings_not_binary(self, text: str) -> None:
         """Long strings of pure printable ASCII are not considered binary."""
         assert _looks_binary(text) is False
@@ -4894,7 +4893,7 @@ class TestMaskTokenProperties:
         suffix=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=20),
         token=st.text(alphabet=_SAFE_TEXT, min_size=5, max_size=30),
     )
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_token_not_present_in_result(
         self, prefix: str, suffix: str, token: str
     ) -> None:
@@ -4912,7 +4911,7 @@ class TestMaskTokenProperties:
         assert token not in result
 
     @given(path=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=30))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_bearer_pattern_is_redacted(self, path: str) -> None:
         """'Bearer <token>' patterns are replaced regardless of token argument."""
         value = f"Bearer {path}"
@@ -4920,7 +4919,7 @@ class TestMaskTokenProperties:
         assert "Bearer <redacted>" in result
 
     @given(text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_no_bearer_no_token_unchanged(self, text: str) -> None:
         """Strings without Bearer patterns and no token pass through unchanged."""
         result = _mask_token(text, None)
@@ -4936,7 +4935,7 @@ class TestEstimateDataUriBytesProperties:
     """_estimate_data_uri_bytes always returns a non-negative integer."""
 
     @given(data=st.binary(min_size=0, max_size=200))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_valid_base64_uri_returns_exact_byte_count(self, data: bytes) -> None:
         """For a syntactically valid base64 data URI, returns len(decoded_bytes)."""
         import base64 as _b64
@@ -4948,7 +4947,7 @@ class TestEstimateDataUriBytesProperties:
         assert _estimate_data_uri_bytes(uri) == len(data)
 
     @given(text=st.text(alphabet=_SAFE_TEXT, min_size=0, max_size=100))
-    @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=200)
     def test_result_always_non_negative(self, text: str) -> None:
         """Result is always >= 0 for any input string."""
         from notionify.utils.redact import _estimate_data_uri_bytes
