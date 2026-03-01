@@ -909,6 +909,33 @@ class TestMediaBlockRendering:
         assert "[Video]" in md
         assert "()" in md
 
+    def test_video_with_caption(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "video",
+            "video": {
+                "type": "external",
+                "external": {"url": "https://youtube.com/v/123"},
+                "caption": [_make_text_segment("Tutorial video")],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "[Video]" in md
+        assert "> Tutorial video" in md
+
+    def test_audio_without_caption_no_blockquote(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "audio",
+            "audio": {
+                "type": "file",
+                "file": {"url": "https://cdn.example.com/sound.mp3"},
+                "caption": [],
+            },
+        }
+        md = r.render_blocks([block])
+        assert ">" not in md
+
     def test_pdf_file_upload_renders_empty_url(self):
         r = NotionToMarkdownRenderer(make_config())
         block = {

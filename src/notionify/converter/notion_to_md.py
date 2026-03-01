@@ -530,7 +530,14 @@ class NotionToMarkdownRenderer:
 
         label = _MEDIA_TYPES.get(block_type, block_type.capitalize())
         escaped_url = markdown_escape(url, "url")
-        return f"[{label}]({escaped_url})\n\n"
+        result = f"[{label}]({escaped_url})"
+
+        caption_segments = block_data.get("caption", [])
+        caption = render_rich_text(caption_segments) if caption_segments else ""
+        if caption:
+            result += f"\n> {caption}"
+
+        return result + "\n\n"
 
     def _render_passthrough(self, block: dict[str, Any], depth: int) -> str:
         """Render layout wrappers by concatenating their children."""
