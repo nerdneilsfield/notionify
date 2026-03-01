@@ -113,6 +113,16 @@ class TestParseContentType:
         resp = httpx.Response(200, content=b"data")
         assert _parse_content_type(resp) == "application/octet-stream"
 
+    def test_empty_content_type_defaults(self):
+        """Empty Content-Type header falls back to application/octet-stream."""
+        resp = _fake_response(content_type="")
+        assert _parse_content_type(resp) == "application/octet-stream"
+
+    def test_semicolon_only_content_type_defaults(self):
+        """Malformed ';charset=utf-8' falls back to application/octet-stream."""
+        resp = _fake_response(content_type=";charset=utf-8")
+        assert _parse_content_type(resp) == "application/octet-stream"
+
 
 # =========================================================================
 # Sync download

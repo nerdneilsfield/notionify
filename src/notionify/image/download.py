@@ -48,7 +48,8 @@ def _build_headers(config: NotionifyConfig) -> dict[str, str]:
 def _parse_content_type(response: httpx.Response) -> str:
     """Extract the MIME type from the Content-Type header."""
     raw: str = response.headers.get("content-type", "application/octet-stream")
-    return raw.split(";")[0].strip()
+    mime = raw.split(";")[0].strip()
+    return mime or "application/octet-stream"
 
 
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
