@@ -1480,6 +1480,14 @@ class TestLocalFileImageFallbackPaths:
         assert result.blocks == []
         assert any(w.code == "IMAGE_SKIPPED" for w in result.warnings)
 
+    def test_image_skipped_warning_context_includes_fallback(self):
+        """IMAGE_SKIPPED warning context includes fallback='skip'."""
+        c = MarkdownToNotionConverter(make_config(image_upload=False, image_fallback="skip"))
+        result = c.convert("![alt](/path/to/image.png)")
+        skipped = [w for w in result.warnings if w.code == "IMAGE_SKIPPED"]
+        assert skipped
+        assert skipped[0].context.get("fallback") == "skip"
+
     def test_local_file_upload_disabled_fallback_placeholder(self):
         """Local file image with upload=False and fallback='placeholder'
         produces a paragraph block with placeholder text (lines 657-660).
@@ -1492,6 +1500,14 @@ class TestLocalFileImageFallbackPaths:
         content = block["paragraph"]["rich_text"][0]["text"]["content"]
         assert content == "[image: my alt text]"
         assert any(w.code == "IMAGE_PLACEHOLDER" for w in result.warnings)
+
+    def test_image_placeholder_warning_context_includes_fallback(self):
+        """IMAGE_PLACEHOLDER warning context includes fallback='placeholder'."""
+        c = MarkdownToNotionConverter(make_config(image_upload=False, image_fallback="placeholder"))
+        result = c.convert("![my alt text](/images/photo.jpg)")
+        placeholder = [w for w in result.warnings if w.code == "IMAGE_PLACEHOLDER"]
+        assert placeholder
+        assert placeholder[0].context.get("fallback") == "placeholder"
 
     def test_local_file_without_alt_placeholder_uses_url(self):
         """Local file image with no alt text uses URL in placeholder text."""

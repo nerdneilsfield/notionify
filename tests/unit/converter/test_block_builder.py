@@ -493,6 +493,35 @@ class TestNestingDepthGuard:
         assert len(depth_warnings) >= 1
         assert "8" in depth_warnings[0].message
 
+    def test_nesting_depth_warning_includes_parent_type_bulleted(self):
+        """NESTING_DEPTH_EXCEEDED warning context includes parent_type for bulleted lists."""
+        token = self._make_nested_list(9)  # ordered=False → bulleted_list_item
+        _, _, warnings = build_blocks([token], _config())
+        depth_warnings = [w for w in warnings if w.code == "NESTING_DEPTH_EXCEEDED"]
+        assert len(depth_warnings) >= 1
+        assert depth_warnings[0].context.get("parent_type") == "bulleted_list_item"
+
+    def test_nesting_depth_warning_includes_parent_type_numbered(self):
+        """NESTING_DEPTH_EXCEEDED warning context includes parent_type for numbered lists."""
+        # Build 9-level deep ordered list
+        inner: dict = {
+            "type": "list_item",
+            "children": [{"type": "paragraph", "children": [{"type": "text", "raw": "leaf"}]}],
+        }
+        for _ in range(8):
+            inner = {
+                "type": "list_item",
+                "children": [
+                    {"type": "paragraph", "children": [{"type": "text", "raw": "item"}]},
+                    {"type": "list", "attrs": {"ordered": True}, "children": [inner]},
+                ],
+            }
+        token = {"type": "list", "attrs": {"ordered": True}, "children": [inner]}
+        _, _, warnings = build_blocks([token], _config())
+        depth_warnings = [w for w in warnings if w.code == "NESTING_DEPTH_EXCEEDED"]
+        assert len(depth_warnings) >= 1
+        assert depth_warnings[0].context.get("parent_type") == "numbered_list_item"
+
     def test_nesting_at_limit_flattens(self):
         """Items beyond the depth limit should NOT appear as nested children."""
         token = self._make_nested_list(9)
@@ -546,6 +575,30 @@ class TestNestingDepthGuard:
         blocks, _, warnings = build_blocks([token], _config())
         depth_warnings = [w for w in warnings if w.code == "NESTING_DEPTH_EXCEEDED"]
         assert len(depth_warnings) >= 1
+
+    def test_task_list_nesting_depth_warning_includes_parent_type(self):
+        """NESTING_DEPTH_EXCEEDED from task lists includes parent_type='to_do'."""
+        inner: dict = {
+            "type": "task_list_item",
+            "attrs": {"checked": False},
+            "children": [
+                {"type": "paragraph", "children": [{"type": "text", "raw": "deep task"}]}
+            ],
+        }
+        for _ in range(8):
+            inner = {
+                "type": "task_list_item",
+                "attrs": {"checked": False},
+                "children": [
+                    {"type": "paragraph", "children": [{"type": "text", "raw": "task"}]},
+                    {"type": "list", "attrs": {"ordered": False}, "children": [inner]},
+                ],
+            }
+        token = {"type": "list", "attrs": {"ordered": False}, "children": [inner]}
+        _, _, warnings = build_blocks([token], _config())
+        depth_warnings = [w for w in warnings if w.code == "NESTING_DEPTH_EXCEEDED"]
+        assert len(depth_warnings) >= 1
+        assert depth_warnings[0].context.get("parent_type") == "to_do"
 
 
 # =========================================================================

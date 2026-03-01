@@ -418,6 +418,7 @@ def _build_list_item(
                     f"Nesting depth exceeds {_MAX_NESTING_DEPTH} levels; "
                     "nested items flattened.",
                     depth=depth + 1,
+                    parent_type=block_type,
                 )
             else:
                 # Nested list: build child items in a separate context so
@@ -475,6 +476,7 @@ def _build_task_list_item(
                     f"Nesting depth exceeds {_MAX_NESTING_DEPTH} levels; "
                     "nested items flattened.",
                     depth=depth + 1,
+                    parent_type="to_do",
                 )
             else:
                 nested_ctx = _BuildContext(ctx.config)
@@ -639,6 +641,7 @@ def _apply_image_fallback(
             "IMAGE_SKIPPED",
             f"Image was skipped: {url}",
             src=url,
+            fallback="skip",
         )
         return []
 
@@ -659,6 +662,7 @@ def _apply_image_fallback(
             "IMAGE_PLACEHOLDER",
             f"Image replaced with placeholder: {url}",
             src=url,
+            fallback="placeholder",
         )
         return [block]
 
