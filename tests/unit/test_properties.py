@@ -627,7 +627,10 @@ class TestRedactProperties:
         payload=st.fixed_dictionaries({
             "data": st.text(max_size=100),
         }),
-        token=st.from_regex(r"ntn_[a-zA-Z0-9]{10,40}", fullmatch=True),
+        token=st.builds(
+            "ntn_{}".format,
+            st.text(alphabet=string.ascii_letters + string.digits, min_size=10, max_size=40),
+        ),
     )
     def test_token_scrubbed_from_values(
         self, payload: dict, token: str
@@ -702,9 +705,10 @@ class TestMarkdownParseProperties:
             assert "type" in token
 
     @given(
-        text=st.from_regex(
-            r"#{1,6} [A-Za-z0-9 ]+\n",
-            fullmatch=True,
+        text=st.builds(
+            lambda hashes, body: f"{hashes} {body}\n",
+            st.text(alphabet="#", min_size=1, max_size=6),
+            st.text(alphabet=string.ascii_letters + string.digits + " ", min_size=1, max_size=30),
         ),
     )
     @settings(max_examples=100)
@@ -718,9 +722,10 @@ class TestMarkdownParseProperties:
         assert "heading" in types
 
     @given(
-        text=st.from_regex(
-            r"```[a-z]*\n[A-Za-z0-9 \n]+\n```\n",
-            fullmatch=True,
+        text=st.builds(
+            lambda lang, body: f"```{lang}\n{body}\n```\n",
+            st.text(alphabet=string.ascii_lowercase, max_size=10),
+            st.text(alphabet=string.ascii_letters + string.digits + " \n", min_size=1, max_size=50),
         ),
     )
     @settings(max_examples=100)
@@ -1267,7 +1272,11 @@ class TestInlineRendererProperties:
 
     @given(
         text=st.text(alphabet=_SAFE_TEXT, min_size=1, max_size=50),
-        url=st.from_regex(r"https://[a-z]{3,10}\.com/[a-z]{0,10}", fullmatch=True),
+        url=st.builds(
+            "https://{}.com/{}".format,
+            st.text(alphabet=string.ascii_lowercase, min_size=3, max_size=10),
+            st.text(alphabet=string.ascii_lowercase, max_size=10),
+        ),
     )
     @settings(max_examples=200)
     def test_href_produces_markdown_link(self, text: str, url: str) -> None:
@@ -1582,7 +1591,11 @@ class TestImageDetectProperties:
         assert result == ImageSourceType.DATA_URI
 
     @given(
-        host=st.from_regex(r"[a-zA-Z0-9][a-zA-Z0-9.-]{0,50}", fullmatch=True),
+        host=st.builds(
+            lambda c, rest: c + rest,
+            st.text(alphabet=string.ascii_letters + string.digits, min_size=1, max_size=1),
+            st.text(alphabet=string.ascii_letters + string.digits + ".-", max_size=50),
+        ),
         path=st.text(
             alphabet="abcdefghijklmnopqrstuvwxyz0123456789/-_.",
             max_size=30,
@@ -1595,7 +1608,11 @@ class TestImageDetectProperties:
         assert result == ImageSourceType.EXTERNAL_URL
 
     @given(
-        host=st.from_regex(r"[a-zA-Z0-9][a-zA-Z0-9.-]{0,50}", fullmatch=True),
+        host=st.builds(
+            lambda c, rest: c + rest,
+            st.text(alphabet=string.ascii_letters + string.digits, min_size=1, max_size=1),
+            st.text(alphabet=string.ascii_letters + string.digits + ".-", max_size=50),
+        ),
         path=st.text(
             alphabet="abcdefghijklmnopqrstuvwxyz0123456789/-_.",
             max_size=30,
@@ -2176,7 +2193,12 @@ class TestRichTextBuilderProperties:
 
     @given(
         inner_text=st.text(min_size=1, max_size=50),
-        url=st.from_regex(r"https://[a-z]{3,10}\.[a-z]{2,4}/[a-z]{0,5}", fullmatch=True),
+        url=st.builds(
+            "https://{}.{}/{}".format,
+            st.text(alphabet=string.ascii_lowercase, min_size=3, max_size=10),
+            st.text(alphabet=string.ascii_lowercase, min_size=2, max_size=4),
+            st.text(alphabet=string.ascii_lowercase, max_size=5),
+        ),
     )
     @settings(max_examples=100)
     def test_link_token_sets_href(self, inner_text: str, url: str) -> None:
@@ -5356,7 +5378,11 @@ class TestValidateMimeListProperties:
 
     @given(
         mimes=st.lists(
-            st.from_regex(r"[a-z]+/[a-z]+", fullmatch=True),
+            st.builds(
+                "{}/{}".format,
+                st.text(alphabet=string.ascii_lowercase, min_size=1, max_size=10),
+                st.text(alphabet=string.ascii_lowercase, min_size=1, max_size=10),
+            ),
             min_size=1,
             max_size=5,
         )
@@ -5381,7 +5407,11 @@ class TestValidateMimeListProperties:
 
     @given(
         valid_mimes=st.lists(
-            st.from_regex(r"[a-z]+/[a-z]+", fullmatch=True),
+            st.builds(
+                "{}/{}".format,
+                st.text(alphabet=string.ascii_lowercase, min_size=1, max_size=10),
+                st.text(alphabet=string.ascii_lowercase, min_size=1, max_size=10),
+            ),
             min_size=1,
             max_size=4,
         ),
@@ -7148,7 +7178,10 @@ class TestValidateImageProperties:
             )
         assert "detected_mime" in exc_info.value.context
 
-    @given(url=st.from_regex(r"https://example\.com/img\.(jpg|png|gif|webp)", fullmatch=True))
+    @given(url=st.builds(
+        "https://example.com/img.{}".format,
+        st.sampled_from(["jpg", "png", "gif", "webp"]),
+    ))
     @settings(max_examples=100)
     def test_known_image_extensions_always_pass_validation(self, url: str) -> None:
         """URLs with known image extensions never raise TypeError."""
@@ -8115,7 +8148,11 @@ class TestBuildHeadersProperties:
 class TestParseContentTypeProperties:
     """_parse_content_type always returns a clean MIME type string."""
 
-    @given(mime=st.from_regex(r"[a-z]+/[a-z0-9.+-]+", fullmatch=True),
+    @given(mime=st.builds(
+               "{}/{}".format,
+               st.text(alphabet=string.ascii_lowercase, min_size=1, max_size=10),
+               st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789.+-", min_size=1, max_size=15),
+           ),
            params=st.text(max_size=30, alphabet=string.ascii_letters + "=; "))
     @settings(max_examples=100)
     def test_params_stripped(self, mime: str, params: str) -> None:
