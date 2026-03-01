@@ -864,6 +864,13 @@ class TestPassthroughBlocks:
         md = r.render_blocks(blocks)
         assert "inner" in md
 
+    def test_template_passthrough(self):
+        r = NotionToMarkdownRenderer(make_config())
+        inner = make_paragraph([_make_text_segment("templated content")])
+        blocks = [{"type": "template", "template": {}, "children": [inner]}]
+        md = r.render_blocks(blocks)
+        assert "templated content" in md
+
 
 class TestUnderlineRendering:
     """Underline renders as <u>text</u>."""
