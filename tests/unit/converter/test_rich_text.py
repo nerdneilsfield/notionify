@@ -399,6 +399,32 @@ class TestBuildRichTextInlineMathList:
         assert result[1]["text"]["content"] == "=mc^2"
 
 
+class TestInlineMathInsideLink:
+    """Inline math inside a link must carry the link's href."""
+
+    def test_equation_inside_link_gets_href(self):
+        """[$E=mc^2$](url) should produce an equation segment with href."""
+        tokens = [{
+            "type": "link",
+            "attrs": {"url": "https://example.com"},
+            "children": [{"type": "inline_math", "raw": "E=mc^2"}],
+        }]
+        config = make_config(math_strategy="equation")
+        result = build_rich_text(tokens, config)
+        assert len(result) == 1
+        assert result[0]["type"] == "equation"
+        assert result[0]["equation"]["expression"] == "E=mc^2"
+        assert result[0]["href"] == "https://example.com"
+
+    def test_equation_without_link_has_no_href(self):
+        """Standalone $E=mc^2$ should NOT have an href key."""
+        tokens = [{"type": "inline_math", "raw": "E=mc^2"}]
+        config = make_config(math_strategy="equation")
+        result = build_rich_text(tokens, config)
+        assert len(result) == 1
+        assert "href" not in result[0]
+
+
 class TestBuildRichTextUnknownInline:
     """Unknown inline token types emit UNKNOWN_INLINE warning."""
 

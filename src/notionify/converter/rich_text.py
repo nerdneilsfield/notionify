@@ -224,6 +224,9 @@ def _handle_inline_math(
     math_segs, math_warnings = build_inline_math(expression, config)
     if warnings is not None:
         warnings.extend(math_warnings)
+    if href:
+        for seg in math_segs:
+            seg["href"] = href
     return math_segs
 
 
