@@ -827,7 +827,7 @@ class TestDataUriUrlEncoded:
         from notionify.image.validate import _parse_data_uri
         src = "data:text/plain,hello"
         with (
-            patch("urllib.parse.unquote_to_bytes", side_effect=ValueError("bad")),
+            patch("notionify.image.validate.unquote_to_bytes", side_effect=ValueError("bad")),
             pytest.raises(NotionifyImageParseError) as exc_info,
         ):
             _parse_data_uri(src)

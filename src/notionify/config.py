@@ -15,6 +15,7 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass, field
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 # ---------------------------------------------------------------------------
 # MIME allowlist constants
@@ -286,8 +287,6 @@ class NotionifyConfig:
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
-        from urllib.parse import urlparse
-
         parsed = urlparse(self.base_url)
         if parsed.scheme == "http" and parsed.hostname not in (
             "localhost",

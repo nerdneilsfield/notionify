@@ -562,18 +562,8 @@ class TestDataUriUrlDecodeError:
         """Lines 194-195: When unquote_to_bytes raises, NotionifyImageParseError is raised."""
         from notionify.image.validate import _parse_data_uri
 
-        # A non-base64 data URI that will trigger the URL decode path
-        # We patch unquote_to_bytes to raise an exception
-        with patch("notionify.image.validate.unquote_to_bytes" if hasattr(
-            __import__("notionify.image.validate", fromlist=["unquote_to_bytes"]),
-            "unquote_to_bytes",
-        ) else "urllib.parse.unquote_to_bytes") as _:
-            # Actually, unquote_to_bytes is imported inside the function.
-            # We need to patch it where it is used.
-            pass
-
-        # Approach: patch urllib.parse.unquote_to_bytes at module level during call
-        with patch("urllib.parse.unquote_to_bytes", side_effect=ValueError("decode error")):
+        target = "notionify.image.validate.unquote_to_bytes"
+        with patch(target, side_effect=ValueError("decode error")):
             # A data URI without base64 encoding triggers URL decode path
             src = "data:image/svg+xml,%3Csvg%3E"
             with pytest.raises(NotionifyImageParseError) as exc_info:

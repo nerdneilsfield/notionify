@@ -14,12 +14,14 @@ that need uploading, and any non-fatal warnings.
 
 from __future__ import annotations
 
+import json
 import sys
 
 from notionify.config import NotionifyConfig
 from notionify.converter.ast_normalizer import ASTNormalizer
 from notionify.converter.block_builder import build_blocks
 from notionify.models import ConversionResult
+from notionify.utils.redact import redact
 
 
 class MarkdownToNotionConverter:
@@ -66,7 +68,6 @@ class MarkdownToNotionConverter:
 
         # Debug: dump normalized AST
         if self._config.debug_dump_ast:
-            import json
             print(
                 "[notionify] Normalized AST:",
                 json.dumps(tokens, indent=2, ensure_ascii=False),
@@ -78,9 +79,6 @@ class MarkdownToNotionConverter:
 
         # Debug: dump redacted payload
         if self._config.debug_dump_payload:
-            import json
-
-            from notionify.utils.redact import redact
             safe = redact({"blocks": blocks}, self._config.token)
             print(
                 "[notionify] Notion blocks payload:",

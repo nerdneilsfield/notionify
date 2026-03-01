@@ -33,6 +33,7 @@ from notionify.errors import (
     NotionifyValidationError,
 )
 from notionify.observability import NoopMetricsHook, get_logger
+from notionify.utils.redact import redact
 
 from .rate_limit import AsyncTokenBucket, TokenBucket
 from .retries import _RETRYABLE_STATUSES, compute_backoff, should_retry
@@ -131,8 +132,6 @@ def _dump_payload(
     token: str | None = None,
 ) -> None:
     """Write a redacted debug dump of the request/response to stderr."""
-    from notionify.utils.redact import redact
-
     dump: dict[str, Any] = {
         "method": method,
         "url": url,

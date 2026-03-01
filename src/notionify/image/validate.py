@@ -11,6 +11,7 @@ import base64
 import binascii
 import mimetypes
 import re
+from urllib.parse import unquote_to_bytes
 
 from notionify.config import NotionifyConfig
 from notionify.errors import (
@@ -199,7 +200,6 @@ def _parse_data_uri(src: str) -> tuple[str, bytes]:
     else:
         # URL-encoded or plain text data.
         try:
-            from urllib.parse import unquote_to_bytes
             decoded = unquote_to_bytes(raw_data)
         except (ValueError, UnicodeDecodeError) as exc:
             raise NotionifyImageParseError(
