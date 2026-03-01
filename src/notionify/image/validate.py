@@ -180,7 +180,11 @@ def _parse_data_uri(src: str) -> tuple[str, bytes]:
         if estimated_size > _DATA_URI_MAX_BYTES:
             raise NotionifyImageSizeError(
                 message=f"Data URI too large (estimated {estimated_size} bytes)",
-                context={"src": _truncate_src(src), "estimated_bytes": estimated_size},
+                context={
+                    "src": _truncate_src(src),
+                    "size_bytes": estimated_size,
+                    "max_bytes": _DATA_URI_MAX_BYTES,
+                },
             )
         try:
             decoded = base64.b64decode(raw_data, validate=True)

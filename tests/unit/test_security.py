@@ -492,14 +492,16 @@ class TestDataURISizePrecheck:
         with pytest.raises(NotionifyImageSizeError, match="too large"):
             _parse_data_uri(src)
 
-    def test_huge_data_uri_has_estimated_bytes_in_context(self):
-        """The error context should include the estimated byte count."""
+    def test_huge_data_uri_has_size_context(self):
+        """The error context includes size_bytes and max_bytes."""
         huge_b64 = "A" * 28_000_000
         src = f"data:image/png;base64,{huge_b64}"
         with pytest.raises(NotionifyImageSizeError) as exc_info:
             _parse_data_uri(src)
-        assert "estimated_bytes" in exc_info.value.context
-        assert exc_info.value.context["estimated_bytes"] > 20 * 1024 * 1024
+        assert "size_bytes" in exc_info.value.context
+        assert exc_info.value.context["size_bytes"] > 20 * 1024 * 1024
+        assert "max_bytes" in exc_info.value.context
+        assert exc_info.value.context["max_bytes"] == 20 * 1024 * 1024
 
     def test_validate_image_propagates_size_precheck(self):
         """validate_image raises NotionifyImageSizeError for an oversized

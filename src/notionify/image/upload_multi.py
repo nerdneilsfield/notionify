@@ -63,9 +63,15 @@ def upload_multi(
         if part_number <= len(upload_urls):
             part_url = upload_urls[part_number - 1]["upload_url"]
         else:
-            # If the API doesn't pre-generate enough URLs, use the base
-            # pattern.  This is a defensive fallback.
-            part_url = f"{upload.get('upload_url', '')}"
+            # Defensive fallback: use the base upload URL if individual
+            # part URLs are not provided.
+            part_url = upload.get("upload_url") or ""
+            if not part_url:
+                msg = (
+                    f"Upload {upload_id} has no upload_url and insufficient "
+                    f"upload_urls (need {part_number}, have {len(upload_urls)})"
+                )
+                raise ValueError(msg)
 
         result = file_api.send_part(part_url, chunk, content_type)
 
@@ -129,7 +135,13 @@ async def async_upload_multi(
         if part_number <= len(upload_urls):
             part_url = upload_urls[part_number - 1]["upload_url"]
         else:
-            part_url = f"{upload.get('upload_url', '')}"
+            part_url = upload.get("upload_url") or ""
+            if not part_url:
+                msg = (
+                    f"Upload {upload_id} has no upload_url and insufficient "
+                    f"upload_urls (need {part_number}, have {len(upload_urls)})"
+                )
+                raise ValueError(msg)
 
         result = await file_api.send_part(part_url, chunk, content_type)
 

@@ -100,19 +100,16 @@ class TestUploadMultiSync:
             "https://s3/fallback", data, "image/png"
         )
 
-    def test_fallback_url_missing_entirely(self):
-        """Neither upload_urls nor upload_url → fallback URL is empty string."""
+    def test_fallback_url_missing_entirely_raises(self):
+        """Neither upload_urls nor upload_url → raises ValueError."""
         file_api = MagicMock()
         data = b"z"
         file_api.create_upload.return_value = {"id": "upload-4"}
-        file_api.send_part.return_value = {}
-        file_api.complete_upload.return_value = {}
 
-        result = upload_multi(file_api, "g.png", "image/png", data)
+        with pytest.raises(ValueError, match="no upload_url"):
+            upload_multi(file_api, "g.png", "image/png", data)
 
-        assert result == "upload-4"
-        # send_part called with empty string URL
-        file_api.send_part.assert_called_once_with("", data, "image/png")
+        file_api.send_part.assert_not_called()
 
     def test_etag_merged_into_parts(self):
         """When send_part returns a dict, its fields are merged into part_info."""
@@ -265,17 +262,15 @@ class TestAsyncUploadMulti:
         assert result == "up-async-3"
         file_api.send_part.assert_called_once_with("https://s3/fb", b"hi", "image/png")
 
-    async def test_fallback_url_missing_entirely_async(self):
-        """Neither upload_urls nor upload_url → empty string URL (async)."""
+    async def test_fallback_url_missing_entirely_async_raises(self):
+        """Neither upload_urls nor upload_url → raises ValueError (async)."""
         file_api = MagicMock()
         file_api.create_upload = AsyncMock(return_value={"id": "up-async-4"})
-        file_api.send_part = AsyncMock(return_value={})
-        file_api.complete_upload = AsyncMock(return_value={})
 
-        result = await async_upload_multi(file_api, "y.png", "image/png", b"z")
+        with pytest.raises(ValueError, match="no upload_url"):
+            await async_upload_multi(file_api, "y.png", "image/png", b"z")
 
-        assert result == "up-async-4"
-        file_api.send_part.assert_called_once_with("", b"z", "image/png")
+        file_api.send_part.assert_not_called()
 
     async def test_etag_merged_into_parts_async(self):
         """Etag from send_part response is merged into part descriptor (async)."""
