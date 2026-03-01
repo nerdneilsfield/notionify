@@ -1200,33 +1200,21 @@ class TestClassifyImageSourceCoverageGaps:
 class TestHeadingOverflowParagraphContent:
     """Cover the heading_overflow='paragraph' path (lines 233-238)."""
 
-    def test_h4_with_paragraph_overflow_produces_bold_paragraph(self):
-        """H4 with heading_overflow='paragraph' renders as bold paragraph."""
+    @pytest.mark.parametrize(("md", "expected_text"), [
+        ("#### Heading Four", "Heading Four"),
+        ("##### Heading Five", "Heading Five"),
+        ("###### Heading Six", "Heading Six"),
+    ])
+    def test_heading_overflow_produces_bold_paragraph(self, md: str, expected_text: str):
         c = MarkdownToNotionConverter(make_config(heading_overflow="paragraph"))
-        result = c.convert("#### Heading Four")
+        result = c.convert(md)
         assert len(result.blocks) == 1
         block = result.blocks[0]
         assert block["type"] == "paragraph"
         rich_text = block["paragraph"]["rich_text"]
         assert len(rich_text) >= 1
         assert rich_text[0]["annotations"]["bold"] is True
-        assert rich_text[0]["text"]["content"] == "Heading Four"
-
-    def test_h5_with_paragraph_overflow_produces_bold_paragraph(self):
-        """H5 with heading_overflow='paragraph' renders as bold paragraph."""
-        c = MarkdownToNotionConverter(make_config(heading_overflow="paragraph"))
-        result = c.convert("##### Heading Five")
-        block = result.blocks[0]
-        assert block["type"] == "paragraph"
-        assert block["paragraph"]["rich_text"][0]["annotations"]["bold"] is True
-
-    def test_h6_with_paragraph_overflow_produces_bold_paragraph(self):
-        """H6 with heading_overflow='paragraph' renders as bold paragraph."""
-        c = MarkdownToNotionConverter(make_config(heading_overflow="paragraph"))
-        result = c.convert("###### Heading Six")
-        block = result.blocks[0]
-        assert block["type"] == "paragraph"
-        assert block["paragraph"]["rich_text"][0]["annotations"]["bold"] is True
+        assert rich_text[0]["text"]["content"] == expected_text
 
 
 class TestBlockQuoteWithNonParagraphChild:

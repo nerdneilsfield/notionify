@@ -272,28 +272,18 @@ class TestHeadingRendering:
 # U-NM-002: paragraph with bold
 # =========================================================================
 
-class TestParagraphBold:
-    """U-NM-002: Paragraph with bold annotation renders **text**."""
+class TestParagraphAnnotation:
+    """U-NM-002/003: Paragraph with bold/italic annotations."""
 
-    def test_bold_paragraph(self):
+    @pytest.mark.parametrize(("annotation", "text", "expected"), [
+        ("bold", "hello", "**hello**"),
+        ("italic", "world", "_world_"),
+    ])
+    def test_annotation_rendering(self, annotation: str, text: str, expected: str):
         r = NotionToMarkdownRenderer(make_config())
-        blocks = [make_paragraph([_make_text_segment("hello", bold=True)])]
+        blocks = [make_paragraph([_make_text_segment(text, **{annotation: True})])]
         md = r.render_blocks(blocks)
-        assert "**hello**" in md
-
-
-# =========================================================================
-# U-NM-003: paragraph with italic
-# =========================================================================
-
-class TestParagraphItalic:
-    """U-NM-003: Paragraph with italic annotation renders _text_."""
-
-    def test_italic_paragraph(self):
-        r = NotionToMarkdownRenderer(make_config())
-        blocks = [make_paragraph([_make_text_segment("world", italic=True)])]
-        md = r.render_blocks(blocks)
-        assert "_world_" in md
+        assert expected in md
 
 
 # =========================================================================
@@ -415,28 +405,18 @@ class TestNumberedList:
 # U-NM-008: to_do checked
 # =========================================================================
 
-class TestToDoChecked:
-    """U-NM-008: Checked to_do renders as - [x] text."""
+class TestToDoRendering:
+    """U-NM-008/009: To-do items render with checkbox markers."""
 
-    def test_todo_checked(self):
+    @pytest.mark.parametrize(("text", "checked", "marker"), [
+        ("done", True, "- [x] done"),
+        ("pending", False, "- [ ] pending"),
+    ])
+    def test_todo_checkbox(self, text: str, checked: bool, marker: str):
         r = NotionToMarkdownRenderer(make_config())
-        blocks = [make_to_do("done", checked=True)]
+        blocks = [make_to_do(text, checked=checked)]
         md = r.render_blocks(blocks)
-        assert "- [x] done" in md
-
-
-# =========================================================================
-# U-NM-009: to_do unchecked
-# =========================================================================
-
-class TestToDoUnchecked:
-    """U-NM-009: Unchecked to_do renders as - [ ] text."""
-
-    def test_todo_unchecked(self):
-        r = NotionToMarkdownRenderer(make_config())
-        blocks = [make_to_do("pending", checked=False)]
-        md = r.render_blocks(blocks)
-        assert "- [ ] pending" in md
+        assert marker in md
 
 
 # =========================================================================
