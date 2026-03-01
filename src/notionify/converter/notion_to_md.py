@@ -429,16 +429,16 @@ class NotionToMarkdownRenderer:
         block_id = block.get("id", "")
         # Build a notion URL from the block ID
         url = _notion_url(block_id)
-        escaped_title = markdown_escape(title)
-        return f"[Page: {escaped_title}]({url})\n\n"
+        safe_title = _escape_link_text(title)
+        return f"[Page: {safe_title}]({url})\n\n"
 
     def _render_child_database(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("child_database", {})
         title = block_data.get("title", "Untitled")
         block_id = block.get("id", "")
         url = _notion_url(block_id)
-        escaped_title = markdown_escape(title)
-        return f"[Database: {escaped_title}]({url})\n\n"
+        safe_title = _escape_link_text(title)
+        return f"[Database: {safe_title}]({url})\n\n"
 
     def _render_embed(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("embed", {})

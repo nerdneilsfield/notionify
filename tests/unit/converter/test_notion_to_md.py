@@ -1583,6 +1583,28 @@ class TestChildPageAndDatabaseRendering:
         md = r.render_blocks([block])
         assert "Untitled" in md
 
+    def test_child_page_title_with_brackets_escaped(self):
+        """Brackets in child page title should be escaped in link text."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "child_page",
+            "id": "abc123",
+            "child_page": {"title": "My [Sub] Page"},
+        }
+        md = r.render_blocks([block])
+        assert r"My \[Sub\] Page" in md
+
+    def test_child_database_title_with_brackets_escaped(self):
+        """Brackets in child database title should be escaped in link text."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "child_database",
+            "id": "def456",
+            "child_database": {"title": "DB [v2]"},
+        }
+        md = r.render_blocks([block])
+        assert r"DB \[v2\]" in md
+
 
 # =========================================================================
 # Branch coverage tests
