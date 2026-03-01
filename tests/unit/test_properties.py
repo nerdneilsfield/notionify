@@ -54,6 +54,7 @@ from notionify.converter.math import (
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 from notionify.converter.notion_to_md import (
     NotionToMarkdownRenderer,
+    _escape_link_text,
     _notion_url,
     _sanitize_comment,
 )
@@ -2805,6 +2806,51 @@ class TestComputeSignatureProperties:
         sig_a = compute_signature(_make_typed_block(type_a))
         sig_b = compute_signature(_make_typed_block(type_b))
         assert sig_a != sig_b
+
+    @given(
+        media_type=st.sampled_from(["video", "audio", "pdf", "file"]),
+        url_a=st.text(min_size=1, max_size=80),
+        url_b=st.text(min_size=1, max_size=80),
+    )
+    @settings(max_examples=200)
+    def test_media_blocks_different_urls_different_signatures(
+        self, media_type: str, url_a: str, url_b: str
+    ) -> None:
+        """Media blocks (video/audio/pdf/file) with different URLs produce different signatures."""
+        assume(url_a != url_b)
+
+        def _make_media_block(url: str) -> dict:
+            return {
+                "type": media_type,
+                media_type: {
+                    "type": "external",
+                    "external": {"url": url},
+                },
+            }
+
+        sig_a = compute_signature(_make_media_block(url_a))
+        sig_b = compute_signature(_make_media_block(url_b))
+        assert sig_a != sig_b
+
+    @given(
+        media_type=st.sampled_from(["video", "audio", "pdf", "file"]),
+        url=st.text(min_size=1, max_size=80),
+    )
+    @settings(max_examples=200)
+    def test_media_blocks_same_url_same_signature(
+        self, media_type: str, url: str
+    ) -> None:
+        """Media blocks with the same URL always produce identical signatures."""
+        block = {
+            "type": media_type,
+            media_type: {
+                "type": "external",
+                "external": {"url": url},
+            },
+        }
+        sig1 = compute_signature(block)
+        sig2 = compute_signature(block)
+        assert sig1 == sig2
 
 
 # ---------------------------------------------------------------------------
@@ -8314,4 +8360,79 @@ class TestIsRetryableProperties:
 
         assert _is_retryable(_httpx.ConnectError(msg)) is True
         assert _is_retryable(OSError(msg)) is True
+
+
+# ---------------------------------------------------------------------------
+# _escape_link_text properties
+# ---------------------------------------------------------------------------
+
+
+class TestEscapeLinkTextProperties:
+    """Property tests for :func:`_escape_link_text`.
+
+    The function escapes ``\\``, ``[``, and ``]`` so that the text is safe
+    to embed inside the ``[...]`` part of a Markdown link.  Invariants:
+
+    * Output is always at least as long as input.
+    * Input without special characters is returned unchanged.
+    * Every ``\\`` in the input becomes ``\\\\`` in the output.
+    * Every ``[`` in the input becomes ``\\[`` in the output.
+    * Every ``]`` in the input becomes ``\\]`` in the output.
+    """
+
+    _SAFE_ALPHABET = string.ascii_letters + string.digits + " !@#$%^&*()_+-={}|;':\",./<>?"
+
+    @given(text=st.text(alphabet=_SAFE_ALPHABET, max_size=100))
+    @settings(max_examples=200)
+    def test_no_special_chars_unchanged(self, text: str) -> None:
+        """Text with no backslashes, brackets → returned unchanged."""
+        assert _escape_link_text(text) == text
+
+    @given(text=st.text(max_size=80))
+    @settings(max_examples=300)
+    def test_output_at_least_as_long_as_input(self, text: str) -> None:
+        """Escaping only adds characters; output is never shorter than input."""
+        assert len(_escape_link_text(text)) >= len(text)
+
+    @given(text=st.text(max_size=80))
+    @settings(max_examples=300)
+    def test_output_contains_no_bare_open_bracket(self, text: str) -> None:
+        """Every ``[`` in the output is preceded by ``\\``."""
+        result = _escape_link_text(text)
+        for i, ch in enumerate(result):
+            if ch == "[":
+                assert i > 0
+                assert result[i - 1] == "\\"
+
+    @given(text=st.text(max_size=80))
+    @settings(max_examples=300)
+    def test_output_contains_no_bare_close_bracket(self, text: str) -> None:
+        """Every ``]`` in the output is preceded by ``\\``."""
+        result = _escape_link_text(text)
+        for i, ch in enumerate(result):
+            if ch == "]":
+                assert i > 0
+                assert result[i - 1] == "\\"
+
+    def test_backslash_is_doubled(self) -> None:
+        """A lone backslash becomes two backslashes."""
+        assert _escape_link_text("\\") == "\\\\"
+
+    def test_open_bracket_is_escaped(self) -> None:
+        """A lone ``[`` becomes ``\\[``."""
+        assert _escape_link_text("[") == "\\["
+
+    def test_close_bracket_is_escaped(self) -> None:
+        """A lone ``]`` becomes ``\\]``."""
+        assert _escape_link_text("]") == "\\]"
+
+    def test_backslash_then_bracket_no_double_escape(self) -> None:
+        r"""``\[`` in input becomes ``\\\\[`` (backslash doubled, bracket escaped separately)."""
+        result = _escape_link_text("\\[")
+        assert result == "\\\\\\["
+
+    def test_all_three_specials_combined(self) -> None:
+        r"""Complex string with all special chars is escaped correctly."""
+        result = _escape_link_text("a\\b[c]d")
+        assert result == "a\\\\b\\[c\\]d"
 
