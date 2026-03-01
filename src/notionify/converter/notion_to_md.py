@@ -47,6 +47,11 @@ _MEDIA_TYPES: dict[str, str] = {
 }
 
 
+def _blockquote_caption(caption: str) -> str:
+    """Format *caption* as a Markdown blockquote, handling multi-line text."""
+    return "\n".join(f"> {line}" for line in caption.split("\n"))
+
+
 class NotionToMarkdownRenderer:
     """Stateful renderer that converts Notion blocks to Markdown.
 
@@ -265,7 +270,7 @@ class NotionToMarkdownRenderer:
         caption_segments = block_data.get("caption", [])
         caption = render_rich_text(caption_segments) if caption_segments else ""
         if caption:
-            result += f"\n> {caption}"
+            result += f"\n{_blockquote_caption(caption)}"
 
         return result + "\n\n"
 
@@ -456,7 +461,7 @@ class NotionToMarkdownRenderer:
         caption_segments = block_data.get("caption", [])
         caption = render_rich_text(caption_segments) if caption_segments else ""
         if caption:
-            result += f"\n> {caption}"
+            result += f"\n{_blockquote_caption(caption)}"
 
         return result + "\n\n"
 
@@ -475,7 +480,7 @@ class NotionToMarkdownRenderer:
         result = f"[{display_url}]({escaped_url})"
 
         if caption:
-            result += f"\n> {caption}"
+            result += f"\n{_blockquote_caption(caption)}"
 
         return result + "\n\n"
 
@@ -546,7 +551,7 @@ class NotionToMarkdownRenderer:
         caption_segments = block_data.get("caption", [])
         caption = render_rich_text(caption_segments) if caption_segments else ""
         if caption:
-            result += f"\n> {caption}"
+            result += f"\n{_blockquote_caption(caption)}"
 
         return result + "\n\n"
 

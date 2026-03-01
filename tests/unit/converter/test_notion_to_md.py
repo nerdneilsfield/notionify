@@ -500,6 +500,31 @@ class TestCodeBlockRendering:
         assert "x = 1" in md
         assert "> Example assignment" in md
 
+    def test_code_block_multiline_caption_fully_blockquoted(self):
+        """Multi-line captions must have every line prefixed with '> '."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "code",
+            "code": {
+                "rich_text": [_make_text_segment("x = 1")],
+                "language": "python",
+                "caption": [_make_text_segment("Line 1\nLine 2\nLine 3")],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "> Line 1" in md
+        assert "> Line 2" in md
+        assert "> Line 3" in md
+        # No unquoted lines between caption lines
+        lines = md.strip().split("\n")
+        caption_started = False
+        for line in lines:
+            if line.startswith("> Line 1"):
+                caption_started = True
+            if caption_started and line.startswith("Line"):
+                # Found an unquoted caption line
+                raise AssertionError(f"Unquoted caption line: {line!r}")
+
     def test_code_block_without_caption_no_blockquote(self):
         """Code blocks without caption do not emit a blockquote line."""
         r = NotionToMarkdownRenderer(make_config())
