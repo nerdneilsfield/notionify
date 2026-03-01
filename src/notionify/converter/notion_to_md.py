@@ -260,7 +260,14 @@ class NotionToMarkdownRenderer:
         while fence in code_text:
             fence += "`"
 
-        return f"{fence}{language}\n{code_text}\n{fence}\n\n"
+        result = f"{fence}{language}\n{code_text}\n{fence}"
+
+        caption_segments = block_data.get("caption", [])
+        caption = render_rich_text(caption_segments) if caption_segments else ""
+        if caption:
+            result += f"\n> {caption}"
+
+        return result + "\n\n"
 
     def _render_divider(self, block: dict[str, Any], depth: int) -> str:
         return "---\n\n"

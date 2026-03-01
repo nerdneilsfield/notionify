@@ -484,6 +484,29 @@ class TestCodeBlockRendering:
         assert "```latex" in md
         assert "E=mc^2" in md
 
+    def test_code_block_with_caption(self):
+        """Code block captions render as blockquote below the fence."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "code",
+            "code": {
+                "rich_text": [_make_text_segment("x = 1")],
+                "language": "python",
+                "caption": [_make_text_segment("Example assignment")],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "```python" in md
+        assert "x = 1" in md
+        assert "> Example assignment" in md
+
+    def test_code_block_without_caption_no_blockquote(self):
+        """Code blocks without caption do not emit a blockquote line."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [make_code_block("x = 1", language="python")]
+        md = r.render_blocks(blocks)
+        assert ">" not in md
+
 
 # =========================================================================
 # U-NM-011: divider
