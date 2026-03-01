@@ -1398,6 +1398,22 @@ class TestFileBlockRendering:
         md = r.render_blocks([block])
         assert "File" in md
 
+    def test_file_name_with_brackets_escaped(self):
+        """File name containing ] should not break link syntax."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "file",
+            "file": {
+                "type": "external",
+                "external": {"url": "https://example.com/f.txt"},
+                "name": "file[1].txt",
+                "caption": [],
+            },
+        }
+        md = r.render_blocks([block])
+        assert r"file\[1\].txt" in md
+        assert "https://example.com/f.txt" in md
+
 
 class TestEmbedRendering:
     """_render_embed produces [Embed](url)."""

@@ -512,7 +512,8 @@ class NotionToMarkdownRenderer:
             name = (url.rsplit("/", 1)[-1].split("?")[0] or "File") if url else "File"
 
         escaped_url = markdown_escape(url, "url")
-        return f"[{name}]({escaped_url})\n\n"
+        safe_name = _escape_link_text(name)
+        return f"[{safe_name}]({escaped_url})\n\n"
 
     def _render_media(self, block: dict[str, Any], depth: int, block_type: str) -> str:
         """Render video/audio/pdf blocks as [Label](url)."""
