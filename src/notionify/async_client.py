@@ -27,7 +27,7 @@ import asyncio
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
@@ -104,7 +104,7 @@ class AsyncNotionifyClient:
         parent_id: str,
         title: str,
         markdown: str,
-        parent_type: str = "page",
+        parent_type: Literal["page", "database"] = "page",
         properties: dict[str, Any] | None = None,
         title_from_h1: bool = False,
     ) -> PageCreateResult:
@@ -217,7 +217,7 @@ class AsyncNotionifyClient:
         self,
         target_id: str,
         markdown: str,
-        target_type: str = "page",
+        target_type: Literal["page", "block"] = "page",
     ) -> AppendResult:
         """Append Markdown content to a page or after a block.
 
@@ -329,8 +329,8 @@ class AsyncNotionifyClient:
         self,
         page_id: str,
         markdown: str,
-        strategy: str = "diff",
-        on_conflict: str = "raise",
+        strategy: Literal["diff", "overwrite"] = "diff",
+        on_conflict: Literal["raise", "overwrite"] = "raise",
     ) -> UpdateResult:
         """Update page with diff or overwrite strategy.
 
@@ -872,12 +872,13 @@ class AsyncNotionifyClient:
                 blocks[pending.block_index] = new_block
 
             return 1
-        except (NotionifyImageError, Exception):
+        except Exception:
+            # Best-effort fallback: any failure during validate/upload
+            # reverts to the original external URL so conversion succeeds.
             self._metrics.increment(
                 "notionify.download_failure_total",
                 tags={"reason": "upload"},
             )
-            # Upload or validation failed: fall back to external URL.
             if 0 <= pending.block_index < len(blocks):
                 blocks[pending.block_index] = build_image_block_external(url)
             warnings.append(
