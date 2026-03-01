@@ -3054,6 +3054,33 @@ class TestComputeSignatureProperties:
 
         assert compute_signature(_child_db(title_a)) != compute_signature(_child_db(title_b))
 
+    # color properties for remaining colored block types
+    @given(
+        text=st.text(min_size=1, max_size=30),
+        color_a=st.sampled_from(_NOTION_COLORS),
+        color_b=st.sampled_from(_NOTION_COLORS),
+        block_type=st.sampled_from(
+            ["quote", "toggle", "bulleted_list_item", "numbered_list_item"]
+        ),
+    )
+    @settings(max_examples=200)
+    def test_colored_list_block_different_colors_different_signatures(
+        self, text: str, color_a: str, color_b: str, block_type: str
+    ) -> None:
+        """quote/toggle/list item blocks with different colors produce different signatures."""
+        assume(color_a != color_b)
+
+        def _block(color: str) -> dict:
+            return {
+                "type": block_type,
+                block_type: {
+                    "rich_text": [{"type": "text", "text": {"content": text}, "plain_text": text}],
+                    "color": color,
+                },
+            }
+
+        assert compute_signature(_block(color_a)) != compute_signature(_block(color_b))
+
     # heading color and is_toggleable properties
     @given(
         text=st.text(min_size=1, max_size=30),
