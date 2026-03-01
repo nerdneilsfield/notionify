@@ -3054,6 +3054,57 @@ class TestComputeSignatureProperties:
 
         assert compute_signature(_child_db(title_a)) != compute_signature(_child_db(title_b))
 
+    # heading color and is_toggleable properties
+    @given(
+        text=st.text(min_size=1, max_size=30),
+        color_a=st.sampled_from(_NOTION_COLORS),
+        color_b=st.sampled_from(_NOTION_COLORS),
+        level=st.integers(min_value=1, max_value=3),
+    )
+    @settings(max_examples=200)
+    def test_heading_different_colors_different_signatures(
+        self, text: str, color_a: str, color_b: str, level: int
+    ) -> None:
+        """Heading blocks with identical text but different colors produce different signatures."""
+        assume(color_a != color_b)
+        heading_type = f"heading_{level}"
+
+        def _heading(color: str) -> dict:
+            return {
+                "type": heading_type,
+                heading_type: {
+                    "rich_text": [{"type": "text", "text": {"content": text}, "plain_text": text}],
+                    "color": color,
+                    "is_toggleable": False,
+                },
+            }
+
+        assert compute_signature(_heading(color_a)) != compute_signature(_heading(color_b))
+
+    @given(
+        text=st.text(min_size=1, max_size=30),
+        color=st.sampled_from(_NOTION_COLORS),
+        level=st.integers(min_value=1, max_value=3),
+    )
+    @settings(max_examples=200)
+    def test_heading_toggleable_changes_signature(
+        self, text: str, color: str, level: int
+    ) -> None:
+        """Heading blocks that differ only in is_toggleable produce different signatures."""
+        heading_type = f"heading_{level}"
+
+        def _heading(toggleable: bool) -> dict:
+            return {
+                "type": heading_type,
+                heading_type: {
+                    "rich_text": [{"type": "text", "text": {"content": text}, "plain_text": text}],
+                    "color": color,
+                    "is_toggleable": toggleable,
+                },
+            }
+
+        assert compute_signature(_heading(True)) != compute_signature(_heading(False))
+
 
 # ---------------------------------------------------------------------------
 # TestDataUriParseProperties

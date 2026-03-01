@@ -473,6 +473,32 @@ class TestComputeSignature:
         assert attrs["is_toggleable"] is True
         assert attrs["color"] == "blue"
 
+    def test_heading_different_colors_different_signatures(self):
+        """Heading blocks with different colors produce different signatures."""
+        for heading_type in ("heading_1", "heading_2", "heading_3"):
+            block_a = {
+                "type": heading_type,
+                heading_type: {"rich_text": [], "is_toggleable": False, "color": "default"},
+            }
+            block_b = {
+                "type": heading_type,
+                heading_type: {"rich_text": [], "is_toggleable": False, "color": "blue"},
+            }
+            assert compute_signature(block_a) != compute_signature(block_b), heading_type
+
+    def test_heading_toggleable_changes_signature(self):
+        """Heading blocks that differ only in is_toggleable produce different signatures."""
+        for heading_type in ("heading_1", "heading_2", "heading_3"):
+            block_a = {
+                "type": heading_type,
+                heading_type: {"rich_text": [], "is_toggleable": False, "color": "default"},
+            }
+            block_b = {
+                "type": heading_type,
+                heading_type: {"rich_text": [], "is_toggleable": True, "color": "default"},
+            }
+            assert compute_signature(block_a) != compute_signature(block_b), heading_type
+
     def test_column_list_empty_attrs(self):
         """column_list block has no type-specific attributes."""
         block = {"type": "column_list", "column_list": {}}
