@@ -103,6 +103,94 @@ class TestExtractTypeAttrs:
         attrs = _extract_type_attrs(block, "unknown_type")
         assert attrs == {}
 
+    # -----------------------------------------------------------------------
+    # Media block URL extraction (video, audio, pdf, file)
+    # -----------------------------------------------------------------------
+
+    def test_video_external_url_extracted(self):
+        """video block with external source captures the URL in attrs."""
+        block = {
+            "video": {
+                "type": "external",
+                "external": {"url": "https://youtube.com/watch?v=abc"},
+            }
+        }
+        attrs = _extract_type_attrs(block, "video")
+        assert attrs["url"] == "https://youtube.com/watch?v=abc"
+
+    def test_audio_external_url_extracted(self):
+        """audio block with external source captures the URL in attrs."""
+        block = {
+            "audio": {
+                "type": "external",
+                "external": {"url": "https://example.com/track.mp3"},
+            }
+        }
+        attrs = _extract_type_attrs(block, "audio")
+        assert attrs["url"] == "https://example.com/track.mp3"
+
+    def test_pdf_file_url_extracted(self):
+        """pdf block with Notion-hosted file captures the URL in attrs."""
+        block = {
+            "pdf": {
+                "type": "file",
+                "file": {"url": "https://s3.amazonaws.com/doc.pdf"},
+            }
+        }
+        attrs = _extract_type_attrs(block, "pdf")
+        assert attrs["url"] == "https://s3.amazonaws.com/doc.pdf"
+
+    def test_file_file_upload_id_extracted(self):
+        """file block with file_upload source captures the upload ID in attrs."""
+        block = {
+            "file": {
+                "type": "file_upload",
+                "file_upload": {"id": "upload-xyz-789"},
+            }
+        }
+        attrs = _extract_type_attrs(block, "file")
+        assert attrs["upload_id"] == "upload-xyz-789"
+
+    def test_different_video_urls_produce_different_signatures(self):
+        """Two video blocks with different URLs must have different signatures."""
+        block1 = {
+            "type": "video",
+            "video": {
+                "type": "external",
+                "external": {"url": "https://youtube.com/watch?v=aaa"},
+            },
+        }
+        block2 = {
+            "type": "video",
+            "video": {
+                "type": "external",
+                "external": {"url": "https://youtube.com/watch?v=bbb"},
+            },
+        }
+        sig1 = compute_signature(block1)
+        sig2 = compute_signature(block2)
+        assert sig1 != sig2, "Different video URLs must produce different signatures"
+
+    def test_same_video_url_produces_same_signature(self):
+        """Two video blocks with the same URL must have identical signatures."""
+        block1 = {
+            "type": "video",
+            "video": {
+                "type": "external",
+                "external": {"url": "https://youtube.com/watch?v=same"},
+            },
+        }
+        block2 = {
+            "type": "video",
+            "video": {
+                "type": "external",
+                "external": {"url": "https://youtube.com/watch?v=same"},
+            },
+        }
+        sig1 = compute_signature(block1)
+        sig2 = compute_signature(block2)
+        assert sig1 == sig2, "Same video URL must produce identical signatures"
+
 
 class TestComputeSignature:
     def test_basic_paragraph(self):

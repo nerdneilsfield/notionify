@@ -38,6 +38,9 @@ _ATTRS_EXTRACTORS: dict[str, list[str]] = {
     "file": ["type", "caption"],
 }
 
+# Media block types that use the same nested URL structure as image blocks.
+_MEDIA_BLOCK_TYPES: frozenset[str] = frozenset({"video", "audio", "pdf", "file"})
+
 
 def _extract_plain_text(block: dict[str, Any], block_type: str) -> str:
     """Extract the concatenated plain_text from a block's rich_text array.
@@ -95,6 +98,25 @@ def _extract_children_info(block: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _extract_file_source_attrs(type_data: dict[str, Any], attrs: dict[str, Any]) -> None:
+    """Populate *attrs* with the URL or upload ID from a Notion file-source dict.
+
+    Notion uses this same ``{type, external/file/file_upload}`` structure for
+    image, video, audio, pdf, and file blocks.  Extracting the URL ensures that
+    two blocks with different media sources produce different signatures.
+    """
+    source_type = type_data.get("type", "")
+    if source_type == "external":
+        external = type_data.get("external") or {}
+        attrs["url"] = external.get("url", "")
+    elif source_type == "file":
+        file_info = type_data.get("file") or {}
+        attrs["url"] = file_info.get("url", "")
+    elif source_type == "file_upload":
+        file_upload = type_data.get("file_upload") or {}
+        attrs["upload_id"] = file_upload.get("id", "")
+
+
 def _extract_type_attrs(block: dict[str, Any], block_type: str) -> dict[str, Any]:
     """Extract type-specific attributes for the attrs hash."""
     type_data = block.get(block_type, {})
@@ -111,17 +133,15 @@ def _extract_type_attrs(block: dict[str, Any], block_type: str) -> dict[str, Any
 
     # For image blocks, capture the image source info.
     if block_type == "image":
-        img_type = type_data.get("type", "")
-        attrs["image_type"] = img_type
-        if img_type == "external":
-            external = type_data.get("external") or {}
-            attrs["url"] = external.get("url", "")
-        elif img_type == "file":
-            file_info = type_data.get("file") or {}
-            attrs["url"] = file_info.get("url", "")
-        elif img_type == "file_upload":
-            file_upload = type_data.get("file_upload") or {}
-            attrs["upload_id"] = file_upload.get("id", "")
+        attrs["image_type"] = type_data.get("type", "")
+        _extract_file_source_attrs(type_data, attrs)
+
+    # For media blocks (video, audio, pdf, file), capture the media source URL
+    # using the same nested structure as image blocks.  Without this, two blocks
+    # of the same media type but with different URLs produce identical signatures,
+    # causing the diff planner to treat them as unchanged.
+    if block_type in _MEDIA_BLOCK_TYPES:
+        _extract_file_source_attrs(type_data, attrs)
 
     return attrs
 
