@@ -195,6 +195,38 @@ class TestBuildList:
         assert blocks[0]["type"] == "to_do"
         assert blocks[0]["to_do"]["checked"] is True
 
+    def test_task_list_unchecked(self):
+        """Unchecked task list items produce to_do blocks with checked=False."""
+        token = {
+            "type": "list",
+            "attrs": {"ordered": False},
+            "children": [{
+                "type": "task_list_item",
+                "attrs": {"checked": False},
+                "children": [{"type": "paragraph", "children": [{"type": "text", "raw": "Todo"}]}],
+            }],
+        }
+        blocks, _, _ = build_blocks([token], _config())
+        assert blocks[0]["type"] == "to_do"
+        assert blocks[0]["to_do"]["checked"] is False
+
+    def test_task_list_rich_text_content_preserved(self):
+        """Task list item text is stored in rich_text, not ignored."""
+        token = {
+            "type": "list",
+            "attrs": {"ordered": False},
+            "children": [{
+                "type": "task_list_item",
+                "attrs": {"checked": False},
+                "children": [{"type": "paragraph", "children": [{"type": "text", "raw": "Buy milk"}]}],
+            }],
+        }
+        blocks, _, _ = build_blocks([token], _config())
+        rt = blocks[0]["to_do"]["rich_text"]
+        assert len(rt) >= 1
+        content = rt[0].get("text", {}).get("content", "")
+        assert content == "Buy milk"
+
 
 # =========================================================================
 # Code blocks
