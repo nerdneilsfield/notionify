@@ -41,6 +41,9 @@ def upload_multi(
     str
         The upload ID returned by the Notion API.
     """
+    if chunk_size < 1:
+        raise ValueError(f"chunk_size must be >= 1, got {chunk_size}")
+
     upload = file_api.create_upload(
         name=name,
         content_type=content_type,
@@ -116,6 +119,9 @@ async def async_upload_multi(
     str
         The upload ID returned by the Notion API.
     """
+    if chunk_size < 1:
+        raise ValueError(f"chunk_size must be >= 1, got {chunk_size}")
+
     upload = await file_api.create_upload(
         name=name,
         content_type=content_type,

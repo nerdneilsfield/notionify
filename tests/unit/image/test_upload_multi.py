@@ -487,3 +487,32 @@ class TestUploadMultiAsyncFailures:
         args = api.complete_upload.call_args[0]
         assert args[0] == "upload-async-fail"
         assert args[1] == []
+
+
+# ===========================================================================
+# chunk_size validation
+# ===========================================================================
+
+
+class TestChunkSizeValidation:
+    """chunk_size <= 0 must raise ValueError (prevents infinite loop)."""
+
+    def test_sync_zero_chunk_size_raises(self):
+        with pytest.raises(ValueError, match="chunk_size must be >= 1"):
+            upload_multi(MagicMock(), "f.png", "image/png", b"data", chunk_size=0)
+
+    def test_sync_negative_chunk_size_raises(self):
+        with pytest.raises(ValueError, match="chunk_size must be >= 1"):
+            upload_multi(MagicMock(), "f.png", "image/png", b"data", chunk_size=-5)
+
+    async def test_async_zero_chunk_size_raises(self):
+        with pytest.raises(ValueError, match="chunk_size must be >= 1"):
+            await async_upload_multi(
+                MagicMock(), "f.png", "image/png", b"data", chunk_size=0,
+            )
+
+    async def test_async_negative_chunk_size_raises(self):
+        with pytest.raises(ValueError, match="chunk_size must be >= 1"):
+            await async_upload_multi(
+                MagicMock(), "f.png", "image/png", b"data", chunk_size=-1,
+            )
