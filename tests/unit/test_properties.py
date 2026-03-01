@@ -1922,9 +1922,33 @@ _dt_st = st.datetimes(
     max_value=datetime(2030, 12, 31),
     timezones=st.just(_tz.utc),
 )
+
+
+@st.composite
+def _iso_datetime_str(draw: st.DrawFn) -> str:
+    """Fast ISO 8601 datetime string strategy (replaces slow from_regex)."""
+    y = draw(st.integers(min_value=2000, max_value=2099))
+    mo = draw(st.integers(min_value=1, max_value=12))
+    d = draw(st.integers(min_value=1, max_value=28))
+    h = draw(st.integers(min_value=0, max_value=23))
+    mi = draw(st.integers(min_value=0, max_value=59))
+    s = draw(st.integers(min_value=0, max_value=59))
+    return f"{y:04d}-{mo:02d}-{d:02d}T{h:02d}:{mi:02d}:{s:02d}Z"
+
+
+# Fast hex-dash ID strategy (replaces slow from_regex(r"[a-f0-9\-]{8,36}")).
+_hex_dash_id_st = st.text(
+    alphabet="abcdef0123456789-", min_size=8, max_size=36
+)
+
+# Fast short hex ID strategy (replaces slow from_regex(r"[a-z0-9]{8}")).
+_short_hex_id_st = st.text(
+    alphabet="abcdef0123456789", min_size=8, max_size=8
+)
+
 _etags_st = st.dictionaries(
-    keys=st.from_regex(r"[a-f0-9\-]{8,36}", fullmatch=True),
-    values=st.from_regex(r"20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", fullmatch=True),
+    keys=_hex_dash_id_st,
+    values=_iso_datetime_str(),
     max_size=10,
 )
 
@@ -1975,17 +1999,13 @@ class TestConflictDetectionProperties:
         page=st.fixed_dictionaries({
             "last_edited_time": st.one_of(
                 st.just(""),
-                st.from_regex(
-                    r"20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", fullmatch=True
-                ),
+                _iso_datetime_str(),
             )
         }),
         blocks=st.lists(
             st.fixed_dictionaries({
                 "id": st.text(min_size=1, max_size=36),
-                "last_edited_time": st.from_regex(
-                    r"20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", fullmatch=True
-                ),
+                "last_edited_time": _iso_datetime_str(),
             }),
             max_size=10,
         ),
@@ -2068,9 +2088,7 @@ class TestConflictDetectionProperties:
         blocks=st.lists(
             st.fixed_dictionaries({
                 "id": st.text(min_size=1, max_size=36),
-                "last_edited_time": st.from_regex(
-                    r"20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", fullmatch=True
-                ),
+                "last_edited_time": _iso_datetime_str(),
             }),
             min_size=1,
             max_size=10,
@@ -2221,7 +2239,7 @@ _BLOCK_ID_ALPHABET = string.ascii_lowercase + string.digits + "-"
 
 # Strategy for a simple block with a unique-ish ID.
 _block_with_id_st = st.fixed_dictionaries({
-    "id": st.from_regex(r"[a-z0-9]{8}", fullmatch=True),
+    "id": _short_hex_id_st,
     "type": st.sampled_from(["paragraph", "heading_1", "bulleted_list_item"]),
 })
 
@@ -2253,7 +2271,7 @@ class TestDiffPlannerProperties:
     @given(
         existing_blocks=st.lists(
             st.fixed_dictionaries({
-                "id": st.from_regex(r"[a-z0-9]{8}", fullmatch=True),
+                "id": _short_hex_id_st,
                 "type": st.just("paragraph"),
             }),
             min_size=1,
@@ -2323,7 +2341,7 @@ class TestDiffPlannerProperties:
     @given(
         existing_blocks=st.lists(
             st.fixed_dictionaries({
-                "id": st.from_regex(r"[a-z0-9]{8}", fullmatch=True),
+                "id": _short_hex_id_st,
                 "type": st.just("paragraph"),
             }),
             min_size=1,
