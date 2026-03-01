@@ -2036,3 +2036,61 @@ class TestAsyncClientBranchCoverage:
         assert blocks[0]["type"] == "image"  # not replaced
         assert any(w.code == "IMAGE_SKIPPED" for w in warnings_list)
         await client.close()
+
+
+# =========================================================================
+# target_type validation in append_markdown
+# =========================================================================
+
+
+class TestAppendMarkdownTargetTypeValidation:
+    """append_markdown rejects invalid target_type values."""
+
+    def test_sync_invalid_target_type_raises(self):
+        client = _make_sync_client()
+        with pytest.raises(ValueError, match="target_type must be 'page' or 'block'"):
+            client.append_markdown(
+                target_id="page-1",
+                markdown="hello",
+                target_type="invalid",
+            )
+        client.close()
+
+    def test_sync_valid_page_target_type_accepted(self):
+        client = _make_sync_client()
+        client._blocks.append_children = MagicMock(return_value=_append_response("b1"))
+        result = client.append_markdown(
+            target_id="page-1", markdown="hello", target_type="page",
+        )
+        assert isinstance(result, AppendResult)
+        client.close()
+
+    def test_sync_valid_block_target_type_accepted(self):
+        client = _make_sync_client()
+        client._blocks.append_children = MagicMock(return_value=_append_response("b1"))
+        result = client.append_markdown(
+            target_id="block-1", markdown="hello", target_type="block",
+        )
+        assert isinstance(result, AppendResult)
+        client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_invalid_target_type_raises(self):
+        client = AsyncNotionifyClient(token="test-token")
+        with pytest.raises(ValueError, match="target_type must be 'page' or 'block'"):
+            await client.append_markdown(
+                target_id="page-1",
+                markdown="hello",
+                target_type="database",
+            )
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_valid_block_target_type_accepted(self):
+        client = AsyncNotionifyClient(token="test-token")
+        client._blocks.append_children = AsyncMock(return_value=_append_response("b1"))
+        result = await client.append_markdown(
+            target_id="block-1", markdown="hello", target_type="block",
+        )
+        assert isinstance(result, AppendResult)
+        await client.close()

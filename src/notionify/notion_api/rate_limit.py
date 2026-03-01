@@ -42,6 +42,12 @@ class TokenBucket:
         self.last_refill: float = time.monotonic()
         self._lock = threading.Lock()
 
+    def __repr__(self) -> str:
+        return (
+            f"TokenBucket(rate={self.rate}, burst={self.burst}, "
+            f"tokens={self.tokens:.1f})"
+        )
+
     def acquire(self, tokens: int = 1) -> float:
         """Acquire *tokens* from the bucket, blocking if necessary.
 
@@ -96,6 +102,12 @@ class AsyncTokenBucket:
         self.tokens: float = float(burst)
         self.last_refill: float = time.monotonic()
         self._lock = asyncio.Lock()
+
+    def __repr__(self) -> str:
+        return (
+            f"AsyncTokenBucket(rate={self.rate}, burst={self.burst}, "
+            f"tokens={self.tokens:.1f})"
+        )
 
     async def acquire(self, tokens: int = 1) -> float:
         """Acquire *tokens* from the bucket, awaiting if necessary.

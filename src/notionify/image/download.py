@@ -59,8 +59,7 @@ def _is_retryable(exc: Exception) -> bool:
     """
     if isinstance(exc, httpx.HTTPStatusError):
         return exc.response.status_code >= 500
-    # TimeoutException, ConnectError, OSError, etc. are all transient.
-    return True
+    return isinstance(exc, (httpx.TimeoutException, httpx.NetworkError, OSError))
 
 
 # ---------------------------------------------------------------------------
@@ -140,9 +139,22 @@ def download_image(
                 time.sleep(min(attempt + 1, 5))
 
     attempts_used = attempt + 1 if last_error is not None else max_attempts
+    last_status = (
+        last_error.response.status_code
+        if isinstance(last_error, httpx.HTTPStatusError)
+        else None
+    )
+    is_permanent = last_status is not None and last_status < 500
     raise NotionifyImageDownloadError(
         message=f"Failed to download remote image after {attempts_used} attempt(s): {url}",
-        context={"url": url, "error": str(last_error)},
+        context={
+            "url": url,
+            "error": str(last_error),
+            "attempts_used": attempts_used,
+            "max_attempts": max_attempts,
+            "last_status_code": last_status,
+            "is_permanent": is_permanent,
+        },
     )
 
 
@@ -225,7 +237,20 @@ async def async_download_image(
                 await asyncio.sleep(min(attempt + 1, 5))
 
     attempts_used = attempt + 1 if last_error is not None else max_attempts
+    last_status = (
+        last_error.response.status_code
+        if isinstance(last_error, httpx.HTTPStatusError)
+        else None
+    )
+    is_permanent = last_status is not None and last_status < 500
     raise NotionifyImageDownloadError(
         message=f"Failed to download remote image after {attempts_used} attempt(s): {url}",
-        context={"url": url, "error": str(last_error)},
+        context={
+            "url": url,
+            "error": str(last_error),
+            "attempts_used": attempts_used,
+            "max_attempts": max_attempts,
+            "last_status_code": last_status,
+            "is_permanent": is_permanent,
+        },
     )

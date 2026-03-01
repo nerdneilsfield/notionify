@@ -44,6 +44,12 @@ class UploadStateMachine:
         self.upload_id: str = upload_id
         self.state: UploadState = UploadState.PENDING
 
+    def __repr__(self) -> str:
+        return (
+            f"UploadStateMachine(upload_id={self.upload_id!r}, "
+            f"state={self.state.value!r})"
+        )
+
     def transition(self, new_state: UploadState) -> None:
         """Attempt to transition to *new_state*.
 

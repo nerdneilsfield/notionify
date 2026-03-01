@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import threading
 from datetime import datetime, timezone
 from typing import Any
 
@@ -78,6 +79,7 @@ class StructuredFormatter(logging.Formatter):
 # is idempotent even when called from multiple threads/modules.
 # ---------------------------------------------------------------------------
 _configured_loggers: set[str] = set()
+_registry_lock = threading.Lock()
 
 
 def get_logger(
@@ -111,23 +113,24 @@ def get_logger(
     """
     logger = logging.getLogger(name)
 
-    if name not in _configured_loggers:
-        # Resolve the level if given as a string.
-        resolved_level = (
-            logging.getLevelName(level.upper())
-            if isinstance(level, str)
-            else level
-        )
-        logger.setLevel(resolved_level)
+    with _registry_lock:
+        if name not in _configured_loggers:
+            # Resolve the level if given as a string.
+            resolved_level = (
+                logging.getLevelName(level.upper())
+                if isinstance(level, str)
+                else level
+            )
+            logger.setLevel(resolved_level)
 
-        handler = logging.StreamHandler(stream or sys.stderr)
-        handler.setFormatter(StructuredFormatter())
-        logger.addHandler(handler)
+            handler = logging.StreamHandler(stream or sys.stderr)
+            handler.setFormatter(StructuredFormatter())
+            logger.addHandler(handler)
 
-        # Prevent duplicate messages when a parent logger (e.g. root) also
-        # has handlers configured.
-        logger.propagate = False
+            # Prevent duplicate messages when a parent logger (e.g. root) also
+            # has handlers configured.
+            logger.propagate = False
 
-        _configured_loggers.add(name)
+            _configured_loggers.add(name)
 
     return logger

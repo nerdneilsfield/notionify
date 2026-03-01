@@ -733,3 +733,36 @@ class TestComputeBackoffEdgeCases:
         for attempt in range(5):
             result = compute_backoff(attempt=attempt, base=10.0, maximum=10.0, jitter=False)
             assert result == pytest.approx(10.0)
+
+
+# =========================================================================
+# TokenBucket __repr__
+# =========================================================================
+
+
+class TestTokenBucketRepr:
+    """__repr__ for TokenBucket and AsyncTokenBucket."""
+
+    def test_sync_repr_includes_rate_and_burst(self):
+        bucket = TokenBucket(rate_rps=3.0, burst=5)
+        r = repr(bucket)
+        assert "TokenBucket" in r
+        assert "rate=3.0" in r
+        assert "burst=5" in r
+        assert "tokens=" in r
+
+    def test_async_repr_includes_rate_and_burst(self):
+        bucket = AsyncTokenBucket(rate_rps=2.5, burst=8)
+        r = repr(bucket)
+        assert "AsyncTokenBucket" in r
+        assert "rate=2.5" in r
+        assert "burst=8" in r
+        assert "tokens=" in r
+
+    def test_sync_repr_after_acquire(self):
+        bucket = TokenBucket(rate_rps=100.0, burst=10)
+        bucket.acquire(5)
+        r = repr(bucket)
+        assert "TokenBucket" in r
+        # Tokens should be lower after acquisition
+        assert "tokens=" in r

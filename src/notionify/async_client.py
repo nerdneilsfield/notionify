@@ -240,9 +240,15 @@ class AsyncNotionifyClient:
             If an image in the Markdown cannot be validated or uploaded.
         NotionifyAPIError
             If the Notion API returns an error response.
+        ValueError
+            If *target_type* is not ``"page"`` or ``"block"``.
         NotionifyRetryExhaustedError
             If all retry attempts are exhausted.
         """
+        if target_type not in ("page", "block"):
+            msg = f"target_type must be 'page' or 'block', got {target_type!r}"
+            raise ValueError(msg)
+
         conversion = self._converter.convert(markdown)
         warnings = list(conversion.warnings)
         images_uploaded = await self._process_images(conversion)

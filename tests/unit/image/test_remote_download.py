@@ -289,6 +289,18 @@ class TestIsRetryable:
     def test_os_error_is_retryable(self):
         assert _is_retryable(OSError("network")) is True
 
+    def test_value_error_is_not_retryable(self):
+        assert _is_retryable(ValueError("bad data")) is False
+
+    def test_runtime_error_is_not_retryable(self):
+        assert _is_retryable(RuntimeError("unexpected")) is False
+
+    def test_type_error_is_not_retryable(self):
+        assert _is_retryable(TypeError("wrong type")) is False
+
+    def test_network_error_subclass_is_retryable(self):
+        assert _is_retryable(httpx.NetworkError("conn reset")) is True
+
 
 # =========================================================================
 # Early abort on permanent errors
@@ -406,3 +418,52 @@ class TestAsyncTryDownload:
             await _async_try_download(
                 "https://example.com/gone.png", {}, 10.0,
             )
+
+
+# =========================================================================
+# Enriched error context
+# =========================================================================
+
+
+class TestDownloadErrorContext:
+    """download_image error includes enriched diagnostic context."""
+
+    @patch("notionify.image.download._try_download")
+    def test_404_error_context_has_status_and_permanent_flag(self, mock_try: MagicMock):
+        resp = httpx.Response(404, request=httpx.Request("GET", "https://x.com/img"))
+        mock_try.side_effect = httpx.HTTPStatusError(
+            "Not Found", request=resp.request, response=resp,
+        )
+        config = _config(remote_image_retries=0)
+        with pytest.raises(NotionifyImageDownloadError) as exc_info:
+            download_image("https://x.com/img", config)
+        ctx = exc_info.value.context
+        assert ctx["last_status_code"] == 404
+        assert ctx["is_permanent"] is True
+        assert ctx["attempts_used"] == 1
+        assert ctx["max_attempts"] == 1
+
+    @patch("notionify.image.download._try_download")
+    def test_500_error_context_has_status_and_not_permanent(self, mock_try: MagicMock):
+        resp = httpx.Response(500, request=httpx.Request("GET", "https://x.com/img"))
+        mock_try.side_effect = httpx.HTTPStatusError(
+            "Server Error", request=resp.request, response=resp,
+        )
+        config = _config(remote_image_retries=1)
+        with pytest.raises(NotionifyImageDownloadError) as exc_info:
+            download_image("https://x.com/img", config)
+        ctx = exc_info.value.context
+        assert ctx["last_status_code"] == 500
+        assert ctx["is_permanent"] is False
+        assert ctx["attempts_used"] == 2
+        assert ctx["max_attempts"] == 2
+
+    @patch("notionify.image.download._try_download")
+    def test_timeout_error_context_has_no_status(self, mock_try: MagicMock):
+        mock_try.side_effect = httpx.ReadTimeout("timeout")
+        config = _config(remote_image_retries=0)
+        with pytest.raises(NotionifyImageDownloadError) as exc_info:
+            download_image("https://x.com/img", config)
+        ctx = exc_info.value.context
+        assert ctx["last_status_code"] is None
+        assert ctx["is_permanent"] is False

@@ -625,3 +625,48 @@ class TestConcurrentLoggerSafety:
             [ln for ln in output.strip().split("\n") if ln]
         )
         assert line_count == 250
+
+
+class TestLoggerRegistryThreadSafety:
+    """Verify the logger registry lock prevents duplicate handlers."""
+
+    def test_concurrent_get_logger_same_name_no_duplicate_handlers(self):
+        """Multiple threads calling get_logger with the same name should add
+        exactly one handler, not one per thread."""
+        import logging
+        import threading
+
+        from notionify.observability.logger import (
+            _configured_loggers,
+            _registry_lock,
+        )
+
+        unique_name = "notionify.test_registry_race"
+
+        # Clean up in case a previous test already registered this name.
+        with _registry_lock:
+            _configured_loggers.discard(unique_name)
+        existing = logging.getLogger(unique_name)
+        existing.handlers.clear()
+
+        barrier = threading.Barrier(10)
+        errors: list[Exception] = []
+
+        def call_get_logger() -> None:
+            try:
+                barrier.wait(timeout=5)
+                get_logger(unique_name, stream=StringIO())
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=call_get_logger) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert len(errors) == 0, f"Threads raised: {errors}"
+        logger = logging.getLogger(unique_name)
+        assert len(logger.handlers) == 1, (
+            f"Expected exactly 1 handler but found {len(logger.handlers)}"
+        )

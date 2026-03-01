@@ -425,3 +425,34 @@ class TestValidateLocalFileWithoutData:
         )
         assert mime == "image/jpeg"
         assert returned_data == b""
+
+
+# =========================================================================
+# UploadStateMachine __repr__
+# =========================================================================
+
+
+class TestUploadStateMachineRepr:
+    """UploadStateMachine.__repr__ shows upload_id and state."""
+
+    def test_repr_pending(self):
+        sm = UploadStateMachine("upload-abc")
+        r = repr(sm)
+        assert "UploadStateMachine" in r
+        assert "upload-abc" in r
+        assert "pending" in r
+
+    def test_repr_after_transition(self):
+        sm = UploadStateMachine("upload-xyz")
+        sm.transition(UploadState.UPLOADING)
+        r = repr(sm)
+        assert "uploading" in r
+        assert "upload-xyz" in r
+
+    def test_repr_attached(self):
+        sm = UploadStateMachine("upload-123")
+        sm.transition(UploadState.UPLOADING)
+        sm.transition(UploadState.UPLOADED)
+        sm.transition(UploadState.ATTACHED)
+        r = repr(sm)
+        assert "attached" in r
