@@ -51,41 +51,23 @@ class TestBaseUrlValidation:
 
 
 class TestNumericConfigValidation:
-    def test_negative_retry_max_attempts_rejected(self):
-        with pytest.raises(ValueError, match="retry_max_attempts"):
-            NotionifyConfig(token="test", retry_max_attempts=-1)
+    @pytest.mark.parametrize(("param", "value"), [
+        ("retry_max_attempts", -1),
+        ("retry_base_delay", -0.5),
+        ("retry_max_delay", -1.0),
+        ("rate_limit_rps", 0),
+        ("rate_limit_rps", -1.0),
+        ("timeout_seconds", 0),
+        ("image_max_size_bytes", 0),
+        ("image_max_concurrent", 0),
+    ])
+    def test_invalid_numeric_config_rejected(self, param: str, value: float):
+        with pytest.raises(ValueError, match=param):
+            NotionifyConfig(token="test", **{param: value})
 
     def test_zero_retry_max_attempts_accepted(self):
         config = NotionifyConfig(token="test", retry_max_attempts=0)
         assert config.retry_max_attempts == 0
-
-    def test_negative_retry_base_delay_rejected(self):
-        with pytest.raises(ValueError, match="retry_base_delay"):
-            NotionifyConfig(token="test", retry_base_delay=-0.5)
-
-    def test_negative_retry_max_delay_rejected(self):
-        with pytest.raises(ValueError, match="retry_max_delay"):
-            NotionifyConfig(token="test", retry_max_delay=-1.0)
-
-    def test_zero_rate_limit_rps_rejected(self):
-        with pytest.raises(ValueError, match="rate_limit_rps"):
-            NotionifyConfig(token="test", rate_limit_rps=0)
-
-    def test_negative_rate_limit_rps_rejected(self):
-        with pytest.raises(ValueError, match="rate_limit_rps"):
-            NotionifyConfig(token="test", rate_limit_rps=-1.0)
-
-    def test_zero_timeout_seconds_rejected(self):
-        with pytest.raises(ValueError, match="timeout_seconds"):
-            NotionifyConfig(token="test", timeout_seconds=0)
-
-    def test_zero_image_max_size_bytes_rejected(self):
-        with pytest.raises(ValueError, match="image_max_size_bytes"):
-            NotionifyConfig(token="test", image_max_size_bytes=0)
-
-    def test_zero_image_max_concurrent_rejected(self):
-        with pytest.raises(ValueError, match="image_max_concurrent"):
-            NotionifyConfig(token="test", image_max_concurrent=0)
 
     def test_retry_base_delay_exceeds_max_delay_rejected(self):
         with pytest.raises(ValueError, match="retry_base_delay"):

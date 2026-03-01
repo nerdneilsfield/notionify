@@ -219,20 +219,15 @@ def make_table_block(header_cells, body_rows, has_column_header=True, has_row_he
 class TestHeadingRendering:
     """U-NM-001: Notion headings render to Markdown headings."""
 
-    def test_heading_1(self):
+    @pytest.mark.parametrize(("level", "prefix", "text"), [
+        (1, "#", "Title"),
+        (2, "##", "Subtitle"),
+        (3, "###", "Section"),
+    ])
+    def test_heading_level(self, level: int, prefix: str, text: str):
         r = NotionToMarkdownRenderer(make_config())
-        md = r.render_blocks([make_heading(1, "Title")])
-        assert md.strip() == "# Title"
-
-    def test_heading_2(self):
-        r = NotionToMarkdownRenderer(make_config())
-        md = r.render_blocks([make_heading(2, "Subtitle")])
-        assert md.strip() == "## Subtitle"
-
-    def test_heading_3(self):
-        r = NotionToMarkdownRenderer(make_config())
-        md = r.render_blocks([make_heading(3, "Section")])
-        assert md.strip() == "### Section"
+        md = r.render_blocks([make_heading(level, text)])
+        assert md.strip() == f"{prefix} {text}"
 
     def test_multiple_headings(self):
         r = NotionToMarkdownRenderer(make_config())

@@ -102,6 +102,12 @@ class TestDetectUnknown:
     def test_random_string(self):
         assert detect_image_source("ftp://server/file") == ImageSourceType.UNKNOWN
 
+    def test_non_http_scheme_with_image_extension(self):
+        """Non-http URL schemes with image extensions must not be misclassified as LOCAL_FILE."""
+        assert detect_image_source("ftp://files.example.com/img.png") == ImageSourceType.UNKNOWN
+        assert detect_image_source("sftp://server/photo.jpg") == ImageSourceType.UNKNOWN
+        assert detect_image_source("ssh://host/image.webp") == ImageSourceType.UNKNOWN
+
     def test_malformed_ipv6_url_is_unknown(self):
         """Malformed IPv6 URL triggers ValueError in urlparse -> UNKNOWN (line 50-52)."""
         assert detect_image_source("http://[") == ImageSourceType.UNKNOWN

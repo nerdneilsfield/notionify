@@ -61,12 +61,12 @@ def _extract_notion_file_url(block_data: dict[str, Any]) -> str:
     """
     file_type = block_data.get("type", "")
     if file_type == "external":
-        url: str = (block_data.get("external") or {}).get("url", "")
-        return url
-    if file_type == "file":
-        url = (block_data.get("file") or {}).get("url", "")
-        return url
-    return ""
+        result: str = (block_data.get("external") or {}).get("url", "")
+    elif file_type == "file":
+        result = (block_data.get("file") or {}).get("url", "")
+    else:
+        result = ""
+    return result
 
 
 class NotionToMarkdownRenderer:

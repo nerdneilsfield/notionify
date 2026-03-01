@@ -67,24 +67,17 @@ class TestHeadingMapping:
 class TestHeadingOverflowDowngrade:
     """U-CV-002: H4+ headings with downgrade strategy clamp to heading_3."""
 
-    def test_h4_downgrade_to_heading_3(self):
+    @pytest.mark.parametrize(("md", "text"), [
+        ("#### Deep Heading", "Deep Heading"),
+        ("##### Very Deep", "Very Deep"),
+        ("###### Deepest", "Deepest"),
+    ])
+    def test_downgrade_to_heading_3(self, md: str, text: str):
         c = MarkdownToNotionConverter(make_config(heading_overflow="downgrade"))
-        result = c.convert("#### Deep Heading")
+        result = c.convert(md)
         assert len(result.blocks) == 1
         assert result.blocks[0]["type"] == "heading_3"
-        assert _get_rich_text_content(result.blocks[0]) == "Deep Heading"
-
-    def test_h5_downgrade_to_heading_3(self):
-        c = MarkdownToNotionConverter(make_config(heading_overflow="downgrade"))
-        result = c.convert("##### Very Deep")
-        assert len(result.blocks) == 1
-        assert result.blocks[0]["type"] == "heading_3"
-
-    def test_h6_downgrade_to_heading_3(self):
-        c = MarkdownToNotionConverter(make_config(heading_overflow="downgrade"))
-        result = c.convert("###### Deepest")
-        assert len(result.blocks) == 1
-        assert result.blocks[0]["type"] == "heading_3"
+        assert _get_rich_text_content(result.blocks[0]) == text
 
 
 # =========================================================================
@@ -94,22 +87,18 @@ class TestHeadingOverflowDowngrade:
 class TestHeadingOverflowParagraph:
     """U-CV-003: H4+ with paragraph strategy become bold paragraphs."""
 
-    def test_h4_paragraph_becomes_bold_paragraph(self):
+    @pytest.mark.parametrize("md", [
+        "#### Sub-heading",
+        "##### Another",
+    ])
+    def test_paragraph_becomes_bold_paragraph(self, md: str):
         c = MarkdownToNotionConverter(make_config(heading_overflow="paragraph"))
-        result = c.convert("#### Sub-heading")
+        result = c.convert(md)
         assert len(result.blocks) == 1
         b = result.blocks[0]
         assert b["type"] == "paragraph"
         rt = _get_rich_text(b)
         assert len(rt) >= 1
-        # The text segment should have bold=True
-        assert rt[0].get("annotations", {}).get("bold") is True
-
-    def test_h5_paragraph_becomes_bold_paragraph(self):
-        c = MarkdownToNotionConverter(make_config(heading_overflow="paragraph"))
-        result = c.convert("##### Another")
-        assert result.blocks[0]["type"] == "paragraph"
-        rt = _get_rich_text(result.blocks[0])
         assert rt[0].get("annotations", {}).get("bold") is True
 
 
