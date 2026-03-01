@@ -2343,3 +2343,63 @@ class TestCodeWithBackticks:
         round_tripped = renderer.render_blocks(blocks)
         # At least one code block should use 4+ backtick fence
         assert "````" in round_tripped
+
+
+class TestMathInLinks:
+    """Round-trip tests for math_in_links.md.
+
+    Verifies that inline math expressions inside link text survive conversion,
+    producing equation segments with href attributes that render back to
+    ``[$expression$](url)`` syntax.
+    """
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "math_in_links.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) == 4
+        assert len(result.warnings) == 0
+
+    def test_equation_segments_have_href(self, converter):
+        """Equation segments inside links must carry the href attribute."""
+        md = (FIXTURES_DIR / "math_in_links.md").read_text()
+        result = converter.convert(md)
+        rt = result.blocks[0].get("paragraph", {}).get("rich_text", [])
+        eq_segs = [s for s in rt if s.get("type") == "equation"]
+        assert len(eq_segs) >= 1
+        assert eq_segs[0].get("href") == "https://en.wikipedia.org/wiki/Mass-energy_equivalence"
+
+    def test_round_trip_preserves_math_in_link(self, converter, renderer):
+        md = (FIXTURES_DIR / "math_in_links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "[$E=mc^2$]" in round_tripped
+        assert "wikipedia.org/wiki/Mass-energy_equivalence" in round_tripped
+
+    def test_round_trip_preserves_complex_math_in_link(self, converter, renderer):
+        md = (FIXTURES_DIR / "math_in_links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "int_0" in round_tripped
+        assert "GammaFunction" in round_tripped
+
+    def test_multiple_math_links_in_one_paragraph(self, converter, renderer):
+        md = (FIXTURES_DIR / "math_in_links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "einstein" in round_tripped
+        assert "euler" in round_tripped
+        assert "$E=mc^2$" in round_tripped
+        assert "e^{i\\pi}+1=0" in round_tripped
+
+    def test_mixed_text_and_math_in_link(self, converter, renderer):
+        """A link containing both bold text and math renders correctly."""
+        md = (FIXTURES_DIR / "math_in_links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "**bold**" in round_tripped
+        assert "$x^2$" in round_tripped
+        assert "example.com/mixed" in round_tripped
