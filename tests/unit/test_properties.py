@@ -2894,6 +2894,83 @@ class TestComputeSignatureProperties:
         }
         assert compute_signature(block) == compute_signature(block)
 
+    # Paragraph color properties
+    _NOTION_COLORS = [
+        "default", "gray", "brown", "orange", "yellow",
+        "green", "blue", "purple", "pink", "red",
+    ]
+
+    @given(
+        text=st.text(min_size=1, max_size=30),
+        color_a=st.sampled_from(_NOTION_COLORS),
+        color_b=st.sampled_from(_NOTION_COLORS),
+    )
+    @settings(max_examples=200)
+    def test_paragraph_different_colors_different_signatures(
+        self, text: str, color_a: str, color_b: str
+    ) -> None:
+        """Paragraphs with identical text but different colors produce different signatures."""
+        assume(color_a != color_b)
+
+        def _para(color: str) -> dict:
+            return {
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": text}, "plain_text": text}],
+                    "color": color,
+                },
+            }
+
+        assert compute_signature(_para(color_a)) != compute_signature(_para(color_b))
+
+    @given(
+        text=st.text(min_size=1, max_size=30),
+        color=st.sampled_from(_NOTION_COLORS),
+    )
+    @settings(max_examples=200)
+    def test_paragraph_same_color_same_signature(self, text: str, color: str) -> None:
+        """Identical paragraphs always produce the same signature."""
+        block = {
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": text}, "plain_text": text}],
+                "color": color,
+            },
+        }
+        assert compute_signature(block) == compute_signature(block)
+
+    # table_row cell content properties
+    @given(
+        cell_a=st.text(min_size=1, max_size=30),
+        cell_b=st.text(min_size=1, max_size=30),
+    )
+    @settings(max_examples=200)
+    def test_table_row_different_cell_content_different_signatures(
+        self, cell_a: str, cell_b: str
+    ) -> None:
+        """table_row blocks with different cell content produce different signatures."""
+        assume(cell_a != cell_b)
+
+        def _row(content: str) -> dict:
+            return {
+                "type": "table_row",
+                "table_row": {
+                    "cells": [[{"plain_text": content}], [{"plain_text": "stable"}]],
+                },
+            }
+
+        assert compute_signature(_row(cell_a)) != compute_signature(_row(cell_b))
+
+    @given(cell_text=st.text(min_size=1, max_size=30))
+    @settings(max_examples=200)
+    def test_table_row_same_cells_same_signature(self, cell_text: str) -> None:
+        """Identical table_row blocks always produce the same signature."""
+        block = {
+            "type": "table_row",
+            "table_row": {"cells": [[{"plain_text": cell_text}]]},
+        }
+        assert compute_signature(block) == compute_signature(block)
+
 
 # ---------------------------------------------------------------------------
 # TestDataUriParseProperties
