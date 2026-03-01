@@ -248,7 +248,12 @@ class NotionToMarkdownRenderer:
         if self._config.detect_latex_code and language == "latex":
             return f"$$\n{code_text}\n$$\n\n"
 
-        return f"```{language}\n{code_text}\n```\n\n"
+        # Use enough backticks so the fence doesn't conflict with content.
+        fence = "```"
+        while fence in code_text:
+            fence += "`"
+
+        return f"{fence}{language}\n{code_text}\n{fence}\n\n"
 
     def _render_divider(self, block: dict[str, Any], depth: int) -> str:
         return "---\n\n"
@@ -283,6 +288,14 @@ class NotionToMarkdownRenderer:
         rows = [c for c in children if c.get("type") == "table_row"]
         if not rows:
             return ""
+
+        # Ensure col_count reflects actual cell data (defensive: table_width
+        # may be 0 or stale if the API response is incomplete).
+        if not col_count:
+            col_count = max(
+                (len(r.get("table_row", {}).get("cells", [])) for r in rows),
+                default=1,
+            )
 
         lines: list[str] = []
 

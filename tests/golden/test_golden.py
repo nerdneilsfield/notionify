@@ -2294,3 +2294,52 @@ class TestConsecutiveTables:
         blocks = _simulate_api_response(result.blocks)
         round_tripped = renderer.render_blocks(blocks)
         assert "_Actix_" in round_tripped
+
+
+class TestCodeWithBackticks:
+    """Code blocks containing backtick fences round-trip correctly."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "code_with_backticks.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_produces_code_blocks(self, converter):
+        md = (FIXTURES_DIR / "code_with_backticks.md").read_text()
+        result = converter.convert(md)
+        code_blocks = [b for b in result.blocks if b.get("type") == "code"]
+        assert len(code_blocks) >= 2
+
+    def test_normal_code_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "code_with_backticks.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert 'print("hello world")' in round_tripped
+
+    def test_nested_backtick_content_preserved(self, converter, renderer):
+        """Code block that contains triple backticks renders with longer fence."""
+        md = (FIXTURES_DIR / "code_with_backticks.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        # The inner triple-backtick content must survive the round-trip
+        assert '```python' in round_tripped
+        assert 'print("hello")' in round_tripped
+
+    def test_inline_backtick_content_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "code_with_backticks.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "`backticks`" in round_tripped
+
+    def test_longer_fence_used_for_backtick_content(self, converter, renderer):
+        """Round-trip uses 4+ backtick fences when content contains triple backticks."""
+        md = (FIXTURES_DIR / "code_with_backticks.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        # At least one code block should use 4+ backtick fence
+        assert "````" in round_tripped

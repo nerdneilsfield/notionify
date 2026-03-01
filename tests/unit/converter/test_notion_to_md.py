@@ -1452,3 +1452,135 @@ class TestTableRowHeaderRendering:
         md = r.render_blocks([block])
         assert "| X | Y |" in md
         assert "**" not in md
+
+
+# =========================================================================
+# Code fence collision (backtick-in-code-content)
+# =========================================================================
+
+
+class TestCodeFenceCollision:
+    """Code blocks whose content contains backtick fences must use longer fences."""
+
+    def test_triple_backtick_in_code_uses_four(self):
+        """Content with ``` triggers a 4-backtick fence."""
+        r = NotionToMarkdownRenderer(make_config())
+        code = 'Show markdown:\n```python\nprint("hi")\n```'
+        blocks = [make_code_block(code, language="markdown")]
+        md = r.render_blocks(blocks)
+        assert md.startswith("````markdown\n")
+        assert md.endswith("\n````\n\n")
+        assert code in md
+
+    def test_quad_backtick_in_code_uses_five(self):
+        """Content with ```` triggers a 5-backtick fence."""
+        r = NotionToMarkdownRenderer(make_config())
+        code = "nested:\n````\ninner\n````"
+        blocks = [make_code_block(code, language="")]
+        md = r.render_blocks(blocks)
+        assert "`````\n" in md
+        # Triple backtick should NOT appear as the opening fence
+        lines = md.strip().split("\n")
+        assert lines[0] == "`````"
+        assert lines[-1] == "`````"
+
+    def test_no_backtick_content_uses_triple(self):
+        """Normal code without backticks still uses triple backtick fence."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [make_code_block("print('hello')", language="python")]
+        md = r.render_blocks(blocks)
+        assert md.startswith("```python\n")
+
+    def test_backtick_midline_still_escapes(self):
+        """Backtick sequences anywhere in the content trigger longer fences."""
+        r = NotionToMarkdownRenderer(make_config())
+        code = "Use ``` for code fences"
+        blocks = [make_code_block(code, language="")]
+        md = r.render_blocks(blocks)
+        # Fence must be longer than the triple backtick in content
+        lines = md.strip().split("\n")
+        assert len(lines[0]) >= 4
+        assert code in md
+
+    def test_code_content_preserved_with_longer_fence(self):
+        """Round-trip: code content is preserved exactly between longer fences."""
+        r = NotionToMarkdownRenderer(make_config())
+        code = "```\nsome\n```\nmore\n````"
+        blocks = [make_code_block(code, language="text")]
+        md = r.render_blocks(blocks)
+        assert code in md
+        # Fence must be at least 5 backticks (content has ````)
+        opening_line = md.strip().split("\n")[0]
+        backtick_count = len(opening_line) - len(opening_line.lstrip("`"))
+        assert backtick_count >= 5
+
+
+# =========================================================================
+# Table separator with missing/zero table_width
+# =========================================================================
+
+
+class TestTableWidthFallback:
+    """Table rendering when table_width is 0 or missing."""
+
+    def test_table_width_zero_uses_actual_cell_count(self):
+        """table_width=0 derives column count from actual cell data."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "table",
+            "table": {
+                "table_width": 0,
+                "has_column_header": True,
+                "has_row_header": False,
+                "children": [
+                    {"type": "table_row", "table_row": {"cells": [
+                        [_make_text_segment("A")], [_make_text_segment("B")],
+                    ]}},
+                    {"type": "table_row", "table_row": {"cells": [
+                        [_make_text_segment("1")], [_make_text_segment("2")],
+                    ]}},
+                ],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "| A | B |" in md
+        assert "|---|---|" in md
+        assert "| 1 | 2 |" in md
+
+    def test_table_width_missing_uses_actual_cell_count(self):
+        """Missing table_width key derives column count from actual cell data."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "table",
+            "table": {
+                # table_width intentionally absent
+                "children": [
+                    {"type": "table_row", "table_row": {"cells": [
+                        [_make_text_segment("X")], [_make_text_segment("Y")],
+                        [_make_text_segment("Z")],
+                    ]}},
+                ],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "| X | Y | Z |" in md
+        assert "|---|---|---|" in md
+
+    def test_table_width_zero_single_column(self):
+        """table_width=0 with single-column rows produces valid separator."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "table",
+            "table": {
+                "table_width": 0,
+                "has_column_header": True,
+                "children": [
+                    {"type": "table_row", "table_row": {"cells": [
+                        [_make_text_segment("Only")],
+                    ]}},
+                ],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "| Only |" in md
+        assert "|---|" in md
