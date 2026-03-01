@@ -245,14 +245,27 @@ class DiffPlanner:
                 inserted_type = (insert_op.new_block or {}).get("type", "")
 
                 if deleted_type and deleted_type == inserted_type:
-                    # Same type -- UPDATE.
-                    result.append(
-                        DiffOp(
-                            op_type=DiffOpType.UPDATE,
-                            existing_id=delete_op.existing_id,
-                            new_block=insert_op.new_block,
-                        )
+                    # Same type -- UPDATE, unless children are present
+                    # (Notion PATCH API ignores children; must REPLACE).
+                    new_type_data = (insert_op.new_block or {}).get(
+                        inserted_type, {},
                     )
+                    if "children" in new_type_data:
+                        result.append(
+                            DiffOp(
+                                op_type=DiffOpType.REPLACE,
+                                existing_id=delete_op.existing_id,
+                                new_block=insert_op.new_block,
+                            )
+                        )
+                    else:
+                        result.append(
+                            DiffOp(
+                                op_type=DiffOpType.UPDATE,
+                                existing_id=delete_op.existing_id,
+                                new_block=insert_op.new_block,
+                            )
+                        )
                 else:
                     # Different type -- REPLACE.
                     result.append(

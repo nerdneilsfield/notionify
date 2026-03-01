@@ -600,6 +600,44 @@ class TestPlannerEdgeCases:
         assert replaces[0].existing_id == "e1"
         assert replaces[0].new_block["type"] == "heading_1"
 
+    def test_upgrade_with_children_uses_replace(self):
+        """Same-type block with children must REPLACE, not UPDATE.
+
+        The Notion PATCH API ignores children in the payload, so blocks
+        with nested children must be deleted and re-inserted.
+        """
+        existing = [
+            _para("anchor-1", "e0"),
+            {
+                "type": "bulleted_list_item",
+                "id": "e1",
+                "bulleted_list_item": {
+                    "rich_text": [{"plain_text": "item"}],
+                    "color": "default",
+                },
+                "has_children": True,
+            },
+            _para("anchor-2", "e2"),
+        ]
+        new = [
+            _para("anchor-1"),
+            {
+                "type": "bulleted_list_item",
+                "bulleted_list_item": {
+                    "rich_text": [{"plain_text": "item modified"}],
+                    "color": "default",
+                    "children": [_para("nested child")],
+                },
+            },
+            _para("anchor-2"),
+        ]
+        ops = self._plan(existing, new)
+        replaces = [o for o in ops if o.op_type == DiffOpType.REPLACE]
+        updates = [o for o in ops if o.op_type == DiffOpType.UPDATE]
+        assert len(replaces) == 1, f"Expected REPLACE for block with children, got: {ops}"
+        assert len(updates) == 0
+        assert replaces[0].existing_id == "e1"
+
     def test_full_overwrite_preserves_block_order(self):
         """Full overwrite produces DELETEs before INSERTs in order."""
         existing = [_para("A", "e1"), _para("B", "e2")]
