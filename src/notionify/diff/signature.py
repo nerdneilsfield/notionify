@@ -85,6 +85,36 @@ def _normalize_rich_text(block: dict[str, Any], block_type: str) -> list[dict[st
     return segments
 
 
+def _normalize_table_row_cells(block: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build a normalized representation of all cells in a table_row block.
+
+    A table_row's ``cells`` field is a list of lists — one inner list per
+    column.  Each inner list contains rich_text objects with the same structure
+    as a normal ``rich_text`` array.  We flatten all cells into a single
+    ordered list of segments, inserting ``{"cell_boundary": <idx>}`` sentinels
+    between cells so that different distributions of the same text across cells
+    (e.g. ``["a", "b"]`` vs ``["ab", ""]``) still produce distinct hashes.
+    """
+    type_data = block.get("table_row", {})
+    cells = type_data.get("cells", [])
+    result: list[dict[str, Any]] = []
+    for cell_idx, cell in enumerate(cells):
+        result.append({"cell_boundary": cell_idx})
+        for rt in cell:
+            text = rt.get("plain_text", "")
+            if not text:
+                text = (rt.get("text") or {}).get("content") or ""
+            segment: dict[str, Any] = {"text": text}
+            annotations = rt.get("annotations")
+            if annotations:
+                segment["annotations"] = annotations
+            href = rt.get("href")
+            if href:
+                segment["href"] = href
+            result.append(segment)
+    return result
+
+
 def _extract_children_info(block: dict[str, Any]) -> dict[str, Any]:
     """Build a dict summarising child blocks for structural hashing."""
     children = block.get("children", [])
@@ -169,7 +199,12 @@ def compute_signature(block: dict[str, Any], depth: int = 0) -> BlockSignature:
 
     # Rich text hash -- includes annotations so that identical text with
     # different formatting (bold/italic/etc.) produces different signatures.
-    rich_text_segments = _normalize_rich_text(block, block_type)
+    # table_row blocks store content in ``cells`` (list-of-lists) rather than
+    # a top-level ``rich_text`` array, so they need their own normalizer.
+    if block_type == "table_row":
+        rich_text_segments = _normalize_table_row_cells(block)
+    else:
+        rich_text_segments = _normalize_rich_text(block, block_type)
     rich_text_hash = hash_dict({"segments": rich_text_segments})
 
     # Structural hash -- child count and child types.

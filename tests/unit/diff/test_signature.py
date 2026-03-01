@@ -4,6 +4,7 @@ from notionify.diff.signature import (
     _extract_plain_text,
     _extract_type_attrs,
     _normalize_rich_text,
+    _normalize_table_row_cells,
     compute_signature,
 )
 
@@ -609,3 +610,129 @@ class TestCaptionInSignature:
         }
         attrs = _extract_type_attrs(block, "bookmark")
         assert "caption" in attrs
+
+
+class TestNormalizeTableRowCells:
+    """Tests for _normalize_table_row_cells and table_row signature correctness."""
+
+    def _rt(self, text: str) -> dict:
+        return {"plain_text": text}
+
+    def _rt_annotated(self, text: str, bold: bool = False) -> dict:
+        return {
+            "plain_text": text,
+            "annotations": {"bold": bold, "italic": False, "strikethrough": False,
+                            "underline": False, "code": False, "color": "default"},
+        }
+
+    def test_empty_table_row(self):
+        block: dict = {"table_row": {}}
+        segments = _normalize_table_row_cells(block)
+        assert segments == []
+
+    def test_empty_cells_list(self):
+        block = {"table_row": {"cells": []}}
+        segments = _normalize_table_row_cells(block)
+        assert segments == []
+
+    def test_single_cell_single_segment(self):
+        block = {"table_row": {"cells": [[self._rt("hello")]]}}
+        segments = _normalize_table_row_cells(block)
+        # boundary for cell 0 + the text segment
+        assert segments == [{"cell_boundary": 0}, {"text": "hello"}]
+
+    def test_two_cells_boundary_markers_present(self):
+        block = {"table_row": {"cells": [[self._rt("A")], [self._rt("B")]]}}
+        segments = _normalize_table_row_cells(block)
+        boundaries = [s for s in segments if "cell_boundary" in s]
+        assert len(boundaries) == 2
+        assert boundaries[0]["cell_boundary"] == 0
+        assert boundaries[1]["cell_boundary"] == 1
+
+    def test_annotations_preserved(self):
+        block = {"table_row": {"cells": [[self._rt_annotated("bold text", bold=True)]]}}
+        segments = _normalize_table_row_cells(block)
+        text_segs = [s for s in segments if "text" in s]
+        assert len(text_segs) == 1
+        assert text_segs[0]["annotations"]["bold"] is True
+
+    def test_different_cell_content_different_signature(self):
+        """Core bug fix: two table_row blocks with different cell content differ."""
+        block_a = {
+            "type": "table_row",
+            "table_row": {"cells": [[self._rt("Alpha")], [self._rt("Beta")]]},
+        }
+        block_b = {
+            "type": "table_row",
+            "table_row": {"cells": [[self._rt("Alpha")], [self._rt("CHANGED")]]},
+        }
+        assert compute_signature(block_a) != compute_signature(block_b)
+
+    def test_same_cell_content_same_signature(self):
+        block_a = {
+            "type": "table_row",
+            "table_row": {"cells": [[self._rt("X")], [self._rt("Y")]]},
+        }
+        block_b = {
+            "type": "table_row",
+            "table_row": {"cells": [[self._rt("X")], [self._rt("Y")]]},
+        }
+        assert compute_signature(block_a) == compute_signature(block_b)
+
+    def test_different_cell_count_different_signature(self):
+        block_2col = {
+            "type": "table_row",
+            "table_row": {"cells": [[self._rt("a")], [self._rt("b")]]},
+        }
+        block_3col = {
+            "type": "table_row",
+            "table_row": {"cells": [[self._rt("a")], [self._rt("b")], [self._rt("c")]]},
+        }
+        assert compute_signature(block_2col) != compute_signature(block_3col)
+
+    def test_reordered_cells_different_signature(self):
+        """["A","B"] and ["B","A"] must produce different signatures."""
+        block_ab = {
+            "type": "table_row",
+            "table_row": {"cells": [[self._rt("A")], [self._rt("B")]]},
+        }
+        block_ba = {
+            "type": "table_row",
+            "table_row": {"cells": [[self._rt("B")], [self._rt("A")]]},
+        }
+        assert compute_signature(block_ab) != compute_signature(block_ba)
+
+    def test_text_split_differently_across_cells_different_signature(self):
+        """["ab",""] vs ["a","b"] must differ (boundary sentinel ensures this)."""
+        block_ab_empty = {
+            "type": "table_row",
+            "table_row": {"cells": [[self._rt("ab")], [self._rt("")]]},
+        }
+        block_a_b = {
+            "type": "table_row",
+            "table_row": {"cells": [[self._rt("a")], [self._rt("b")]]},
+        }
+        assert compute_signature(block_ab_empty) != compute_signature(block_a_b)
+
+    def test_fallback_to_text_content(self):
+        """Cells using text.content instead of plain_text are handled."""
+        block = {
+            "type": "table_row",
+            "table_row": {
+                "cells": [[{"text": {"content": "via_content"}}]],
+            },
+        }
+        segments = _normalize_table_row_cells(block)
+        text_segs = [s for s in segments if "text" in s]
+        assert text_segs[0]["text"] == "via_content"
+
+    def test_href_in_cell_preserved(self):
+        """Rich text with href inside a cell carries the href into segments."""
+        block = {
+            "table_row": {
+                "cells": [[{"plain_text": "link", "href": "https://example.com"}]],
+            }
+        }
+        segments = _normalize_table_row_cells(block)
+        text_segs = [s for s in segments if "text" in s]
+        assert text_segs[0]["href"] == "https://example.com"
