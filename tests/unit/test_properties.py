@@ -3014,6 +3014,46 @@ class TestComputeSignatureProperties:
         }
         assert compute_signature(block_checked) != compute_signature(block_unchecked)
 
+    # child_page and child_database title properties
+    @given(
+        title_a=st.text(min_size=1, max_size=40),
+        title_b=st.text(min_size=1, max_size=40),
+    )
+    @settings(max_examples=200)
+    def test_child_page_different_titles_different_signatures(
+        self, title_a: str, title_b: str
+    ) -> None:
+        """child_page blocks with different titles produce different signatures."""
+        assume(title_a != title_b)
+
+        def _child_page(title: str) -> dict:
+            return {"type": "child_page", "child_page": {"title": title}}
+
+        assert compute_signature(_child_page(title_a)) != compute_signature(_child_page(title_b))
+
+    @given(title=st.text(min_size=1, max_size=40))
+    @settings(max_examples=200)
+    def test_child_page_same_title_same_signature(self, title: str) -> None:
+        """Identical child_page blocks always produce the same signature."""
+        block = {"type": "child_page", "child_page": {"title": title}}
+        assert compute_signature(block) == compute_signature(block)
+
+    @given(
+        title_a=st.text(min_size=1, max_size=40),
+        title_b=st.text(min_size=1, max_size=40),
+    )
+    @settings(max_examples=200)
+    def test_child_database_different_titles_different_signatures(
+        self, title_a: str, title_b: str
+    ) -> None:
+        """child_database blocks with different titles produce different signatures."""
+        assume(title_a != title_b)
+
+        def _child_db(title: str) -> dict:
+            return {"type": "child_database", "child_database": {"title": title}}
+
+        assert compute_signature(_child_db(title_a)) != compute_signature(_child_db(title_b))
+
 
 # ---------------------------------------------------------------------------
 # TestDataUriParseProperties
