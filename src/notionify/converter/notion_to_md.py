@@ -158,7 +158,14 @@ class NotionToMarkdownRenderer:
         block_data = block.get(f"heading_{level}", {})
         text = render_rich_text(block_data.get("rich_text", []))
         prefix = "#" * level
-        return f"{prefix} {text}\n\n"
+        result = f"{prefix} {text}\n\n"
+
+        # Toggle headings (is_toggleable=True) may contain children.
+        children = block_data.get("children") or block.get("children")
+        if children:
+            result += self._render_block_list(children, depth)
+
+        return result
 
     def _render_paragraph(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("paragraph", {})

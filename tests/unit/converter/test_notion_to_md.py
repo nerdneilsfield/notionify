@@ -242,6 +242,36 @@ class TestHeadingRendering:
         assert "## H2" in md
         assert "### H3" in md
 
+    def test_toggle_heading_renders_children(self):
+        """Toggle headings (is_toggleable=True) must render their children."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "heading_2",
+            "heading_2": {
+                "rich_text": [_make_text_segment("Toggle Section")],
+                "is_toggleable": True,
+                "color": "default",
+            },
+            "children": [
+                {
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": [_make_text_segment("Hidden content")]},
+                }
+            ],
+        }
+        md = r.render_blocks([block])
+        assert "## Toggle Section" in md
+        assert "Hidden content" in md
+
+    def test_non_toggle_heading_no_children(self):
+        """Regular headings without children render only the heading text."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = make_heading(1, "Plain Heading")
+        md = r.render_blocks([block])
+        assert "# Plain Heading" in md
+        lines = [l for l in md.strip().split("\n") if l.strip()]
+        assert len(lines) == 1
+
 
 # =========================================================================
 # U-NM-002: paragraph with bold
