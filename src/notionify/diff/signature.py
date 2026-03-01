@@ -28,7 +28,7 @@ _ATTRS_EXTRACTORS: dict[str, list[str]] = {
     "embed": ["url", "caption"],
     "image": ["type", "caption"],
     "equation": ["expression"],
-    "link_to_page": ["type"],
+    "link_to_page": ["type", "page_id", "database_id"],
     "table": ["has_column_header", "has_row_header", "table_width"],
     "column_list": [],
     "divider": [],

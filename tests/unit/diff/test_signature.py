@@ -432,6 +432,54 @@ class TestComputeSignature:
         assert attrs["icon"] == {"type": "emoji", "emoji": "💡"}
         assert attrs["color"] == "yellow_background"
 
+    def test_link_to_page_page_id_extracted(self):
+        """link_to_page block extracts the page_id so different targets differ."""
+        block = {
+            "type": "link_to_page",
+            "link_to_page": {"type": "page_id", "page_id": "abc-123-def"},
+        }
+        attrs = _extract_type_attrs(block, "link_to_page")
+        assert attrs["type"] == "page_id"
+        assert attrs["page_id"] == "abc-123-def"
+
+    def test_link_to_page_database_id_extracted(self):
+        """link_to_page block extracts the database_id for database links."""
+        block = {
+            "type": "link_to_page",
+            "link_to_page": {"type": "database_id", "database_id": "db-456-ghi"},
+        }
+        attrs = _extract_type_attrs(block, "link_to_page")
+        assert attrs["type"] == "database_id"
+        assert attrs["database_id"] == "db-456-ghi"
+
+    def test_link_to_page_different_targets_different_signatures(self):
+        """Two link_to_page blocks pointing to different pages produce different signatures."""
+        block_a = {
+            "type": "link_to_page",
+            "link_to_page": {"type": "page_id", "page_id": "page-aaa"},
+        }
+        block_b = {
+            "type": "link_to_page",
+            "link_to_page": {"type": "page_id", "page_id": "page-bbb"},
+        }
+        sig_a = compute_signature(block_a)
+        sig_b = compute_signature(block_b)
+        assert sig_a != sig_b
+
+    def test_link_to_page_same_target_same_signature(self):
+        """Two link_to_page blocks with the same page_id produce the same signature."""
+        block_a = {
+            "type": "link_to_page",
+            "link_to_page": {"type": "page_id", "page_id": "page-same"},
+        }
+        block_b = {
+            "type": "link_to_page",
+            "link_to_page": {"type": "page_id", "page_id": "page-same"},
+        }
+        sig_a = compute_signature(block_a)
+        sig_b = compute_signature(block_b)
+        assert sig_a == sig_b
+
 
 class TestNormalizeRichText:
     def test_empty_rich_text(self):
