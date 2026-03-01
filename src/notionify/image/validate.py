@@ -39,6 +39,8 @@ _MAGIC_BYTES: list[tuple[bytes, str]] = [
     (b"<svg", "image/svg+xml"),
     (b"<?xml", "image/svg+xml"),  # SVG can start with XML declaration
     (b"BM", "image/bmp"),
+    (b"II\x2a\x00", "image/tiff"),  # TIFF little-endian
+    (b"MM\x00\x2a", "image/tiff"),  # TIFF big-endian
 ]
 
 

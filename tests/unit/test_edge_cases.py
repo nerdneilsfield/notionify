@@ -757,6 +757,26 @@ class TestImageValidationEdgeCases:
         mime, _ = validate_image("file.bin", ImageSourceType.LOCAL_FILE, webp_data, config)
         assert mime == "image/webp"
 
+    def test_tiff_little_endian_magic_detected(self):
+        """TIFF little-endian (II) magic bytes sniff as image/tiff."""
+        config = NotionifyConfig(
+            token="test",
+            image_allowed_mimes_upload=["image/tiff"],
+        )
+        tiff_le = b"II\x2a\x00" + b"\x00" * 100
+        mime, _ = validate_image("file.bin", ImageSourceType.LOCAL_FILE, tiff_le, config)
+        assert mime == "image/tiff"
+
+    def test_tiff_big_endian_magic_detected(self):
+        """TIFF big-endian (MM) magic bytes sniff as image/tiff."""
+        config = NotionifyConfig(
+            token="test",
+            image_allowed_mimes_upload=["image/tiff"],
+        )
+        tiff_be = b"MM\x00\x2a" + b"\x00" * 100
+        mime, _ = validate_image("file.bin", ImageSourceType.LOCAL_FILE, tiff_be, config)
+        assert mime == "image/tiff"
+
 
 # ── Branch coverage: OR/AND condition gaps ───────────────────────────
 
