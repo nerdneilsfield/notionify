@@ -2126,3 +2126,76 @@ class TestQuoteWithListChildren:
         assert "first" in md
         assert "second" in md
         assert "third" in md
+
+
+class TestParagraphWithChildren:
+    """Paragraph blocks may contain children (line 201 branch)."""
+
+    def test_paragraph_with_child_paragraph_renders_both(self):
+        r = NotionToMarkdownRenderer(make_config())
+        child = make_paragraph([_make_text_segment("child text")])
+        block = {
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [_make_text_segment("parent text")],
+                "children": [child],
+            },
+        }
+        md = r.render_blocks([block])
+        assert "parent text" in md
+        assert "child text" in md
+
+
+class TestTableEdgeCases:
+    """Edge cases in _render_table (lines 321, 326, 355)."""
+
+    def test_table_with_no_children_returns_empty(self):
+        """Table block with no children renders as empty string (line 321)."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "table",
+            "table": {
+                "table_width": 2,
+                "has_column_header": False,
+                "has_row_header": False,
+            },
+        }
+        md = r.render_blocks([block])
+        assert md == ""
+
+    def test_table_with_non_row_children_returns_empty(self):
+        """Table children that aren't table_row blocks render as empty string (line 326)."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "table",
+            "table": {
+                "table_width": 2,
+                "has_column_header": False,
+                "has_row_header": False,
+                "children": [
+                    {"type": "paragraph", "paragraph": {"rich_text": []}},
+                ],
+            },
+        }
+        md = r.render_blocks([block])
+        assert md == ""
+
+    def test_table_row_shorter_than_col_count_padded(self):
+        """Rows shorter than table_width are padded with empty cells (line 355)."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "table",
+            "table": {
+                "table_width": 3,
+                "has_column_header": False,
+                "has_row_header": False,
+                "children": [
+                    {"type": "table_row", "table_row": {"cells": [
+                        [_make_text_segment("A")],
+                    ]}},
+                ],
+            },
+        }
+        md = r.render_blocks([block])
+        # Row has only 1 cell but table_width=3; output should have 3 columns
+        assert "| A |  |  |" in md
