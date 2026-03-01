@@ -11,7 +11,7 @@ Annotation combination order follows PRD section 11.2.
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Literal
 
 # Characters that must be escaped in inline Markdown context.
 ESCAPE_CHARS = r'\`*_{}[]()#+-.!|'
@@ -19,7 +19,7 @@ ESCAPE_CHARS = r'\`*_{}[]()#+-.!|'
 _ESCAPE_RE = re.compile(r'([\\`*_{}\[\]()#+\-.!|])')
 
 
-def markdown_escape(text: str, context: str = "inline") -> str:
+def markdown_escape(text: str, context: Literal["inline", "code", "url"] = "inline") -> str:
     """Escape special Markdown characters.
 
     Parameters
