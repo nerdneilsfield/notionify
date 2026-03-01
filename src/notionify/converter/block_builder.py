@@ -325,14 +325,15 @@ def _build_block_quote(token: dict[str, Any], ctx: _BuildContext) -> list[dict[s
         child_type = child.get("type", "")
         if child_type == "paragraph":
             inline_children = child.get("children", [])
-            if all_rich_text:
-                # Separate paragraphs with newlines
-                all_rich_text.append({
-                    "type": "text",
-                    "text": {"content": "\n"},
-                })
             rt = build_rich_text(inline_children, ctx.config, warnings=ctx.warnings)
-            all_rich_text.extend(rt)
+            if rt:
+                if all_rich_text:
+                    # Separate paragraphs with newlines
+                    all_rich_text.append({
+                        "type": "text",
+                        "text": {"content": "\n"},
+                    })
+                all_rich_text.extend(rt)
         else:
             # Non-paragraph child: build as nested block
             nested_ctx = _BuildContext(ctx.config)

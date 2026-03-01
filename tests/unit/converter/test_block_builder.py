@@ -122,6 +122,22 @@ class TestBuildBlockQuote:
         assert blocks[0]["type"] == "quote"
         assert "children" in blocks[0]["quote"]
 
+    def test_blockquote_empty_paragraph_no_extra_newline(self):
+        """Empty paragraphs in blockquotes should not inject extra newlines."""
+        token = {
+            "type": "block_quote",
+            "children": [
+                _ast_paragraph("Alpha"),
+                {"type": "paragraph", "children": []},  # empty paragraph
+                _ast_paragraph("Beta"),
+            ],
+        }
+        blocks, _, _ = build_blocks([token], _config())
+        rt = blocks[0]["quote"]["rich_text"]
+        # Should have: "Alpha", "\n", "Beta" — not "Alpha", "\n", "\n", "Beta"
+        contents = [s["text"]["content"] for s in rt]
+        assert contents == ["Alpha", "\n", "Beta"]
+
 
 # =========================================================================
 # List blocks
