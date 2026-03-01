@@ -3300,6 +3300,52 @@ class TestComputeSignatureProperties:
         sig_b = compute_signature(_make_block(id_b))
         assert sig_a != sig_b
 
+    @given(
+        url_a=st.text(
+            alphabet=string.ascii_letters + string.digits + "-._~:/?#[]@!$&'()*+,;=%",
+            min_size=8, max_size=80,
+        ),
+        url_b=st.text(
+            alphabet=string.ascii_letters + string.digits + "-._~:/?#[]@!$&'()*+,;=%",
+            min_size=8, max_size=80,
+        ),
+    )
+    @settings(max_examples=200)
+    def test_image_different_external_urls_different_signatures(
+        self, url_a: str, url_b: str
+    ) -> None:
+        """image blocks with different external URLs produce different signatures."""
+        assume(url_a != url_b)
+
+        def _make_block(url: str) -> dict:
+            return {
+                "type": "image",
+                "image": {"type": "external", "external": {"url": url}, "caption": []},
+            }
+
+        sig_a = compute_signature(_make_block(url_a))
+        sig_b = compute_signature(_make_block(url_b))
+        assert sig_a != sig_b
+
+    @given(
+        url=st.text(
+            alphabet=string.ascii_letters + string.digits + "-._~:/?#[]@!$&'()*+,;=%",
+            min_size=8, max_size=80,
+        ),
+    )
+    @settings(max_examples=200)
+    def test_image_same_external_url_same_signature(self, url: str) -> None:
+        """Two image blocks with identical external URLs produce identical signatures."""
+        block_a = {
+            "type": "image",
+            "image": {"type": "external", "external": {"url": url}, "caption": []},
+        }
+        block_b = {
+            "type": "image",
+            "image": {"type": "external", "external": {"url": url}, "caption": []},
+        }
+        assert compute_signature(block_a) == compute_signature(block_b)
+
 
 # ---------------------------------------------------------------------------
 # TestDataUriParseProperties
