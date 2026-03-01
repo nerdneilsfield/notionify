@@ -54,6 +54,20 @@ _ANNOTATION_WRAPPERS = [
 ]
 
 
+def _render_code_span(content: str) -> str:
+    """Wrap *content* in backtick fences per CommonMark rules.
+
+    Uses a longer backtick delimiter when *content* contains backticks,
+    and adds space padding when *content* starts or ends with a backtick.
+    """
+    fence = "`"
+    while fence in content:
+        fence += "`"
+    if content.startswith("`") or content.endswith("`"):
+        return f"{fence} {content} {fence}"
+    return f"{fence}{content}{fence}"
+
+
 def render_rich_text(segments: list[dict[str, Any]]) -> str:
     """Render a Notion rich_text array to a Markdown string.
 
@@ -106,17 +120,7 @@ def render_rich_text(segments: list[dict[str, Any]]) -> str:
         is_code = annotations.get("code", False)
 
         if is_code:
-            # Inside code spans, no markdown escaping is needed.
-            # Per CommonMark, use a longer backtick run if content
-            # contains backticks, and add space padding when content
-            # starts or ends with a backtick.
-            fence = "`"
-            while fence in plain_text:
-                fence += "`"
-            if plain_text.startswith("`") or plain_text.endswith("`"):
-                text = f"{fence} {plain_text} {fence}"
-            else:
-                text = f"{fence}{plain_text}{fence}"
+            text = _render_code_span(plain_text)
         else:
             text = markdown_escape(plain_text)
             # Apply annotations in the specified order (innermost first):
