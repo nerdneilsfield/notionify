@@ -7556,6 +7556,14 @@ class TestApplyImageFallbackProperties:
         _apply_image_fallback("https://example.com/img.jpg", "alt", ctx)
         assert any(w.code == "IMAGE_SKIPPED" for w in ctx.warnings)
 
+    def test_skip_warning_context_includes_fallback_field(self) -> None:
+        """IMAGE_SKIPPED warning context includes fallback='skip'."""
+        ctx = self._ctx("skip")
+        _apply_image_fallback("https://example.com/img.jpg", "alt", ctx)
+        skipped = [w for w in ctx.warnings if w.code == "IMAGE_SKIPPED"]
+        assert skipped
+        assert skipped[0].context.get("fallback") == "skip"
+
     def test_placeholder_returns_one_block(self) -> None:
         """fallback='placeholder' returns exactly one paragraph block."""
         ctx = self._ctx("placeholder")
@@ -7584,6 +7592,14 @@ class TestApplyImageFallbackProperties:
         ctx = self._ctx("placeholder")
         _apply_image_fallback("https://example.com/img.jpg", "alt", ctx)
         assert any(w.code == "IMAGE_PLACEHOLDER" for w in ctx.warnings)
+
+    def test_placeholder_warning_context_includes_fallback_field(self) -> None:
+        """IMAGE_PLACEHOLDER warning context includes fallback='placeholder'."""
+        ctx = self._ctx("placeholder")
+        _apply_image_fallback("https://example.com/img.jpg", "alt", ctx)
+        placeholder = [w for w in ctx.warnings if w.code == "IMAGE_PLACEHOLDER"]
+        assert placeholder
+        assert placeholder[0].context.get("fallback") == "placeholder"
 
     def test_raise_fallback_returns_empty_list(self) -> None:
         """fallback='raise' returns empty list (raises at client level, not here)."""
