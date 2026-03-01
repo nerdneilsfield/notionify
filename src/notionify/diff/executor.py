@@ -12,8 +12,9 @@ from typing import Any
 
 from notionify.config import NotionifyConfig
 from notionify.models import ConversionWarning, DiffOp, DiffOpType, UpdateResult
-from notionify.notion_api.blocks import extract_block_ids
+from notionify.notion_api.blocks import AsyncBlockAPI, BlockAPI, extract_block_ids
 from notionify.observability import NoopMetricsHook
+from notionify.observability.metrics import MetricsHook
 from notionify.utils.chunk import chunk_children
 
 
@@ -41,10 +42,11 @@ class DiffExecutor:
         SDK configuration.
     """
 
-    def __init__(self, block_api: Any, config: NotionifyConfig) -> None:
+    def __init__(self, block_api: BlockAPI, config: NotionifyConfig) -> None:
         self._api = block_api
         self._config = config
-        self._metrics = config.metrics if config.metrics is not None else NoopMetricsHook()
+        m = config.metrics
+        self._metrics: MetricsHook = m if m is not None else NoopMetricsHook()
 
     def execute(self, page_id: str, ops: list[DiffOp]) -> UpdateResult:
         """Execute diff operations via the Notion API.
@@ -168,10 +170,11 @@ class AsyncDiffExecutor:
         SDK configuration.
     """
 
-    def __init__(self, block_api: Any, config: NotionifyConfig) -> None:
+    def __init__(self, block_api: AsyncBlockAPI, config: NotionifyConfig) -> None:
         self._api = block_api
         self._config = config
-        self._metrics = config.metrics if config.metrics is not None else NoopMetricsHook()
+        m = config.metrics
+        self._metrics: MetricsHook = m if m is not None else NoopMetricsHook()
 
     async def execute(self, page_id: str, ops: list[DiffOp]) -> UpdateResult:
         """Execute diff operations via the Notion API (async).
@@ -278,7 +281,7 @@ class AsyncDiffExecutor:
         return i
 
 
-def _emit_diff_metrics(metrics: Any, ops: list[DiffOp]) -> None:
+def _emit_diff_metrics(metrics: MetricsHook, ops: list[DiffOp]) -> None:
     """Emit ``diff_ops_total`` counters grouped by operation type."""
     op_counts: Counter[str] = Counter()
     for op in ops:

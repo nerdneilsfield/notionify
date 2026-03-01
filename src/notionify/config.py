@@ -14,8 +14,11 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    from notionify.observability.metrics import MetricsHook
 
 # ---------------------------------------------------------------------------
 # MIME allowlist constants
@@ -276,7 +279,7 @@ class NotionifyConfig:
     http_proxy: str | None = None
 
     # ── Observability ──────────────────────────────────────────────────
-    metrics: Any | None = None
+    metrics: MetricsHook | None = None
 
     # ── Debug ───────────────────────────────────────────────────────────
     debug_dump_ast: bool = False

@@ -8,9 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from notionify.notion_api.files import AsyncFileAPI, FileAPI
+
 
 def upload_multi(
-    file_api: Any,
+    file_api: FileAPI,
     name: str,
     content_type: str,
     data: bytes,
@@ -93,7 +95,7 @@ def upload_multi(
 
 
 async def async_upload_multi(
-    file_api: Any,
+    file_api: AsyncFileAPI,
     name: str,
     content_type: str,
     data: bytes,

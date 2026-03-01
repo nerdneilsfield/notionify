@@ -5,11 +5,11 @@ Handles the simple case where an entire image fits in one PUT request.
 
 from __future__ import annotations
 
-from typing import Any
+from notionify.notion_api.files import AsyncFileAPI, FileAPI
 
 
 def upload_single(
-    file_api: Any,
+    file_api: FileAPI,
     name: str,
     content_type: str,
     data: bytes,
@@ -49,7 +49,7 @@ def upload_single(
 
 
 async def async_upload_single(
-    file_api: Any,
+    file_api: AsyncFileAPI,
     name: str,
     content_type: str,
     data: bytes,
