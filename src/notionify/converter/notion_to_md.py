@@ -371,8 +371,8 @@ class NotionToMarkdownRenderer:
         block_data = block.get("callout", {})
         text = render_rich_text(block_data.get("rich_text", []))
 
-        # Extract icon (emoji or external URL)
-        icon = block_data.get("icon", {})
+        # Extract icon (emoji, external URL, or Notion-hosted file URL)
+        icon = block_data.get("icon") or {}
         icon_str = ""
         if icon:
             icon_type = icon.get("type", "")
@@ -380,6 +380,8 @@ class NotionToMarkdownRenderer:
                 icon_str = icon.get("emoji", "")
             elif icon_type == "external":
                 icon_str = (icon.get("external") or {}).get("url", "")
+            elif icon_type == "file":
+                icon_str = (icon.get("file") or {}).get("url", "")
 
         if icon_str:
             content = f"{icon_str} {text}"

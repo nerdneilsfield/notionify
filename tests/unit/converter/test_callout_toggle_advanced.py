@@ -137,6 +137,36 @@ class TestCalloutExternalIcon:
         assert "Graceful fallback" in md
 
 
+class TestCalloutFileIcon:
+    """Callout blocks with Notion-hosted file icons use URL as prefix."""
+
+    def test_file_icon_prefix(self):
+        r = NotionToMarkdownRenderer(_cfg())
+        icon = {"type": "file", "file": {"url": "https://prod-files.notion.so/icon.png"}}
+        block = _callout("Note with file icon", icon=icon)
+        md = r.render_blocks([block])
+        assert "prod-files.notion.so/icon.png" in md
+        assert "Note with file icon" in md
+
+    def test_file_icon_with_null_file_key(self):
+        """file key is None — no icon prefix, no crash."""
+        r = NotionToMarkdownRenderer(_cfg())
+        icon = {"type": "file", "file": None}
+        block = _callout("Graceful fallback", icon=icon)
+        md = r.render_blocks([block])
+        assert "Graceful fallback" in md
+
+
+class TestCalloutNullIcon:
+    """Callout with icon=None does not crash (null-safety)."""
+
+    def test_icon_key_is_none(self):
+        r = NotionToMarkdownRenderer(_cfg())
+        block = {"type": "callout", "callout": {"rich_text": [_txt("ok")], "icon": None}}
+        md = r.render_blocks([block])
+        assert "ok" in md
+
+
 class TestCalloutNoIcon:
     """Callout without icon renders content only."""
 
