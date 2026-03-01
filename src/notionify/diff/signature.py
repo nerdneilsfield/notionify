@@ -16,7 +16,7 @@ from notionify.utils.hashing import hash_dict, md5_hash
 _ATTRS_EXTRACTORS: dict[str, list[str]] = {
     "paragraph": ["color"],
     "code": ["language", "caption"],
-    "to_do": ["checked"],
+    "to_do": ["checked", "color"],
     "heading_1": ["is_toggleable", "color"],
     "heading_2": ["is_toggleable", "color"],
     "heading_3": ["is_toggleable", "color"],

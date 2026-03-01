@@ -267,6 +267,24 @@ class TestComputeSignature:
         attrs = _extract_type_attrs(block, "to_do")
         assert attrs["checked"] is True
 
+    def test_to_do_color_attr(self):
+        """To-do block extracts color attribute."""
+        block = {"type": "to_do", "to_do": {"rich_text": [], "checked": False, "color": "red"}}
+        attrs = _extract_type_attrs(block, "to_do")
+        assert attrs["color"] == "red"
+
+    def test_to_do_different_colors_different_signatures(self):
+        """Two to-do blocks with same text/checked but different colors produce different signatures."""
+        block_default = {
+            "type": "to_do",
+            "to_do": {"rich_text": [{"plain_text": "task"}], "checked": False, "color": "default"},
+        }
+        block_red = {
+            "type": "to_do",
+            "to_do": {"rich_text": [{"plain_text": "task"}], "checked": False, "color": "red"},
+        }
+        assert compute_signature(block_default) != compute_signature(block_red)
+
     def test_table_attrs(self):
         """Table block extracts structural attributes."""
         block = {
