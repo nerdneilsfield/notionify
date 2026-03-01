@@ -319,6 +319,22 @@ class TestIsRetryable:
     def test_network_error_subclass_is_retryable(self):
         assert _is_retryable(httpx.NetworkError("conn reset")) is True
 
+    def test_429_is_not_retryable(self):
+        """429 Too Many Requests is treated as a permanent 4xx by the download module.
+
+        Unlike the Notion API transport layer (which explicitly handles 429 with
+        retry-after), the image downloader treats all 4xx as permanent rejections.
+        """
+        resp = httpx.Response(429, request=httpx.Request("GET", "https://x.com/img"))
+        exc = httpx.HTTPStatusError("Too Many Requests", request=resp.request, response=resp)
+        assert _is_retryable(exc) is False
+
+    def test_503_is_retryable(self):
+        """503 Service Unavailable is a transient 5xx error."""
+        resp = httpx.Response(503, request=httpx.Request("GET", "https://x.com/img"))
+        exc = httpx.HTTPStatusError("Service Unavailable", request=resp.request, response=resp)
+        assert _is_retryable(exc) is True
+
 
 # =========================================================================
 # Early abort on permanent errors
