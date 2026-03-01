@@ -791,6 +791,46 @@ class TestAsyncCreatePageWithMarkdown:
         assert properties["title"][0]["text"]["content"] == "Extracted Title"
         await client.close()
 
+    @pytest.mark.asyncio
+    async def test_large_content_chunked(self):
+        """Verify that >100 blocks are chunked into multiple API calls (async)."""
+        client = AsyncNotionifyClient(token="test-token")
+
+        lines = [f"Paragraph {i}" for i in range(120)]
+        markdown = "\n\n".join(lines)
+
+        client._pages.create = AsyncMock(return_value=_page_create_response())
+        client._blocks.append_children = AsyncMock(return_value=_append_response())
+
+        result = await client.create_page_with_markdown(
+            parent_id="parent-1",
+            title="Big Page",
+            markdown=markdown,
+        )
+
+        assert result.blocks_created == 120
+        assert client._blocks.append_children.await_count >= 1
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_custom_properties_merged(self):
+        """Custom properties are merged alongside the title property (async)."""
+        client = AsyncNotionifyClient(token="test-token")
+        client._pages.create = AsyncMock(return_value=_page_create_response())
+
+        await client.create_page_with_markdown(
+            parent_id="p-1",
+            title="Title",
+            markdown="text",
+            properties={"custom_prop": "value"},
+        )
+
+        call_args = client._pages.create.call_args
+        properties = call_args.kwargs.get("properties") or call_args[0][1]
+        assert "title" in properties
+        assert properties["custom_prop"] == "value"
+        await client.close()
+
 
 class TestAsyncAppendMarkdown:
     @pytest.mark.asyncio
@@ -1019,6 +1059,35 @@ class TestAsyncPageToMarkdown:
         md = await client.page_to_markdown(page_id="page-1", recursive=True)
         assert "Parent" in md
         assert "Child" in md
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_recursive_max_depth(self):
+        """Ensure recursion stops at max_depth (async)."""
+        parent = _block_dict(block_type="paragraph", block_id="p1", text="Level 0")
+        parent["has_children"] = True
+
+        child = _block_dict(block_type="paragraph", block_id="c1", text="Level 1")
+        child["has_children"] = True
+
+        grandchild = _block_dict(block_type="paragraph", block_id="g1", text="Level 2")
+
+        client = AsyncNotionifyClient(token="test-token")
+        children_map = {
+            "page-1": [parent],
+            "p1": [child],
+            "c1": [grandchild],
+        }
+
+        async def mock_get_children(block_id):
+            return children_map.get(block_id, [])
+
+        client._blocks.get_children = AsyncMock(side_effect=mock_get_children)
+
+        md = await client.page_to_markdown(page_id="page-1", recursive=True, max_depth=1)
+        assert "Level 0" in md
+        assert "Level 1" in md
+        assert "Level 2" not in md
         await client.close()
 
 
