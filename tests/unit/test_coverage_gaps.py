@@ -355,6 +355,7 @@ class TestAsyncClientImageEdgeCases:
         with pytest.raises(NotionifyImageNotFoundError) as exc_info:
             await client._upload_local_file(pending, blocks, warnings)
         assert "escapes base directory" in exc_info.value.message
+        assert "resolved_path" in exc_info.value.context
         await client.close()
 
 
@@ -403,6 +404,7 @@ class TestSyncClientImageEdgeCases:
         with pytest.raises(NotionifyImageNotFoundError) as exc_info:
             client._upload_local_file(pending, blocks, warnings)
         assert "escapes base directory" in exc_info.value.message
+        assert "resolved_path" in exc_info.value.context
         client.close()
 
 

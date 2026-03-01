@@ -752,14 +752,14 @@ class NotionifyClient:
             if not file_path.is_relative_to(base_path):
                 raise NotionifyImageNotFoundError(
                     message=f"Image path escapes base directory: {pending.src}",
-                    context={"src": pending.src},
+                    context={"src": pending.src, "resolved_path": str(file_path)},
                 )
         else:
             file_path = Path(pending.src).expanduser().resolve()
         if not file_path.is_file():
             raise NotionifyImageNotFoundError(
                 message=f"Image file not found: {pending.src}",
-                context={"src": pending.src},
+                context={"src": pending.src, "resolved_path": str(file_path)},
             )
 
         data = file_path.read_bytes()
