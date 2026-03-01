@@ -1479,6 +1479,58 @@ class TestLCSMatcherProperties:
         for ei, ni in pairs:
             assert existing[ei] == new[ni]
 
+    @given(
+        existing=st.lists(_sig_st, max_size=12),
+        new=st.lists(_sig_st, max_size=12),
+    )
+    @settings(max_examples=200)
+    def test_lcs_length_is_symmetric(
+        self, existing: list[BlockSignature], new: list[BlockSignature]
+    ) -> None:
+        """LCS(a, b) and LCS(b, a) have the same length (LCS is symmetric)."""
+        pairs_ab = lcs_match(existing, new)
+        pairs_ba = lcs_match(new, existing)
+        assert len(pairs_ab) == len(pairs_ba)
+
+    @given(
+        common=st.lists(_sig_st, min_size=1, max_size=6),
+        extras_e=st.lists(
+            st.builds(
+                _make_sig,
+                block_type=st.just("divider"),
+                text=st.text(alphabet="XYZ", min_size=5, max_size=10),
+            ),
+            max_size=4,
+        ),
+        extras_n=st.lists(
+            st.builds(
+                _make_sig,
+                block_type=st.just("divider"),
+                text=st.text(alphabet="XYZ", min_size=5, max_size=10),
+            ),
+            max_size=4,
+        ),
+        insert_at_e=st.integers(min_value=0, max_value=4),
+        insert_at_n=st.integers(min_value=0, max_value=4),
+    )
+    @settings(max_examples=200)
+    def test_lcs_at_least_as_long_as_known_common_subsequence(
+        self,
+        common: list[BlockSignature],
+        extras_e: list[BlockSignature],
+        extras_n: list[BlockSignature],
+        insert_at_e: int,
+        insert_at_n: int,
+    ) -> None:
+        """LCS length >= any known common subsequence length (optimality lower bound)."""
+        # Build existing: insert common at a position, surround with extras
+        insert_at_e = min(insert_at_e, len(extras_e))
+        insert_at_n = min(insert_at_n, len(extras_n))
+        existing = extras_e[:insert_at_e] + common + extras_e[insert_at_e:]
+        new_ = extras_n[:insert_at_n] + common + extras_n[insert_at_n:]
+        pairs = lcs_match(existing, new_)
+        assert len(pairs) >= len(common)
+
 
 # ---------------------------------------------------------------------------
 # 12. TestNotionifyConfigProperties
@@ -5406,6 +5458,38 @@ class TestMergeAnnotationsProperties:
         result = _merge_annotations(base, unknown_key=True)
         assert "unknown_key" not in result
         assert set(result.keys()) == {"bold", "italic"}
+
+    @given(
+        flags=st.lists(
+            st.sampled_from(["bold", "italic", "strikethrough", "underline", "code"]),
+            min_size=1, max_size=5, unique=True,
+        ),
+    )
+    @settings(max_examples=300)
+    def test_merge_annotations_order_independent(self, flags: list[str]) -> None:
+        """Applying overrides in forward and reversed order gives the same result."""
+        base = {f: False for f in ["bold", "italic", "strikethrough", "underline", "code"]}
+
+        result_forward = dict(base)
+        for flag in flags:
+            result_forward = _merge_annotations(result_forward, **{flag: True})
+
+        result_reversed = dict(base)
+        for flag in reversed(flags):
+            result_reversed = _merge_annotations(result_reversed, **{flag: True})
+
+        assert result_forward == result_reversed
+
+    @given(
+        flag=st.sampled_from(["bold", "italic", "strikethrough", "underline", "code"]),
+    )
+    @settings(max_examples=200)
+    def test_merge_annotations_idempotent(self, flag: str) -> None:
+        """Applying the same True override twice is the same as applying it once."""
+        base = {f: False for f in ["bold", "italic", "strikethrough", "underline", "code"]}
+        once = _merge_annotations(base, **{flag: True})
+        twice = _merge_annotations(once, **{flag: True})
+        assert once == twice
 
 
 # ---------------------------------------------------------------------------
