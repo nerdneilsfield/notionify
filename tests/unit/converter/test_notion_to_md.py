@@ -540,6 +540,35 @@ class TestTableRendering:
         assert "**important**" in md
         assert "text" in md
 
+    def test_table_cell_newline_replaced_with_br(self):
+        """Newlines in cell content must become <br> to preserve GFM row structure."""
+        r = NotionToMarkdownRenderer(make_config())
+        blocks = [{
+            "type": "table",
+            "table": {
+                "table_width": 2,
+                "has_column_header": True,
+                "has_row_header": False,
+                "children": [
+                    {"type": "table_row", "table_row": {
+                        "cells": [[_make_text_segment("Col")], [_make_text_segment("Info")]],
+                    }},
+                    {"type": "table_row", "table_row": {
+                        "cells": [
+                            [_make_text_segment("line1\nline2")],
+                            [_make_text_segment("ok")],
+                        ],
+                    }},
+                ],
+            },
+        }]
+        md = r.render_blocks(blocks)
+        assert "line1<br>line2" in md
+        # Each row must be a single line
+        table_lines = [l for l in md.strip().split("\n") if l.startswith("|")]
+        for line in table_lines:
+            assert "\n" not in line
+
     def test_table_empty_cell(self):
         """Table with empty cells should render without crashing."""
         r = NotionToMarkdownRenderer(make_config())

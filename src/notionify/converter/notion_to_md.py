@@ -303,8 +303,11 @@ class NotionToMarkdownRenderer:
             row_data = row.get("table_row", {})
             cells = row_data.get("cells", [])
 
-            # Render each cell's rich_text
-            rendered_cells = [render_rich_text(cell) for cell in cells]
+            # Render each cell's rich_text.  GFM requires each row on a
+            # single line, so replace embedded newlines with <br>.
+            rendered_cells = [
+                render_rich_text(cell).replace("\n", "<br>") for cell in cells
+            ]
 
             # Bold the first column when has_row_header is set
             if has_row_header and rendered_cells:
