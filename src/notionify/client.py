@@ -823,7 +823,7 @@ class NotionifyClient:
         """
         url = pending.src
         try:
-            data, content_type = download_image(url, self._config)
+            data, _content_type = download_image(url, self._config)
         except NotionifyImageDownloadError:
             self._metrics.increment(
                 "notionify.download_failure_total",

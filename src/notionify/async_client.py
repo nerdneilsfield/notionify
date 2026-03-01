@@ -835,7 +835,7 @@ class AsyncNotionifyClient:
         """
         url = pending.src
         try:
-            data, content_type = await async_download_image(url, self._config)
+            data, _content_type = await async_download_image(url, self._config)
         except NotionifyImageDownloadError:
             self._metrics.increment(
                 "notionify.download_failure_total",
