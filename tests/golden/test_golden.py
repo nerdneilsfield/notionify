@@ -2147,3 +2147,96 @@ class TestLinksInLists:
         round_tripped = renderer.render_blocks(blocks)
         assert "Getting Started" in round_tripped
         assert "API Reference" in round_tripped
+
+
+# =========================================================================
+# heading_code_only fixture
+# =========================================================================
+
+
+class TestHeadingCodeOnly:
+    """Headings containing only inline code survive round-trip."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "heading_code_only.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_code_heading_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "heading_code_only.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "function()" in round_tripped
+
+    def test_git_status_heading_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "heading_code_only.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "git status" in round_tripped
+
+    def test_import_os_heading_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "heading_code_only.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "import os" in round_tripped
+
+    def test_mixed_code_bold_heading_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "heading_code_only.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "**bold**" in round_tripped
+
+
+# =========================================================================
+# consecutive_blockquotes fixture
+# =========================================================================
+
+
+class TestConsecutiveBlockquotes:
+    """Back-to-back blockquotes remain distinct after round-trip."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "consecutive_blockquotes.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_first_blockquote_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_blockquotes.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "First blockquote" in round_tripped
+
+    def test_second_blockquote_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_blockquotes.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Second blockquote" in round_tripped
+
+    def test_bold_in_blockquote_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_blockquotes.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "**bold**" in round_tripped
+
+    def test_code_in_blockquote_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_blockquotes.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "`code`" in round_tripped
+
+    def test_continuation_line_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_blockquotes.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "continuation line" in round_tripped

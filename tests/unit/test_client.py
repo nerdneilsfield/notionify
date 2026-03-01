@@ -2094,3 +2094,76 @@ class TestAppendMarkdownTargetTypeValidation:
         )
         assert isinstance(result, AppendResult)
         await client.close()
+
+
+# =========================================================================
+# Empty / edge-case input tests for public API methods
+# =========================================================================
+
+
+class TestEmptyMarkdownInputs:
+    """Public API methods handle empty and whitespace-only Markdown gracefully."""
+
+    def test_create_page_empty_markdown(self):
+        client = _make_sync_client()
+        client._pages.create = MagicMock(return_value=_page_create_response())
+        result = client.create_page_with_markdown(
+            parent_id="parent-1", title="Empty", markdown="",
+        )
+        assert isinstance(result, PageCreateResult)
+        assert result.blocks_created == 0
+        client.close()
+
+    def test_create_page_whitespace_only_markdown(self):
+        client = _make_sync_client()
+        client._pages.create = MagicMock(return_value=_page_create_response())
+        result = client.create_page_with_markdown(
+            parent_id="parent-1", title="Whitespace", markdown="   \n\n  ",
+        )
+        assert isinstance(result, PageCreateResult)
+        client.close()
+
+    def test_append_empty_markdown(self):
+        client = _make_sync_client()
+        result = client.append_markdown(target_id="page-1", markdown="")
+        assert isinstance(result, AppendResult)
+        assert result.blocks_appended == 0
+        client.close()
+
+    def test_overwrite_with_empty_markdown(self):
+        client = _make_sync_client()
+        client._blocks.get_children = MagicMock(return_value=[
+            {"id": "blk-1", "type": "paragraph"},
+        ])
+        client._blocks.delete = MagicMock()
+        result = client.overwrite_page_content(page_id="page-1", markdown="")
+        assert isinstance(result, UpdateResult)
+        assert result.blocks_inserted == 0
+        assert result.blocks_deleted == 1
+        client.close()
+
+    def test_update_block_empty_markdown(self):
+        client = _make_sync_client()
+        result = client.update_block(block_id="blk-1", markdown_fragment="")
+        assert isinstance(result, BlockUpdateResult)
+        assert result.block_id == "blk-1"
+        client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_create_page_empty_markdown(self):
+        client = AsyncNotionifyClient(token="test-token")
+        client._pages.create = AsyncMock(return_value=_page_create_response())
+        result = await client.create_page_with_markdown(
+            parent_id="parent-1", title="Empty", markdown="",
+        )
+        assert isinstance(result, PageCreateResult)
+        assert result.blocks_created == 0
+        await client.close()
+
+    @pytest.mark.asyncio
+    async def test_async_append_empty_markdown(self):
+        client = AsyncNotionifyClient(token="test-token")
+        result = await client.append_markdown(target_id="page-1", markdown="")
+        assert isinstance(result, AppendResult)
+        assert result.blocks_appended == 0
+        await client.close()
