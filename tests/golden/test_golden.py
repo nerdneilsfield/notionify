@@ -2240,3 +2240,57 @@ class TestConsecutiveBlockquotes:
         blocks = _simulate_api_response(result.blocks)
         round_tripped = renderer.render_blocks(blocks)
         assert "continuation line" in round_tripped
+
+
+class TestConsecutiveTables:
+    """Back-to-back tables remain distinct after round-trip."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "consecutive_tables.md").read_text()
+        result = converter.convert(md)
+        assert len(result.blocks) > 0
+        assert len(result.warnings) == 0
+
+    def test_produces_multiple_table_blocks(self, converter):
+        md = (FIXTURES_DIR / "consecutive_tables.md").read_text()
+        result = converter.convert(md)
+        table_blocks = [b for b in result.blocks if b.get("type") == "table"]
+        assert len(table_blocks) >= 2
+
+    def test_first_table_data_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_tables.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Alice" in round_tripped
+        assert "30" in round_tripped
+
+    def test_second_table_data_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_tables.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Widget" in round_tripped
+        assert "9" in round_tripped
+        assert "99" in round_tripped
+
+    def test_paragraph_between_tables_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_tables.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "separating two tables" in round_tripped
+
+    def test_bold_in_table_cell_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_tables.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "**Django**" in round_tripped
+
+    def test_italic_in_table_cell_preserved(self, converter, renderer):
+        md = (FIXTURES_DIR / "consecutive_tables.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "_Actix_" in round_tripped

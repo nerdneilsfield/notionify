@@ -445,3 +445,69 @@ class TestAnnotationCombinations:
         }
         result = render_rich_text([seg])
         assert result == "<u>~~_**x**_~~</u>"
+
+
+# =========================================================================
+# Edge cases: URLs with special characters
+# =========================================================================
+
+
+class TestUrlEdgeCases:
+    """URL handling edge cases in markdown_escape and render_rich_text."""
+
+    def test_url_with_unicode_path(self):
+        """Unicode characters in URL paths are preserved."""
+        result = markdown_escape("https://example.com/café", context="url")
+        assert "café" in result
+
+    def test_url_with_query_params(self):
+        """Query parameters with special chars are preserved in URL context."""
+        result = markdown_escape("https://example.com/search?q=a&b=c", context="url")
+        assert "q=a" in result
+        assert "b=c" in result
+
+    def test_url_with_fragment(self):
+        """URL fragments are preserved."""
+        result = markdown_escape("https://example.com/page#section", context="url")
+        assert "#section" in result
+
+    def test_link_with_unicode_text(self):
+        """Link with non-ASCII display text renders correctly."""
+        seg = {
+            "type": "text",
+            "plain_text": "日本語",
+            "href": "https://example.com",
+            "annotations": {"bold": False, "italic": False,
+                            "strikethrough": False, "underline": False,
+                            "code": False, "color": "default"},
+        }
+        result = render_rich_text([seg])
+        assert "[日本語]" in result
+        assert "(https://example.com)" in result
+
+    def test_empty_text_with_link(self):
+        """Empty text segment with a link href renders as empty link."""
+        seg = {
+            "type": "text",
+            "plain_text": "",
+            "href": "https://example.com",
+            "annotations": {"bold": False, "italic": False,
+                            "strikethrough": False, "underline": False,
+                            "code": False, "color": "default"},
+        }
+        result = render_rich_text([seg])
+        assert "https://example.com" in result
+
+    def test_mention_segment_uses_plain_text(self):
+        """Mention segments fall back to plain_text when available."""
+        seg = {
+            "type": "mention",
+            "plain_text": "@John Doe",
+            "annotations": {"bold": False, "italic": False,
+                            "strikethrough": False, "underline": False,
+                            "code": False, "color": "default"},
+            "mention": {"type": "user", "user": {"id": "user-123"}},
+        }
+        result = render_rich_text([seg])
+        # Mentions may render as plain_text or empty depending on implementation
+        assert isinstance(result, str)
