@@ -455,6 +455,17 @@ class NotionToMarkdownRenderer:
 
         return result + "\n\n"
 
+    def _render_link_to_page(self, block: dict[str, Any], depth: int) -> str:
+        """Render a link_to_page block as a Markdown link to the Notion page."""
+        block_data = block.get("link_to_page", {})
+        ref_type = block_data.get("type", "")
+        ref_id = block_data.get(ref_type, "") if ref_type else ""
+        if ref_id:
+            url = _notion_url(ref_id)
+            escaped_url = markdown_escape(url, "url")
+            return f"[{ref_type}]({escaped_url})\n\n"
+        return ""
+
     def _render_link_preview(self, block: dict[str, Any], depth: int) -> str:
         block_data = block.get("link_preview", {})
         url = block_data.get("url", "")
@@ -581,6 +592,7 @@ _BLOCK_RENDERERS: dict[str, _BlockRenderer] = {
     "embed": NotionToMarkdownRenderer._render_embed,
     "bookmark": NotionToMarkdownRenderer._render_bookmark,
     "link_preview": NotionToMarkdownRenderer._render_link_preview,
+    "link_to_page": NotionToMarkdownRenderer._render_link_to_page,
     "file": NotionToMarkdownRenderer._render_file,
 }
 

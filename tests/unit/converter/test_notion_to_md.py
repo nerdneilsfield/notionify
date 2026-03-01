@@ -1373,6 +1373,46 @@ class TestLinkPreviewRendering:
         assert "\\]" in md
 
 
+class TestLinkToPageRendering:
+    """_render_link_to_page produces a Notion URL link."""
+
+    def test_page_id_link(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "link_to_page",
+            "link_to_page": {"type": "page_id", "page_id": "abc-123-def"},
+        }
+        md = r.render_blocks([block])
+        assert "notion.so/" in md
+        assert "abc123def" in md
+        assert "[page_id]" in md
+
+    def test_database_id_link(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "link_to_page",
+            "link_to_page": {"type": "database_id", "database_id": "db-456"},
+        }
+        md = r.render_blocks([block])
+        assert "notion.so/" in md
+        assert "db456" in md
+
+    def test_empty_link_to_page(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "link_to_page",
+            "link_to_page": {"type": "page_id", "page_id": ""},
+        }
+        md = r.render_blocks([block])
+        assert md.strip() == ""
+
+    def test_missing_type_field(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {"type": "link_to_page", "link_to_page": {}}
+        md = r.render_blocks([block])
+        assert md.strip() == ""
+
+
 class TestChildPageAndDatabaseRendering:
     """_render_child_page and _render_child_database produce links."""
 
