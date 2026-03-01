@@ -769,6 +769,44 @@ class TestHeadingOverflowEdgeCases:
         rt = blocks[0]["paragraph"]["rich_text"]
         assert rt[0].get("annotations", {}).get("bold") is True
 
+    def test_heading_overflow_paragraph_mixed_text_and_equation(self):
+        """heading_overflow='paragraph': text segments get bold; equation segments do not."""
+        token = {
+            "type": "heading",
+            "attrs": {"level": 4},
+            "children": [
+                {"type": "text", "raw": "Energy: "},
+                {"type": "inline_math", "raw": "E=mc^2"},
+                {"type": "text", "raw": " is famous"},
+            ],
+        }
+        blocks, _, _ = build_blocks([token], _config(heading_overflow="paragraph"))
+        assert blocks[0]["type"] == "paragraph"
+        rt = blocks[0]["paragraph"]["rich_text"]
+        text_segs = [s for s in rt if s.get("type") == "text"]
+        eq_segs = [s for s in rt if s.get("type") == "equation"]
+        # All text segments must have bold=True
+        for seg in text_segs:
+            assert seg.get("annotations", {}).get("bold") is True
+        # Equation segments must NOT have bold
+        for seg in eq_segs:
+            assert not seg.get("annotations", {}).get("bold")
+
+    def test_heading_overflow_paragraph_preserves_italic_adds_bold(self):
+        """heading_overflow='paragraph': existing italic annotation is preserved and bold added."""
+        token = {
+            "type": "heading",
+            "attrs": {"level": 5},
+            "children": [{"type": "emphasis", "children": [{"type": "text", "raw": "italic heading"}]}],
+        }
+        blocks, _, _ = build_blocks([token], _config(heading_overflow="paragraph"))
+        assert blocks[0]["type"] == "paragraph"
+        rt = blocks[0]["paragraph"]["rich_text"]
+        text_seg = next(s for s in rt if s.get("type") == "text")
+        annotations = text_seg.get("annotations", {})
+        assert annotations.get("bold") is True
+        assert annotations.get("italic") is True
+
 
 # =========================================================================
 # HTML block edge cases
