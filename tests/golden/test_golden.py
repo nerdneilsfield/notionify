@@ -1115,6 +1115,87 @@ class TestRenderOnlyApiBlocks:
         assert isinstance(result, str)
         assert len(result) > 0
 
+    def test_video_external_renders_as_link(self, renderer):
+        """Video block with external URL renders as [Video](url) link."""
+        block = {
+            "type": "video",
+            "video": {"type": "external", "external": {"url": "https://youtube.com/watch?v=abc"}},
+        }
+        result = renderer.render_blocks([block])
+        assert "[Video]" in result
+        assert "youtube.com" in result
+
+    def test_audio_file_renders_as_link(self, renderer):
+        """Audio block with hosted file URL renders as [Audio](url) link."""
+        block = {
+            "type": "audio",
+            "audio": {"type": "file", "file": {"url": "https://cdn.example.com/audio.mp3"}},
+        }
+        result = renderer.render_blocks([block])
+        assert "[Audio]" in result
+        assert "cdn.example.com" in result
+
+    def test_pdf_external_renders_as_link(self, renderer):
+        """PDF block with external URL renders as [PDF](url) link."""
+        block = {
+            "type": "pdf",
+            "pdf": {"type": "external", "external": {"url": "https://example.com/doc.pdf"}},
+        }
+        result = renderer.render_blocks([block])
+        assert "[PDF]" in result
+        assert "doc.pdf" in result
+
+    def test_file_block_renders_filename_from_url(self, renderer):
+        """File block uses the filename from the URL when no name is provided."""
+        block = {
+            "type": "file",
+            "file": {
+                "type": "external",
+                "external": {"url": "https://example.com/report.docx"},
+                "caption": [],
+            },
+        }
+        result = renderer.render_blocks([block])
+        assert "report.docx" in result
+
+    def test_link_preview_renders_url(self, renderer):
+        """Link preview block renders the URL as a Markdown link."""
+        block = {
+            "type": "link_preview",
+            "link_preview": {"url": "https://github.com/example/repo"},
+        }
+        result = renderer.render_blocks([block])
+        assert "github.com" in result
+
+    def test_callout_with_external_icon_renders_url(self, renderer):
+        """Callout with external icon URL includes icon URL in output."""
+        block = {
+            "type": "callout",
+            "callout": {
+                "icon": {"type": "external", "external": {"url": "https://example.com/icon.png"}},
+                "rich_text": self._rt("Note with URL icon"),
+            },
+        }
+        result = renderer.render_blocks([block])
+        assert "Note with URL icon" in result
+
+    def test_callout_with_children_includes_child_content(self, renderer):
+        """Callout block renders child blocks inside the blockquote."""
+        child = {
+            "type": "paragraph",
+            "paragraph": {"rich_text": self._rt("child paragraph")},
+        }
+        block = {
+            "type": "callout",
+            "callout": {
+                "rich_text": self._rt("Main callout text"),
+                "children": [child],
+            },
+        }
+        result = renderer.render_blocks([block])
+        assert "Main callout text" in result
+        assert "child paragraph" in result
+
 
 class TestMixedListTypes:
     """Round-trip tests for mixed_list_types.md fixture.
