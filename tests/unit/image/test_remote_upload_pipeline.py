@@ -155,6 +155,35 @@ class TestSyncClientRemoteUpload:
         assert len(warnings) == 0
 
     @patch("notionify.client.download_image")
+    @patch("notionify.client.validate_image")
+    @patch("notionify.client.upload_single")
+    def test_file_extension_uses_validated_mime_not_http_content_type(
+        self, mock_upload: MagicMock, mock_validate: MagicMock, mock_download: MagicMock,
+    ):
+        """File extension must use validated mime_type, not HTTP Content-Type header."""
+        # HTTP says octet-stream, but magic-byte sniffing detects PNG.
+        mock_download.return_value = (b"PNG_DATA", "application/octet-stream")
+        mock_validate.return_value = ("image/png", b"PNG_DATA")
+        mock_upload.return_value = "upload-id-ext"
+
+        client = self._make_client_internals()
+        pending = PendingImage(
+            src="https://example.com/img",
+            source_type=ImageSourceType.EXTERNAL_URL,
+            block_index=0,
+        )
+        blocks: list[dict] = [{"type": "image", "image": {"type": "external"}}]  # type: ignore[type-arg]
+        warnings: list[ConversionWarning] = []
+
+        with patch.object(client, "_do_upload", return_value="upload-id-ext") as mock_do:
+            result = client._download_and_upload_remote(pending, blocks, warnings)
+            assert result == 1
+            # Verify the file name uses .png (from validated mime), not .bin (from HTTP header).
+            call_args = mock_do.call_args
+            file_name = call_args[0][0]
+            assert file_name == "remote_image.png"
+
+    @patch("notionify.client.download_image")
     def test_download_failure_falls_back_to_external(self, mock_download: MagicMock):
         mock_download.side_effect = NotionifyImageDownloadError(
             message="Download failed", context={"url": "https://example.com/img.png"},
@@ -389,6 +418,40 @@ class TestAsyncClientRemoteUpload:
         result = await client._download_and_upload_remote(pending, blocks, warnings)
         assert result == 1
         assert blocks[0]["image"]["type"] == "file_upload"
+
+    @patch("notionify.async_client.async_download_image")
+    @patch("notionify.async_client.validate_image")
+    @patch("notionify.async_client.async_upload_single")
+    async def test_file_extension_uses_validated_mime_not_http_content_type(
+        self, mock_upload: MagicMock, mock_validate: MagicMock, mock_download: MagicMock,
+    ):
+        """File extension must use validated mime_type, not HTTP Content-Type header."""
+        from unittest.mock import AsyncMock
+
+        mock_download.side_effect = AsyncMock(
+            return_value=(b"PNG_DATA", "application/octet-stream"),
+        )
+        mock_validate.return_value = ("image/png", b"PNG_DATA")
+        mock_upload.side_effect = AsyncMock(return_value="upload-id-ext")
+
+        client = self._make_async_client_internals()
+        pending = PendingImage(
+            src="https://example.com/img",
+            source_type=ImageSourceType.EXTERNAL_URL,
+            block_index=0,
+        )
+        blocks: list[dict] = [{"type": "image", "image": {"type": "external"}}]  # type: ignore[type-arg]
+        warnings: list[ConversionWarning] = []
+
+        with patch.object(
+            client, "_do_upload",
+            new_callable=AsyncMock, return_value="upload-id-ext",
+        ) as mock_do:
+            result = await client._download_and_upload_remote(pending, blocks, warnings)
+            assert result == 1
+            call_args = mock_do.call_args
+            file_name = call_args[0][0]
+            assert file_name == "remote_image.png"
 
     @patch("notionify.async_client.async_download_image")
     async def test_download_failure_falls_back(self, mock_download: MagicMock):

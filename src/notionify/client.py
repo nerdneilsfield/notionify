@@ -850,7 +850,7 @@ class NotionifyClient:
             if validated_data is None:
                 validated_data = data
 
-            ext = mime_to_extension(content_type)
+            ext = mime_to_extension(mime_type)
             file_name = f"remote_image{ext}"
 
             upload_id = self._do_upload(file_name, mime_type, validated_data)
