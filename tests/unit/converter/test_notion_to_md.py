@@ -1958,3 +1958,102 @@ class TestTableWidthFallback:
         md = r.render_blocks([block])
         assert "| Only |" in md
         assert "|---|" in md
+
+
+class TestBlockColorIgnoredInOutput:
+    """Block-level color is a Notion attribute not represented in Markdown output."""
+
+    def test_paragraph_with_color_renders_text_only(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [_make_text_segment("hello world")],
+                "color": "pink",
+            },
+        }
+        md = r.render_blocks([block])
+        assert "hello world" in md
+        assert "pink" not in md
+
+    def test_bulleted_list_item_with_color_renders_correctly(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "bulleted_list_item",
+            "bulleted_list_item": {
+                "rich_text": [_make_text_segment("list item text")],
+                "color": "purple",
+            },
+        }
+        md = r.render_blocks([block])
+        assert "- list item text" in md
+        assert "purple" not in md
+
+    def test_numbered_list_item_with_color_renders_correctly(self):
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "numbered_list_item",
+            "numbered_list_item": {
+                "rich_text": [_make_text_segment("numbered item text")],
+                "color": "orange",
+            },
+        }
+        md = r.render_blocks([block])
+        assert "1. numbered item text" in md
+        assert "orange" not in md
+
+
+class TestDeeplyNestedLists:
+    """Three or more levels of list nesting render with increasing indentation."""
+
+    def test_three_level_nested_bulleted_list(self):
+        r = NotionToMarkdownRenderer(make_config())
+        level3 = make_bulleted_list_item("level3")
+        level2 = make_bulleted_list_item("level2", children=[level3])
+        level1 = make_bulleted_list_item("level1", children=[level2])
+        md = r.render_blocks([level1])
+        assert "- level1" in md
+        assert "- level2" in md
+        assert "- level3" in md
+        # Each nesting level adds indentation
+        lines = [line for line in md.splitlines() if line.strip().startswith("-")]
+        assert len(lines) == 3
+        # level1 is least indented, level3 is most indented
+        indent_counts = [len(line) - len(line.lstrip()) for line in lines]
+        assert indent_counts[0] < indent_counts[1] < indent_counts[2]
+
+    def test_three_level_numbered_list(self):
+        r = NotionToMarkdownRenderer(make_config())
+        level3 = make_numbered_list_item("inner")
+        level2 = make_numbered_list_item("middle", children=[level3])
+        level1 = make_numbered_list_item("outer", children=[level2])
+        md = r.render_blocks([level1])
+        assert "outer" in md
+        assert "middle" in md
+        assert "inner" in md
+
+
+class TestQuoteWithListChildren:
+    """Quote blocks containing list items render with > prefix on all lines."""
+
+    def test_quote_with_bulleted_list_child(self):
+        r = NotionToMarkdownRenderer(make_config())
+        bullet = make_bulleted_list_item("list item")
+        block = make_quote("intro", children=[bullet])
+        md = r.render_blocks([block])
+        assert "> intro" in md
+        assert "list item" in md
+
+    def test_quote_with_three_paragraph_children_all_prefixed(self):
+        r = NotionToMarkdownRenderer(make_config())
+        children = [
+            make_paragraph([_make_text_segment("first")]),
+            make_paragraph([_make_text_segment("second")]),
+            make_paragraph([_make_text_segment("third")]),
+        ]
+        block = make_quote("header", children=children)
+        md = r.render_blocks([block])
+        assert "> header" in md
+        assert "first" in md
+        assert "second" in md
+        assert "third" in md

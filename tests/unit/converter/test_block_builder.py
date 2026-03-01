@@ -296,6 +296,14 @@ class TestBuildDivider:
         assert len(blocks) == 1
         assert blocks[0]["type"] == "divider"
 
+    def test_divider_block_structure(self):
+        """Divider block has correct object type and empty divider dict."""
+        token = {"type": "thematic_break"}
+        blocks, _, _ = build_blocks([token], _config())
+        block = blocks[0]
+        assert block["object"] == "block"
+        assert block["divider"] == {}
+
 
 # =========================================================================
 # HTML blocks (skipped with warning)
