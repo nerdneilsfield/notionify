@@ -265,6 +265,38 @@ class TestRenderLinks:
         result = render_rich_text(segs)
         assert result == "[abc](https://x.com)"
 
+    def test_three_segments_same_href_different_annotations_merged(self):
+        """Three segments with same href but different per-segment annotations merge correctly.
+
+        Each segment's annotation is applied independently before the texts are joined
+        inside the single link: [**a**_b_~~c~~](url).
+        """
+        segs = [
+            {
+                "type": "text",
+                "text": {"content": "a"},
+                "href": "https://x.com",
+                "annotations": {"bold": True, "italic": False, "strikethrough": False,
+                                 "underline": False, "code": False, "color": "default"},
+            },
+            {
+                "type": "text",
+                "text": {"content": "b"},
+                "href": "https://x.com",
+                "annotations": {"bold": False, "italic": True, "strikethrough": False,
+                                 "underline": False, "code": False, "color": "default"},
+            },
+            {
+                "type": "text",
+                "text": {"content": "c"},
+                "href": "https://x.com",
+                "annotations": {"bold": False, "italic": False, "strikethrough": True,
+                                 "underline": False, "code": False, "color": "default"},
+            },
+        ]
+        result = render_rich_text(segs)
+        assert result == "[**a**_b_~~c~~](https://x.com)"
+
 
 # =========================================================================
 # render_rich_text: equations
