@@ -339,6 +339,22 @@ class TestRenderEdgeCases:
         result = render_rich_text([seg])
         assert result == "safe"
 
+    def test_annotations_null_does_not_raise(self):
+        """annotations=None must not raise AttributeError."""
+        seg = {"type": "text", "plain_text": "hello", "annotations": None}
+        result = render_rich_text([seg])
+        assert result == "hello"
+
+    def test_annotations_null_with_bold_in_another_seg(self):
+        """Segment with None annotations followed by a bold segment."""
+        segs = [
+            {"type": "text", "plain_text": "a", "annotations": None},
+            {"type": "text", "plain_text": "b", "annotations": {"bold": True}},
+        ]
+        result = render_rich_text(segs)
+        assert "a" in result
+        assert "**b**" in result
+
 
 # =========================================================================
 # render_rich_text: annotation combinations (parametrized)

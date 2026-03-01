@@ -525,7 +525,7 @@ class AsyncNotionifyClient:
 
         # Retrieve the block to find its parent.
         block_info = await self._blocks.retrieve(block_id)
-        parent = block_info.get("parent", {})
+        parent = block_info.get("parent") or {}
         parent_id = parent.get("page_id") or parent.get("block_id", "")
 
         inserted_ids: list[str] = []

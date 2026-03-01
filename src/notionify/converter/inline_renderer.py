@@ -86,7 +86,7 @@ def render_rich_text(segments: list[dict[str, Any]]) -> str:
 
     for seg in segments:
         seg_type = seg.get("type", "text")
-        annotations = seg.get("annotations", {})
+        annotations = seg.get("annotations") or {}
         href = seg.get("href")
 
         # --- Equation segments bypass normal text handling ---------------
