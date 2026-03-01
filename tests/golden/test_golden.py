@@ -1850,3 +1850,118 @@ class TestListWithBlockquote:
         blocks = _simulate_api_response(result.blocks)
         round_tripped = renderer.render_blocks(blocks)
         assert "approval" in round_tripped
+
+
+class TestNestedBlockquotes:
+    """Round-trip tests for nested_blockquotes.md."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "nested_blockquotes.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+        assert not result.warnings
+
+    def test_quote_with_heading_child_produces_quote_block(self, converter):
+        md = (FIXTURES_DIR / "nested_blockquotes.md").read_text()
+        result = converter.convert(md)
+        quotes = [b for b in result.blocks if b.get("type") == "quote"]
+        has_heading_child = any(
+            c.get("type") in {"heading_1", "heading_2", "heading_3"}
+            for q in quotes
+            for c in q.get("quote", {}).get("children", [])
+        )
+        assert has_heading_child, "No quote block has a heading child"
+
+    def test_quote_with_list_child_produces_list_items(self, converter):
+        md = (FIXTURES_DIR / "nested_blockquotes.md").read_text()
+        result = converter.convert(md)
+        quotes = [b for b in result.blocks if b.get("type") == "quote"]
+        has_list_child = any(
+            c.get("type") in {"bulleted_list_item", "numbered_list_item"}
+            for q in quotes
+            for c in q.get("quote", {}).get("children", [])
+        )
+        assert has_list_child, "No quote block has a list item child"
+
+    def test_heading_text_survives_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "nested_blockquotes.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Overview" in round_tripped
+
+    def test_list_items_inside_quote_survive_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "nested_blockquotes.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "First bullet point" in round_tripped
+        assert "Second bullet point" in round_tripped
+
+    def test_nested_blockquote_text_survives(self, converter, renderer):
+        md = (FIXTURES_DIR / "nested_blockquotes.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Outer quote level one" in round_tripped
+        assert "Inner quote level two" in round_tripped
+
+    def test_code_inside_quote_survives_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "nested_blockquotes.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "compute" in round_tripped
+
+
+class TestHeadingWithLinks:
+    """Round-trip tests for heading_with_links.md."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "heading_with_links.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+        assert not result.warnings
+
+    def test_heading_blocks_produced(self, converter):
+        md = (FIXTURES_DIR / "heading_with_links.md").read_text()
+        result = converter.convert(md)
+        heading_types = {"heading_1", "heading_2", "heading_3", "heading_4"}
+        headings = [b for b in result.blocks if b.get("type") in heading_types]
+        assert len(headings) >= 4, f"Expected >=4 heading blocks, got {len(headings)}"
+
+    def test_link_in_full_heading_survives(self, converter, renderer):
+        md = (FIXTURES_DIR / "heading_with_links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Linked Heading" in round_tripped
+
+    def test_inline_link_in_heading_survives(self, converter, renderer):
+        md = (FIXTURES_DIR / "heading_with_links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "inline link" in round_tripped
+
+    def test_link_url_preserved_in_rich_text(self, converter):
+        md = (FIXTURES_DIR / "heading_with_links.md").read_text()
+        result = converter.convert(md)
+        heading_types = {"heading_1", "heading_2", "heading_3", "heading_4"}
+        headings = [b for b in result.blocks if b.get("type") in heading_types]
+        all_links = [
+            seg["href"]
+            for h in headings
+            for seg in h.get(h["type"], {}).get("rich_text", [])
+            if seg.get("href")
+        ]
+        assert any("example.com" in url for url in all_links), (
+            f"No link URL containing 'example.com' found; got: {all_links}"
+        )
+
+    def test_plain_heading_still_renders(self, converter, renderer):
+        md = (FIXTURES_DIR / "heading_with_links.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "Plain Heading for Contrast" in round_tripped
