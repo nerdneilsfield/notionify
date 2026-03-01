@@ -310,6 +310,18 @@ class TestNotionTransportRequest:
             result = transport.request("GET", "/pages/xyz")
         assert result == {}
 
+    def test_200_malformed_json_raises_network_error(self):
+        """Malformed JSON on a 200 response raises NotionifyNetworkError."""
+        from notionify.errors import NotionifyNetworkError
+        transport = self._transport()
+        resp = httpx.Response(200, content=b"{truncated", headers={})
+        resp.request = httpx.Request("GET", "https://api.notion.com/v1/pages/xyz")
+        with (
+            patch.object(transport._client, "request", return_value=resp),
+            pytest.raises(NotionifyNetworkError, match="Malformed JSON"),
+        ):
+            transport.request("GET", "/pages/xyz")
+
     # -- 4xx non-retryable errors -------------------------------------------
 
     def test_400_raises_validation_error_immediately(self):
@@ -692,6 +704,19 @@ class TestAsyncNotionTransportRequest:
         with patch.object(transport._client, "request", new=AsyncMock(return_value=resp)):
             result = await transport.request("GET", "/pages/x")
         assert result == {}
+        await transport.close()
+
+    async def test_200_malformed_json_raises_network_error(self):
+        """Malformed JSON on a 200 response raises NotionifyNetworkError."""
+        from notionify.errors import NotionifyNetworkError
+        transport = self._transport()
+        resp = httpx.Response(200, content=b"{truncated", headers={})
+        resp.request = httpx.Request("GET", "https://api.notion.com/v1/pages/x")
+        with (
+            patch.object(transport._client, "request", new=AsyncMock(return_value=resp)),
+            pytest.raises(NotionifyNetworkError, match="Malformed JSON"),
+        ):
+            await transport.request("GET", "/pages/x")
         await transport.close()
 
     # -- 4xx non-retryable errors -------------------------------------------

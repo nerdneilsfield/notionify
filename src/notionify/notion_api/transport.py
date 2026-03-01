@@ -55,6 +55,23 @@ def _parse_retry_after(response: httpx.Response) -> float | None:
         return None
 
 
+def _parse_success_json(
+    response: httpx.Response, method: str, path: str,
+) -> dict[str, Any]:
+    """Parse JSON from a successful (2xx) response, raising on malformed bodies."""
+    try:
+        return response.json()  # type: ignore[no-any-return]
+    except ValueError as exc:
+        raise NotionifyNetworkError(
+            message=f"Malformed JSON in {method} {path} response",
+            context={
+                "status_code": response.status_code,
+                "body_preview": response.text[:500],
+            },
+            cause=exc,
+        ) from exc
+
+
 def _raise_for_status(response: httpx.Response, method: str, path: str) -> None:
     """Raise the appropriate :class:`NotionifyError` subclass for 4xx codes
     that should **not** be retried.
@@ -332,8 +349,7 @@ class NotionTransport:
                 # Some endpoints return 204 with no body.
                 if response.status_code == 204 or not response.content:
                     return {}
-                result: dict[str, Any] = response.json()
-                return result
+                return _parse_success_json(response, method, path)
 
             # 3b. Is this a retryable status code?
             is_retryable = response.status_code in _RETRYABLE_STATUSES
@@ -574,8 +590,7 @@ class AsyncNotionTransport:
             if 200 <= response.status_code < 300:
                 if response.status_code == 204 or not response.content:
                     return {}
-                result: dict[str, Any] = response.json()
-                return result
+                return _parse_success_json(response, method, path)
 
             # 3b. Is this a retryable status code?
             is_retryable = response.status_code in _RETRYABLE_STATUSES
