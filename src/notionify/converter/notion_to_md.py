@@ -510,16 +510,19 @@ class NotionToMarkdownRenderer:
         elif file_type == "file_upload":
             url = ""
 
-        # Try to get a filename from the caption or name field
-        name = block_data.get("name", "")
+        # Build display name: prefer caption (already Markdown-escaped by
+        # render_rich_text), fall back to raw name or URL-derived filename
+        # (both need _escape_link_text since they are raw text).
         caption_segments = block_data.get("caption", [])
         if caption_segments:
-            name = render_rich_text(caption_segments)
-        if not name:
-            name = (url.rsplit("/", 1)[-1].split("?")[0] or "File") if url else "File"
+            safe_name = render_rich_text(caption_segments)
+        else:
+            raw_name = block_data.get("name", "")
+            if not raw_name:
+                raw_name = (url.rsplit("/", 1)[-1].split("?")[0] or "File") if url else "File"
+            safe_name = _escape_link_text(raw_name)
 
         escaped_url = markdown_escape(url, "url")
-        safe_name = _escape_link_text(name)
         return f"[{safe_name}]({escaped_url})\n\n"
 
     def _render_media(self, block: dict[str, Any], depth: int, block_type: str) -> str:

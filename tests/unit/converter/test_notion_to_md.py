@@ -699,6 +699,7 @@ class TestImageRendering:
         assert r.warnings[0].code == "IMAGE_EXPIRY"
 
 
+
 # =========================================================================
 # U-NM-015: quote block
 # =========================================================================
@@ -1436,6 +1437,23 @@ class TestFileBlockRendering:
         md = r.render_blocks([block])
         assert r"file\[1\].txt" in md
         assert "https://example.com/f.txt" in md
+
+    def test_file_caption_with_brackets_not_double_escaped(self):
+        """Caption from render_rich_text is already escaped; no double-escaping."""
+        r = NotionToMarkdownRenderer(make_config())
+        block = {
+            "type": "file",
+            "file": {
+                "type": "external",
+                "external": {"url": "https://example.com/f.txt"},
+                "name": "ignored.txt",
+                "caption": [_make_text_segment("Report [v2]")],
+            },
+        }
+        md = r.render_blocks([block])
+        # render_rich_text escapes [ to \[  — _escape_link_text must NOT re-escape
+        assert r"Report \[v2\]" in md
+        assert r"\\\[" not in md  # no triple-backslash from double-escaping
 
 
 class TestEmbedRendering:
