@@ -336,6 +336,16 @@ class TestRenderEquations:
         result = render_rich_text(segs)
         assert result == "Euler: $e^{i\\pi}+1=0$"
 
+    def test_equation_sandwiched_between_text_in_link(self):
+        """Text + equation + text sharing same href merge into a single link."""
+        segs = [
+            {"type": "text", "text": {"content": "The "}, "href": "https://x.com"},
+            {"type": "equation", "equation": {"expression": "E=mc^2"}, "href": "https://x.com"},
+            {"type": "text", "text": {"content": " formula"}, "href": "https://x.com"},
+        ]
+        result = render_rich_text(segs)
+        assert result == "[The $E=mc^2$ formula](https://x.com)"
+
 
 # =========================================================================
 # render_rich_text: edge cases
@@ -413,6 +423,15 @@ class TestRenderEdgeCases:
             "annotations": {"bold": True},
         }
         assert render_rich_text([seg]) == "****"
+
+    def test_empty_text_with_strikethrough_and_underline(self):
+        """Empty text with strikethrough+underline nests both wrappers."""
+        seg = {
+            "type": "text",
+            "text": {"content": ""},
+            "annotations": {"strikethrough": True, "underline": True},
+        }
+        assert render_rich_text([seg]) == "<u>~~~~</u>"
 
     def test_empty_href_does_not_wrap_link(self):
         """Empty href string should not produce a link wrapper."""

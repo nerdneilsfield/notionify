@@ -936,6 +936,26 @@ class TestUpgradeToUpdatesBlockWithNoId:
         op_types = {o.op_type for o in ops}
         assert DiffOpType.REPLACE in op_types or DiffOpType.DELETE in op_types
 
+    def test_existing_block_with_id_but_no_type_treated_as_unknown(self):
+        """Existing block with 'id' but no 'type' skips id_to_type insertion.
+
+        When bid is truthy but btype is falsy, the block is silently omitted
+        from id_to_type.  A DELETE+INSERT pair for that block is therefore
+        treated as REPLACE (different or unknown type).
+        """
+        existing = [
+            {"id": "e1"},               # has id, NO type → btype is None → skipped
+            _para("anchor", "e2"),
+        ]
+        new = [
+            _heading("changed"),        # DELETE+INSERT against id-only block
+            _para("anchor"),
+        ]
+        planner = DiffPlanner(NotionifyConfig(token="test"))
+        ops = planner.plan(existing, new)
+        op_types = {o.op_type for o in ops}
+        assert DiffOpType.REPLACE in op_types or DiffOpType.DELETE in op_types
+
 
 class TestTableRowDiffing:
     """Planner-level tests for table_row block diff correctness.
