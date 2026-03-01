@@ -2894,6 +2894,31 @@ class TestComputeSignatureProperties:
         }
         assert compute_signature(block) == compute_signature(block)
 
+    # bookmark/embed/link_preview URL signature properties
+    @given(
+        url_a=st.text(min_size=1, max_size=60),
+        url_b=st.text(min_size=1, max_size=60),
+        block_type=st.sampled_from(["bookmark", "embed", "link_preview"]),
+    )
+    @settings(max_examples=200)
+    def test_url_blocks_different_urls_different_signatures(
+        self, url_a: str, url_b: str, block_type: str
+    ) -> None:
+        """bookmark/embed/link_preview blocks with different URLs produce different signatures."""
+        assume(url_a != url_b)
+
+        def _block(url: str) -> dict:
+            return {"type": block_type, block_type: {"url": url}}
+
+        assert compute_signature(_block(url_a)) != compute_signature(_block(url_b))
+
+    @given(url=st.text(min_size=1, max_size=60))
+    @settings(max_examples=200)
+    def test_bookmark_same_url_same_signature(self, url: str) -> None:
+        """Identical bookmark blocks always produce the same signature."""
+        block = {"type": "bookmark", "bookmark": {"url": url}}
+        assert compute_signature(block) == compute_signature(block)
+
     # Paragraph color properties
     _NOTION_COLORS = [
         "default", "gray", "brown", "orange", "yellow",
