@@ -160,9 +160,12 @@ class TestSyncTransportConcurrentAccess:
         config = _make_config()
         transport = NotionTransport(config)
 
+        # Use a barrier so all worker threads are guaranteed to be inside
+        # the request handler before close() is called — deterministic.
+        barrier = threading.Barrier(6)  # 5 workers + 1 main thread
+
         def slow_response(*args, **kwargs):
-            import time
-            time.sleep(0.01)
+            barrier.wait(timeout=5)
             return _ok_response()
 
         transport._client = MagicMock(spec=httpx.Client)
@@ -178,7 +181,8 @@ class TestSyncTransportConcurrentAccess:
         threads = [threading.Thread(target=worker) for _ in range(5)]
         for t in threads:
             t.start()
-        # Close while requests are still in-flight
+        # Wait until all workers have entered slow_response, then close
+        barrier.wait(timeout=5)
         transport._client.close = MagicMock()
         transport.close()
         for t in threads:
@@ -186,8 +190,6 @@ class TestSyncTransportConcurrentAccess:
 
         # close() mid-flight may cause some requests to fail with transport
         # errors, but must never raise SystemExit or crash the process.
-        # All threads must have completed (joined above), and any errors
-        # should be regular exceptions, not fatal.
         for err in errors:
             assert not isinstance(err, (SystemExit, KeyboardInterrupt)), (
                 f"Fatal error during concurrent close: {err!r}"
