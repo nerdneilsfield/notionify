@@ -269,7 +269,7 @@ class TestHeadingRendering:
         block = make_heading(1, "Plain Heading")
         md = r.render_blocks([block])
         assert "# Plain Heading" in md
-        lines = [l for l in md.strip().split("\n") if l.strip()]
+        lines = [ln for ln in md.strip().split("\n") if ln.strip()]
         assert len(lines) == 1
 
 
@@ -618,7 +618,7 @@ class TestTableRendering:
         md = r.render_blocks(blocks)
         assert "line1<br>line2" in md
         # Each row must be a single line
-        table_lines = [l for l in md.strip().split("\n") if l.startswith("|")]
+        table_lines = [ln for ln in md.strip().split("\n") if ln.startswith("|")]
         for line in table_lines:
             assert "\n" not in line
 
