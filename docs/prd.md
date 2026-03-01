@@ -945,7 +945,7 @@ class BlockSignature:
     block_type:          str       # "paragraph", "heading_2", etc.
     rich_text_hash:      str       # MD5 of normalized plain text
     structural_hash:     str       # MD5 of child count + child types
-    attrs_hash:          str       # MD5 of type-specific attrs (lang, checked, level)
+    attrs_hash:          str       # MD5 of type-specific attrs (see table below)
     nesting_depth:       int       # depth in tree
 
 def compute_signature(block: NotionBlock) -> BlockSignature:
@@ -962,6 +962,27 @@ def compute_signature(block: NotionBlock) -> BlockSignature:
 ```
 
 **Design note:** Plain text alone is insufficient. Two paragraphs with identical text but different annotations (bold/italic) must have different signatures.
+
+**Tracked `attrs_hash` fields per block type:**
+
+| Block type(s) | Tracked attributes |
+|---|---|
+| `paragraph`, `quote`, `toggle`, `bulleted_list_item`, `numbered_list_item`, `table_of_contents` | `color` |
+| `heading_1`, `heading_2`, `heading_3` | `color`, `is_toggleable` |
+| `to_do` | `checked`, `color` |
+| `callout` | `icon`, `color` |
+| `code` | `language`, `caption` |
+| `bookmark`, `embed` | `url`, `caption` |
+| `link_preview` | `url` |
+| `image` | `type` (external/file), `caption` |
+| `video`, `audio`, `pdf`, `file` | `type` (external/file), `caption`, external URL or file ID |
+| `equation` | `expression` |
+| `link_to_page` | `type` (page_id/database_id), `page_id`, `database_id` |
+| `table` | `has_column_header`, `has_row_header`, `table_width` |
+| `table_row` | cell content (custom normalizer) |
+| `child_page` | `title` |
+| `child_database` | `title` |
+| `column_list`, `column`, `synced_block`, `template`, `divider` | *(none)* |
 
 ### 12.3 LCS Matching
 
@@ -2872,3 +2893,79 @@ __all__ = [
 ---
 
 **End of notionify Full Engineering Specification v3.0.0**
+
+## New Feature: URL 图片下载后上传到 Notion（可选，失败回退原 URL）
+
+### Background
+当前行为对外部图片默认直接使用 Notion `image.external`。本需求新增“可选地在客户端配置下，先下载远端图片再上传到 Notion，失败时回退到原始 URL 插入”的能力，保持与本地图片处理一致的行为模型。
+
+### Goal
+- 允许用户通过 `NotionifyClient` 配置显式开启远端图片下载上传。
+- 下载成功：使用 Notion `image.file`（走现有上传流水线）。
+- 下载失败：回退到原 URL 的 `image.external`（保留原始 URL）。
+- 不影响默认行为：未设置时继续保留现有 `image.external` 默认路径。
+- 暴露可配置的请求头，默认提供 Chrome 风格 `User-Agent`，用户可在 Client 初始化时传入字典进行覆盖/追加。
+
+### Functional Changes
+
+#### 1) Scope
+- 默认行为（不配置时）：外链图片保持 `image.external`。
+- 开关行为（Client 级配置）：
+  - `remote_image_upload=True` 时，对外链图片执行：
+    1. 下载远端图片到本地内存/临时流
+    2. 按现有 MIME/大小校验（沿用本地图片校验路径）
+    3. 走现有单文件/分片上传
+    4. 转成 `image.file` 插入
+  - 下载/上传任一步失败时：回退插入 `image.external`（使用原 URL），并写入 warning。
+
+#### 2) 默认 Header 与可配置 Header
+- 默认仅要求配置 `User-Agent`（Chrome 风格）。建议值：
+  - `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36`
+- 新增客户端配置 `remote_image_headers: dict[str, str] | None = None`。
+- 合并规则：`runtime_headers = {**DEFAULT_REMOTE_IMAGE_HEADERS, **user_headers}`。
+- 用户可完全自定义字典，包括但不限于 `Accept`、`Referer`、`Origin`、`User-Agent`。
+- 若需要可完全模拟 Chrome 常见头，可在用户配置中完整传入（如 `sec-fetch-*`、`Accept-Language` 等）。
+
+#### 3) 配置/接口（示例）
+建议在 `NotionifyConfig` 中新增：
+- `remote_image_upload: bool = False`（默认关闭）
+- `remote_image_headers: dict[str, str] | None = None`
+- `remote_image_timeout_seconds: float = 20.0`（可选）
+- `remote_image_retries: int = 3`（可选）
+
+- 在 `NotionifyClient`/`AsyncNotionifyClient` 中，提供/保留全局设置入口：
+  - `remote_image_upload`
+  - `remote_image_headers`
+  - `remote_image_timeout_seconds`
+  - `remote_image_retries`
+
+- 建议新增公开接口（可选）：
+  - `upload_remote_image(url: str, headers: dict[str, str] | None = None) -> UploadResult`
+    - 语义：仅上传一张远端图片，返回 `upload_id`/Notion file URL（或相关元信息），用于高级用户定制流程。
+
+#### 4) 错误与回退
+- 与现有 `image_fallback` 行为保持一致（skip/placeholder/raise）：
+  - 本特性增加明确 fallback 规则：下载失败或验证失败时，若未指定 `image_fallback` 严格失败，最终至少可回退到 `image.external`。
+- 新增 warning 建议 code：
+  - `IMG_REMOTE_DOWNLOAD_FAILED`
+  - `IMG_REMOTE_UPLOAD_FAILED`
+  - `IMG_REMOTE_FALLBACK_TO_EXTERNAL`
+- 失败回退时必须保留原始 URL 并写入到 Notion 外链块 `image.external.url`。
+
+#### 5) Data/model 对齐（本地图片行为一致）
+- `PendingImage` 走现有通路，并可附加远端来源元数据：
+  - `remote_url`
+  - `download_headers`
+  - `download_error`
+- 验证规则复用本地策略：
+  - MIME allowlist = `image_allowed_mimes_upload`
+  - 大小上限 = `image_max_size_bytes`
+  - 并发/上传任务控制 = `image_max_concurrent`
+
+### NFR / acceptance checklist
+- 默认不变：`remote_image_upload=False` 时，当前行为不变。
+- 当 `remote_image_upload=True` 时，外链图片若可成功下载并验证则插入 `image.file`。
+- 下载失败且回退策略允许时，最终在 Notion 块中保留原始 URL（`image.external`）。
+- Client 可通过字典注入 headers，默认包含 Chrome User-Agent。
+- 本地图片处理链路与远端图片上传一致（大小、MIME、上传模式）。
+
