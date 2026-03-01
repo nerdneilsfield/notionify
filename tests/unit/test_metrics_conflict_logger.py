@@ -282,16 +282,16 @@ class TestConflictDetectionEdgeCases:
     """Edge cases for conflict detection and snapshot building."""
 
     def test_malformed_iso_timestamp_falls_back_to_min(self):
-        """A malformed ISO-8601 timestamp should fall back to datetime.min."""
+        """A malformed ISO-8601 timestamp should fall back to datetime.min (UTC)."""
         page = {"last_edited_time": "not-a-date"}
         snap = take_snapshot("p1", page, [])
-        assert snap.last_edited == datetime.min
+        assert snap.last_edited == datetime.min.replace(tzinfo=timezone.utc)
 
     def test_empty_string_last_edited(self):
-        """An empty string for last_edited_time → datetime.min."""
+        """An empty string for last_edited_time → datetime.min (UTC)."""
         page = {"last_edited_time": ""}
         snap = take_snapshot("p1", page, [])
-        assert snap.last_edited == datetime.min
+        assert snap.last_edited == datetime.min.replace(tzinfo=timezone.utc)
 
     def test_timezone_z_suffix_normalized(self):
         """ISO timestamps with 'Z' suffix are parsed correctly."""

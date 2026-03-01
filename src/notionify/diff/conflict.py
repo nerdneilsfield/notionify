@@ -7,7 +7,7 @@ to detect concurrent modifications.  Used by the client to enforce the
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from notionify.models import PageSnapshot
@@ -35,9 +35,9 @@ def take_snapshot(page_id: str, page: dict[str, Any], blocks: list[dict[str, Any
         try:
             last_edited = datetime.fromisoformat(last_edited_str.replace("Z", "+00:00"))
         except ValueError:
-            last_edited = datetime.min
+            last_edited = datetime.min.replace(tzinfo=timezone.utc)
     else:
-        last_edited = datetime.min
+        last_edited = datetime.min.replace(tzinfo=timezone.utc)
     block_etags: dict[str, str] = {}
     for block in blocks:
         block_id = block.get("id", "")

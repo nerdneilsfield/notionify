@@ -14,8 +14,6 @@ PRD hardening: remote image upload feature, iteration 29.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
 import httpx
 import pytest
 import respx
@@ -24,11 +22,9 @@ from notionify.config import NotionifyConfig
 from notionify.errors import NotionifyImageDownloadError
 from notionify.image.download import (
     DEFAULT_REMOTE_IMAGE_HEADERS,
-    _async_try_download,
     _build_headers,
     _is_retryable,
     _parse_content_type,
-    _try_download,
     _validate_url_scheme,
     async_download_image,
     download_image,
@@ -126,56 +122,65 @@ class TestParseContentType:
 class TestSyncDownload:
     """Synchronous download_image function."""
 
-    @patch("notionify.image.download._try_download")
-    def test_success_on_first_attempt(self, mock_try: MagicMock):
-        mock_try.return_value = (b"PNG_DATA", "image/png")
+    @respx.mock
+    def test_success_on_first_attempt(self):
+        respx.get("https://example.com/img.png").mock(
+            return_value=httpx.Response(200, content=b"PNG_DATA",
+                                        headers={"content-type": "image/png"}),
+        )
         config = _config()
         data, ct = download_image("https://example.com/img.png", config)
         assert data == b"PNG_DATA"
         assert ct == "image/png"
-        mock_try.assert_called_once()
 
-    @patch("notionify.image.download._try_download")
-    def test_success_on_retry(self, mock_try: MagicMock):
-        mock_try.side_effect = [
+    @respx.mock
+    def test_success_on_retry(self):
+        route = respx.get("https://example.com/img.png")
+        route.side_effect = [
             httpx.ConnectError("fail"),
-            (b"PNG_DATA", "image/png"),
+            httpx.Response(200, content=b"PNG_DATA",
+                           headers={"content-type": "image/png"}),
         ]
         config = _config(remote_image_retries=2)
         data, ct = download_image("https://example.com/img.png", config)
         assert data == b"PNG_DATA"
-        assert mock_try.call_count == 2
+        assert route.call_count == 2
 
-    @patch("notionify.image.download._try_download")
-    def test_raises_after_exhausting_retries(self, mock_try: MagicMock):
-        mock_try.side_effect = httpx.ConnectError("always fail")
+    @respx.mock
+    def test_raises_after_exhausting_retries(self):
+        respx.get("https://example.com/img.png").mock(
+            side_effect=httpx.ConnectError("always fail"),
+        )
         config = _config(remote_image_retries=1)
         with pytest.raises(NotionifyImageDownloadError, match="Failed to download"):
             download_image("https://example.com/img.png", config)
-        # 1 retry + 1 initial = 2 attempts
-        assert mock_try.call_count == 2
 
-    @patch("notionify.image.download._try_download")
-    def test_zero_retries_single_attempt(self, mock_try: MagicMock):
-        mock_try.side_effect = httpx.ConnectError("fail")
+    @respx.mock
+    def test_zero_retries_single_attempt(self):
+        route = respx.get("https://example.com/img.png")
+        route.mock(side_effect=httpx.ConnectError("fail"))
         config = _config(remote_image_retries=0)
         with pytest.raises(NotionifyImageDownloadError):
             download_image("https://example.com/img.png", config)
-        assert mock_try.call_count == 1
+        assert route.call_count == 1
 
-    @patch("notionify.image.download._try_download")
-    def test_error_context_contains_url(self, mock_try: MagicMock):
-        mock_try.side_effect = httpx.ConnectError("fail")
+    @respx.mock
+    def test_error_context_contains_url(self):
+        respx.get("https://example.com/img.png").mock(
+            side_effect=httpx.ConnectError("fail"),
+        )
         config = _config(remote_image_retries=0)
         with pytest.raises(NotionifyImageDownloadError) as exc_info:
             download_image("https://example.com/img.png", config)
         assert exc_info.value.context["url"] == "https://example.com/img.png"
 
-    @patch("notionify.image.download._try_download")
-    def test_os_error_is_retried(self, mock_try: MagicMock):
-        mock_try.side_effect = [
+    @respx.mock
+    def test_os_error_is_retried(self):
+        route = respx.get("https://example.com/x.jpg")
+        route.side_effect = [
             OSError("network unreachable"),
-            (b"OK", "image/jpeg"),
+            httpx.Response(200, content=b"OK",
+                           headers={"content-type": "image/jpeg"}),
         ]
         config = _config(remote_image_retries=1)
         data, _ = download_image("https://example.com/x.jpg", config)
@@ -190,32 +195,34 @@ class TestSyncDownload:
 class TestAsyncDownload:
     """Asynchronous async_download_image function."""
 
-    @patch("notionify.image.download._async_try_download")
-    async def test_success_on_first_attempt(self, mock_try: MagicMock):
-        from unittest.mock import AsyncMock
-
-        mock_try.side_effect = AsyncMock(return_value=(b"PNG", "image/png"))
+    @respx.mock
+    async def test_success_on_first_attempt(self):
+        respx.get("https://example.com/img.png").mock(
+            return_value=httpx.Response(200, content=b"PNG",
+                                        headers={"content-type": "image/png"}),
+        )
         config = _config()
         data, ct = await async_download_image("https://example.com/img.png", config)
         assert data == b"PNG"
         assert ct == "image/png"
 
-    @patch("notionify.image.download._async_try_download")
-    async def test_raises_after_exhausting_retries(self, mock_try: MagicMock):
-        from unittest.mock import AsyncMock
-
-        mock_try.side_effect = AsyncMock(side_effect=httpx.ConnectError("fail"))
+    @respx.mock
+    async def test_raises_after_exhausting_retries(self):
+        respx.get("https://example.com/img.png").mock(
+            side_effect=httpx.ConnectError("fail"),
+        )
         config = _config(remote_image_retries=0)
         with pytest.raises(NotionifyImageDownloadError):
             await async_download_image("https://example.com/img.png", config)
 
-    @patch("notionify.image.download._async_try_download")
-    async def test_success_on_retry(self, mock_try: MagicMock):
-        from unittest.mock import AsyncMock
-
-        mock_try.side_effect = AsyncMock(
-            side_effect=[httpx.ConnectError("fail"), (b"OK", "image/png")]
-        )
+    @respx.mock
+    async def test_success_on_retry(self):
+        route = respx.get("https://example.com/img.png")
+        route.side_effect = [
+            httpx.ConnectError("fail"),
+            httpx.Response(200, content=b"OK",
+                           headers={"content-type": "image/png"}),
+        ]
         config = _config(remote_image_retries=1)
         data, _ = await async_download_image("https://example.com/img.png", config)
         assert data == b"OK"
@@ -311,51 +318,41 @@ class TestIsRetryable:
 class TestPermanentErrorAbort:
     """4xx errors abort immediately without exhausting retries."""
 
-    @patch("notionify.image.download._try_download")
-    def test_404_aborts_immediately_sync(self, mock_try: MagicMock):
-        resp = httpx.Response(404, request=httpx.Request("GET", "https://x.com/img"))
-        mock_try.side_effect = httpx.HTTPStatusError(
-            "Not Found", request=resp.request, response=resp,
-        )
+    @respx.mock
+    def test_404_aborts_immediately_sync(self):
+        route = respx.get("https://x.com/img")
+        route.mock(return_value=httpx.Response(404))
         config = _config(remote_image_retries=5)
         with pytest.raises(NotionifyImageDownloadError, match="1 attempt"):
             download_image("https://x.com/img", config)
-        assert mock_try.call_count == 1  # no retries
+        assert route.call_count == 1  # no retries
 
-    @patch("notionify.image.download._try_download")
-    def test_500_retries_sync(self, mock_try: MagicMock):
-        resp = httpx.Response(500, request=httpx.Request("GET", "https://x.com/img"))
-        mock_try.side_effect = httpx.HTTPStatusError(
-            "Server Error", request=resp.request, response=resp,
-        )
+    @respx.mock
+    def test_500_retries_sync(self):
+        route = respx.get("https://x.com/img")
+        route.mock(return_value=httpx.Response(500))
         config = _config(remote_image_retries=2)
         with pytest.raises(NotionifyImageDownloadError, match="3 attempt"):
             download_image("https://x.com/img", config)
-        assert mock_try.call_count == 3  # 1 initial + 2 retries
+        assert route.call_count == 3  # 1 initial + 2 retries
 
-    @patch("notionify.image.download._async_try_download")
-    async def test_403_aborts_immediately_async(self, mock_try: MagicMock):
-        from unittest.mock import AsyncMock
-
-        resp = httpx.Response(403, request=httpx.Request("GET", "https://x.com/img"))
-        mock_try.side_effect = AsyncMock(
-            side_effect=httpx.HTTPStatusError(
-                "Forbidden", request=resp.request, response=resp,
-            ),
-        )
+    @respx.mock
+    async def test_403_aborts_immediately_async(self):
+        route = respx.get("https://x.com/img")
+        route.mock(return_value=httpx.Response(403))
         config = _config(remote_image_retries=5)
         with pytest.raises(NotionifyImageDownloadError, match="1 attempt"):
             await async_download_image("https://x.com/img", config)
-        assert mock_try.call_count == 1
+        assert route.call_count == 1
 
 
 # =========================================================================
-# Raw HTTP helpers (via respx)
+# Real HTTP via respx (exercises actual httpx.Client/AsyncClient paths)
 # =========================================================================
 
 
-class TestTryDownloadSync:
-    """_try_download exercises the real httpx.Client code path."""
+class TestDownloadRealHttpSync:
+    """download_image exercises the real httpx.Client code path via respx."""
 
     @respx.mock
     def test_success_returns_bytes_and_content_type(self):
@@ -365,9 +362,7 @@ class TestTryDownloadSync:
                 headers={"content-type": "image/jpeg"},
             ),
         )
-        data, ct = _try_download(
-            "https://example.com/photo.jpg", {"User-Agent": "test"}, 10.0,
-        )
+        data, ct = download_image("https://example.com/photo.jpg", _config())
         assert data == b"JPEG_BYTES"
         assert ct == "image/jpeg"
 
@@ -376,10 +371,8 @@ class TestTryDownloadSync:
         respx.get("https://example.com/missing.png").mock(
             return_value=httpx.Response(404),
         )
-        with pytest.raises(httpx.HTTPStatusError):
-            _try_download(
-                "https://example.com/missing.png", {}, 10.0,
-            )
+        with pytest.raises(NotionifyImageDownloadError):
+            download_image("https://example.com/missing.png", _config(remote_image_retries=0))
 
     @respx.mock
     def test_follows_redirects(self):
@@ -389,12 +382,12 @@ class TestTryDownloadSync:
                 headers={"content-type": "image/png"},
             ),
         )
-        data, ct = _try_download("https://example.com/redir", {}, 10.0)
+        data, ct = download_image("https://example.com/redir", _config())
         assert data == b"REDIRECTED"
 
 
-class TestAsyncTryDownload:
-    """_async_try_download exercises the real httpx.AsyncClient code path."""
+class TestDownloadRealHttpAsync:
+    """async_download_image exercises the real httpx.AsyncClient code path."""
 
     @respx.mock
     async def test_success_returns_bytes_and_content_type(self):
@@ -404,8 +397,8 @@ class TestAsyncTryDownload:
                 headers={"content-type": "image/jpeg; charset=utf-8"},
             ),
         )
-        data, ct = await _async_try_download(
-            "https://example.com/photo.jpg", {"User-Agent": "test"}, 10.0,
+        data, ct = await async_download_image(
+            "https://example.com/photo.jpg", _config(),
         )
         assert data == b"ASYNC_JPEG"
         assert ct == "image/jpeg"
@@ -415,9 +408,9 @@ class TestAsyncTryDownload:
         respx.get("https://example.com/gone.png").mock(
             return_value=httpx.Response(403),
         )
-        with pytest.raises(httpx.HTTPStatusError):
-            await _async_try_download(
-                "https://example.com/gone.png", {}, 10.0,
+        with pytest.raises(NotionifyImageDownloadError):
+            await async_download_image(
+                "https://example.com/gone.png", _config(remote_image_retries=0),
             )
 
 
@@ -429,12 +422,9 @@ class TestAsyncTryDownload:
 class TestDownloadErrorContext:
     """download_image error includes enriched diagnostic context."""
 
-    @patch("notionify.image.download._try_download")
-    def test_404_error_context_has_status_and_permanent_flag(self, mock_try: MagicMock):
-        resp = httpx.Response(404, request=httpx.Request("GET", "https://x.com/img"))
-        mock_try.side_effect = httpx.HTTPStatusError(
-            "Not Found", request=resp.request, response=resp,
-        )
+    @respx.mock
+    def test_404_error_context_has_status_and_permanent_flag(self):
+        respx.get("https://x.com/img").mock(return_value=httpx.Response(404))
         config = _config(remote_image_retries=0)
         with pytest.raises(NotionifyImageDownloadError) as exc_info:
             download_image("https://x.com/img", config)
@@ -444,12 +434,9 @@ class TestDownloadErrorContext:
         assert ctx["attempts_used"] == 1
         assert ctx["max_attempts"] == 1
 
-    @patch("notionify.image.download._try_download")
-    def test_500_error_context_has_status_and_not_permanent(self, mock_try: MagicMock):
-        resp = httpx.Response(500, request=httpx.Request("GET", "https://x.com/img"))
-        mock_try.side_effect = httpx.HTTPStatusError(
-            "Server Error", request=resp.request, response=resp,
-        )
+    @respx.mock
+    def test_500_error_context_has_status_and_not_permanent(self):
+        respx.get("https://x.com/img").mock(return_value=httpx.Response(500))
         config = _config(remote_image_retries=1)
         with pytest.raises(NotionifyImageDownloadError) as exc_info:
             download_image("https://x.com/img", config)
@@ -459,9 +446,9 @@ class TestDownloadErrorContext:
         assert ctx["attempts_used"] == 2
         assert ctx["max_attempts"] == 2
 
-    @patch("notionify.image.download._try_download")
-    def test_timeout_error_context_has_no_status(self, mock_try: MagicMock):
-        mock_try.side_effect = httpx.ReadTimeout("timeout")
+    @respx.mock
+    def test_timeout_error_context_has_no_status(self):
+        respx.get("https://x.com/img").mock(side_effect=httpx.ReadTimeout("timeout"))
         config = _config(remote_image_retries=0)
         with pytest.raises(NotionifyImageDownloadError) as exc_info:
             download_image("https://x.com/img", config)
@@ -523,3 +510,40 @@ class TestDownloadImageSchemeValidation:
         config = _config()
         with pytest.raises(NotionifyImageDownloadError, match="not allowed"):
             await async_download_image("file:///etc/passwd", config)
+
+
+# =========================================================================
+# Client reuse across retries
+# =========================================================================
+
+
+class TestClientReuseAcrossRetries:
+    """httpx client is reused across retry attempts (single connection pool)."""
+
+    @respx.mock
+    def test_sync_retries_reuse_single_client(self):
+        """Multiple retry attempts should use a single httpx.Client."""
+        route = respx.get("https://example.com/img.png")
+        route.side_effect = [
+            httpx.ConnectError("fail"),
+            httpx.Response(200, content=b"OK",
+                           headers={"content-type": "image/png"}),
+        ]
+        config = _config(remote_image_retries=1)
+        data, _ = download_image("https://example.com/img.png", config)
+        assert data == b"OK"
+        assert route.call_count == 2
+
+    @respx.mock
+    async def test_async_retries_reuse_single_client(self):
+        """Multiple async retry attempts should use a single AsyncClient."""
+        route = respx.get("https://example.com/img.png")
+        route.side_effect = [
+            httpx.ConnectError("fail"),
+            httpx.Response(200, content=b"OK",
+                           headers={"content-type": "image/png"}),
+        ]
+        config = _config(remote_image_retries=1)
+        data, _ = await async_download_image("https://example.com/img.png", config)
+        assert data == b"OK"
+        assert route.call_count == 2

@@ -13,7 +13,7 @@ PRD reference: section 14.3.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from .transport import AsyncNotionTransport, NotionTransport
 
@@ -30,11 +30,13 @@ class FileAPI:
     def __init__(self, transport: NotionTransport) -> None:
         self._transport = transport
 
+    _VALID_MODES = frozenset({"single_part", "multi_part"})
+
     def create_upload(
         self,
         name: str,
         content_type: str,
-        mode: str = "single_part",
+        mode: Literal["single_part", "multi_part"] = "single_part",
     ) -> dict[str, Any]:
         """Create a new file upload.
 
@@ -52,6 +54,9 @@ class FileAPI:
         dict
             The upload object, including ``id`` and ``upload_url``.
         """
+        if mode not in self._VALID_MODES:
+            msg = f"mode must be 'single_part' or 'multi_part', got {mode!r}"
+            raise ValueError(msg)
         body: dict[str, Any] = {
             "name": name,
             "content_type": content_type,
@@ -151,16 +156,21 @@ class AsyncFileAPI:
     def __init__(self, transport: AsyncNotionTransport) -> None:
         self._transport = transport
 
+    _VALID_MODES = frozenset({"single_part", "multi_part"})
+
     async def create_upload(
         self,
         name: str,
         content_type: str,
-        mode: str = "single_part",
+        mode: Literal["single_part", "multi_part"] = "single_part",
     ) -> dict[str, Any]:
         """Create a new file upload (async).
 
         See :meth:`FileAPI.create_upload` for parameter documentation.
         """
+        if mode not in self._VALID_MODES:
+            msg = f"mode must be 'single_part' or 'multi_part', got {mode!r}"
+            raise ValueError(msg)
         body: dict[str, Any] = {
             "name": name,
             "content_type": content_type,

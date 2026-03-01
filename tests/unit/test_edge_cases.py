@@ -142,6 +142,22 @@ class TestNumericConfigValidation:
         assert config.image_allowed_mimes_upload == ["image/png"]
         assert config.image_allowed_mimes_external == ["image/jpeg"]
 
+    def test_default_mime_constants_are_immutable(self):
+        """Module-level MIME defaults are tuples to prevent accidental mutation."""
+        from notionify.config import DEFAULT_EXTERNAL_MIMES, DEFAULT_UPLOAD_MIMES
+
+        assert isinstance(DEFAULT_UPLOAD_MIMES, tuple)
+        assert isinstance(DEFAULT_EXTERNAL_MIMES, tuple)
+
+    def test_default_mime_constants_not_shared_with_config(self):
+        """Config instances get independent list copies, not references to the tuple."""
+        from notionify.config import DEFAULT_UPLOAD_MIMES
+
+        config = NotionifyConfig(token="test")
+        config.image_allowed_mimes_upload.append("image/avif")
+        # The module constant must not be affected
+        assert "image/avif" not in DEFAULT_UPLOAD_MIMES
+
 
 # ── Notion→MD: table rendering edge cases ─────────────────────────────
 

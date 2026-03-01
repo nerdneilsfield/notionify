@@ -32,7 +32,30 @@ class TestTakeSnapshot:
     def test_missing_last_edited(self):
         page = {}
         snap = take_snapshot("page-123", page, [])
-        assert snap.last_edited == datetime.min
+        assert snap.last_edited == datetime.min.replace(tzinfo=timezone.utc)
+
+    def test_missing_last_edited_is_timezone_aware(self):
+        """Fallback datetime must be timezone-aware to avoid TypeError on comparison."""
+        page = {}
+        snap = take_snapshot("page-123", page, [])
+        assert snap.last_edited.tzinfo is not None
+
+    def test_invalid_last_edited_is_timezone_aware(self):
+        """Invalid datetime string also falls back to timezone-aware datetime."""
+        page = {"last_edited_time": "not-a-date"}
+        snap = take_snapshot("page-123", page, [])
+        assert snap.last_edited.tzinfo is not None
+        assert snap.last_edited == datetime.min.replace(tzinfo=timezone.utc)
+
+    def test_no_timezone_mismatch_on_comparison(self):
+        """Comparing valid and fallback snapshots must not raise TypeError."""
+        valid_page = {"last_edited_time": "2024-01-15T10:00:00.000Z"}
+        empty_page: dict[str, str] = {}
+        snap_valid = take_snapshot("p1", valid_page, [])
+        snap_empty = take_snapshot("p2", empty_page, [])
+        # This would raise TypeError if one is naive and the other is aware
+        result = detect_conflict(snap_valid, snap_empty)
+        assert result is True  # different timestamps → conflict
 
     def test_blocks_without_id_skipped(self):
         page = {"last_edited_time": "2024-01-15T10:00:00.000Z"}

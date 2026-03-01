@@ -228,6 +228,7 @@ class NotionTransport:
         self._metrics = config.metrics if config.metrics is not None else NoopMetricsHook()
 
         proxy: httpx.URL | str | None = config.http_proxy
+        self._closed = False
         self._client = httpx.Client(
             base_url=config.base_url,
             headers={
@@ -461,7 +462,13 @@ class NotionTransport:
                 break
 
     def close(self) -> None:
-        """Close the underlying HTTP client and release resources."""
+        """Close the underlying HTTP client and release resources.
+
+        Safe to call multiple times — subsequent calls are no-ops.
+        """
+        if self._closed:
+            return
+        self._closed = True
         self._client.close()
 
     def __enter__(self) -> NotionTransport:
@@ -495,6 +502,7 @@ class AsyncNotionTransport:
         )
         self._metrics = config.metrics if config.metrics is not None else NoopMetricsHook()
 
+        self._closed = False
         proxy: httpx.URL | str | None = config.http_proxy
         self._client = httpx.AsyncClient(
             base_url=config.base_url,
@@ -679,7 +687,13 @@ class AsyncNotionTransport:
                 break
 
     async def close(self) -> None:
-        """Close the underlying async HTTP client and release resources."""
+        """Close the underlying async HTTP client and release resources.
+
+        Safe to call multiple times — subsequent calls are no-ops.
+        """
+        if self._closed:
+            return
+        self._closed = True
         await self._client.aclose()
 
     async def __aenter__(self) -> AsyncNotionTransport:

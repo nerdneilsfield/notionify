@@ -20,16 +20,16 @@ from typing import Any, Literal
 # MIME allowlist constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_UPLOAD_MIMES: list[str] = [
+DEFAULT_UPLOAD_MIMES: tuple[str, ...] = (
     "image/jpeg",
     "image/png",
     "image/gif",
     "image/webp",
     "image/svg+xml",
-]
+)
 """MIME types accepted for local-file and data-URI uploads."""
 
-DEFAULT_EXTERNAL_MIMES: list[str] = [
+DEFAULT_EXTERNAL_MIMES: tuple[str, ...] = (
     "image/jpeg",
     "image/png",
     "image/gif",
@@ -37,7 +37,7 @@ DEFAULT_EXTERNAL_MIMES: list[str] = [
     "image/svg+xml",
     "image/bmp",
     "image/tiff",
-]
+)
 """MIME types accepted for external-URL images (checked when
 ``image_verify_external=True``)."""
 

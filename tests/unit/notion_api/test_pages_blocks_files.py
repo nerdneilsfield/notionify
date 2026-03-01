@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from notionify.notion_api.blocks import AsyncBlockAPI, BlockAPI
 from notionify.notion_api.files import AsyncFileAPI, FileAPI
 from notionify.notion_api.pages import AsyncPageAPI, PageAPI
@@ -588,3 +590,46 @@ class TestFileAPIAsync:
         api = AsyncFileAPI(t)
         result = await api.retrieve_upload("upl-a6")
         assert result["status"] == "complete"
+
+
+# ===========================================================================
+# FileAPI mode validation
+# ===========================================================================
+
+class TestFileAPIModeValidation:
+    """create_upload rejects invalid mode values."""
+
+    def test_sync_invalid_mode_raises(self):
+        t = MagicMock()
+        api = FileAPI(t)
+        with pytest.raises(ValueError, match="mode must be"):
+            api.create_upload("f.png", "image/png", mode="multi")  # type: ignore[arg-type]
+
+    def test_sync_valid_single_part(self):
+        t = MagicMock()
+        t.request.return_value = {"id": "upl-1"}
+        api = FileAPI(t)
+        api.create_upload("f.png", "image/png", mode="single_part")
+        t.request.assert_called_once()
+
+    def test_sync_valid_multi_part(self):
+        t = MagicMock()
+        t.request.return_value = {"id": "upl-2"}
+        api = FileAPI(t)
+        api.create_upload("f.png", "image/png", mode="multi_part")
+        t.request.assert_called_once()
+
+    async def test_async_invalid_mode_raises(self):
+        t = MagicMock()
+        t.request = AsyncMock()
+        api = AsyncFileAPI(t)
+        with pytest.raises(ValueError, match="mode must be"):
+            await api.create_upload("f.png", "image/png", mode="invalid")  # type: ignore[arg-type]
+
+    async def test_async_valid_modes_accepted(self):
+        t = MagicMock()
+        t.request = AsyncMock(return_value={"id": "upl-3"})
+        api = AsyncFileAPI(t)
+        await api.create_upload("f.png", "image/png", mode="single_part")
+        await api.create_upload("f.png", "image/png", mode="multi_part")
+        assert t.request.call_count == 2

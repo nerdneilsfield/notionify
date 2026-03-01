@@ -646,6 +646,14 @@ class TestNotionTransportLifecycle:
             raise ValueError("test error")
         mock_close.assert_called_once()
 
+    def test_close_is_idempotent(self):
+        """Calling close() twice does not raise or call client.close() again."""
+        transport = NotionTransport(make_config())
+        with patch.object(transport._client, "close") as mock_close:
+            transport.close()
+            transport.close()
+        mock_close.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # Async AsyncNotionTransport
@@ -1010,6 +1018,14 @@ class TestAsyncNotionTransportLifecycle:
         ):
             async with transport:
                 raise ValueError("test error")
+        mock_aclose.assert_called_once()
+
+    async def test_close_is_idempotent(self):
+        """Calling close() twice does not raise or call aclose() again."""
+        transport = AsyncNotionTransport(make_config())
+        with patch.object(transport._client, "aclose", new=AsyncMock()) as mock_aclose:
+            await transport.close()
+            await transport.close()
         mock_aclose.assert_called_once()
 
 

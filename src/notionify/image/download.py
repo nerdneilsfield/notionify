@@ -77,21 +77,6 @@ def _is_retryable(exc: Exception) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Sync single-attempt helper
-# ---------------------------------------------------------------------------
-
-
-def _try_download(
-    url: str, headers: dict[str, str], timeout: float,
-) -> tuple[bytes, str]:
-    """Attempt a single synchronous download.  Raises on failure."""
-    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
-        response = client.get(url, headers=headers)
-        response.raise_for_status()
-        return response.content, _parse_content_type(response)
-
-
-# ---------------------------------------------------------------------------
 # Sync download
 # ---------------------------------------------------------------------------
 
@@ -126,32 +111,35 @@ def download_image(
 
     last_error: Exception | None = None
 
-    for attempt in range(max_attempts):
-        try:
-            return _try_download(url, headers, timeout)
-        except (httpx.HTTPError, OSError) as exc:  # noqa: PERF203
-            last_error = exc
-            retryable = _is_retryable(exc)
-            status_code = (
-                exc.response.status_code
-                if isinstance(exc, httpx.HTTPStatusError)
-                else None
-            )
-            log.debug(
-                "Remote image download attempt failed",
-                extra={"extra_fields": {
-                    "url": url,
-                    "attempt": attempt + 1,
-                    "max_attempts": max_attempts,
-                    "status_code": status_code,
-                    "retryable": retryable,
-                    "error": str(exc),
-                }},
-            )
-            if not retryable:
-                break
-            if attempt < max_attempts - 1:
-                time.sleep(min(attempt + 1, 5))
+    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+        for attempt in range(max_attempts):
+            try:
+                response = client.get(url, headers=headers)
+                response.raise_for_status()
+                return response.content, _parse_content_type(response)
+            except (httpx.HTTPError, OSError) as exc:  # noqa: PERF203
+                last_error = exc
+                retryable = _is_retryable(exc)
+                status_code = (
+                    exc.response.status_code
+                    if isinstance(exc, httpx.HTTPStatusError)
+                    else None
+                )
+                log.debug(
+                    "Remote image download attempt failed",
+                    extra={"extra_fields": {
+                        "url": url,
+                        "attempt": attempt + 1,
+                        "max_attempts": max_attempts,
+                        "status_code": status_code,
+                        "retryable": retryable,
+                        "error": str(exc),
+                    }},
+                )
+                if not retryable:
+                    break
+                if attempt < max_attempts - 1:
+                    time.sleep(min(attempt + 1, 5))
 
     attempts_used = attempt + 1 if last_error is not None else max_attempts
     last_status = (
@@ -171,21 +159,6 @@ def download_image(
             "is_permanent": is_permanent,
         },
     )
-
-
-# ---------------------------------------------------------------------------
-# Async single-attempt helper
-# ---------------------------------------------------------------------------
-
-
-async def _async_try_download(
-    url: str, headers: dict[str, str], timeout: float,
-) -> tuple[bytes, str]:
-    """Attempt a single asynchronous download.  Raises on failure."""
-    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-        response = await client.get(url, headers=headers)
-        response.raise_for_status()
-        return response.content, _parse_content_type(response)
 
 
 # ---------------------------------------------------------------------------
@@ -225,32 +198,35 @@ async def async_download_image(
 
     last_error: Exception | None = None
 
-    for attempt in range(max_attempts):
-        try:
-            return await _async_try_download(url, headers, timeout)
-        except (httpx.HTTPError, OSError) as exc:  # noqa: PERF203
-            last_error = exc
-            retryable = _is_retryable(exc)
-            status_code = (
-                exc.response.status_code
-                if isinstance(exc, httpx.HTTPStatusError)
-                else None
-            )
-            log.debug(
-                "Remote image download attempt failed",
-                extra={"extra_fields": {
-                    "url": url,
-                    "attempt": attempt + 1,
-                    "max_attempts": max_attempts,
-                    "status_code": status_code,
-                    "retryable": retryable,
-                    "error": str(exc),
-                }},
-            )
-            if not retryable:
-                break
-            if attempt < max_attempts - 1:
-                await asyncio.sleep(min(attempt + 1, 5))
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+        for attempt in range(max_attempts):
+            try:
+                response = await client.get(url, headers=headers)
+                response.raise_for_status()
+                return response.content, _parse_content_type(response)
+            except (httpx.HTTPError, OSError) as exc:  # noqa: PERF203
+                last_error = exc
+                retryable = _is_retryable(exc)
+                status_code = (
+                    exc.response.status_code
+                    if isinstance(exc, httpx.HTTPStatusError)
+                    else None
+                )
+                log.debug(
+                    "Remote image download attempt failed",
+                    extra={"extra_fields": {
+                        "url": url,
+                        "attempt": attempt + 1,
+                        "max_attempts": max_attempts,
+                        "status_code": status_code,
+                        "retryable": retryable,
+                        "error": str(exc),
+                    }},
+                )
+                if not retryable:
+                    break
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(min(attempt + 1, 5))
 
     attempts_used = attempt + 1 if last_error is not None else max_attempts
     last_status = (
