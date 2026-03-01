@@ -2046,3 +2046,55 @@ class TestHeadingWithLinks:
         blocks = _simulate_api_response(result.blocks)
         round_tripped = renderer.render_blocks(blocks)
         assert "Plain Heading for Contrast" in round_tripped
+
+
+class TestTableRichAnnotations:
+    """Round-trip tests for table_rich_annotations.md."""
+
+    def test_converts_without_errors(self, converter):
+        md = (FIXTURES_DIR / "table_rich_annotations.md").read_text()
+        result = converter.convert(md)
+        assert result.blocks
+        assert not result.warnings
+
+    def test_three_tables_produced(self, converter):
+        md = (FIXTURES_DIR / "table_rich_annotations.md").read_text()
+        result = converter.convert(md)
+        tables = [b for b in result.blocks if b.get("type") == "table"]
+        assert len(tables) == 3, f"Expected 3 table blocks, got {len(tables)}"
+
+    def test_bold_annotation_survives_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "table_rich_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "**strong text**" in round_tripped or "**Bold**" in round_tripped
+
+    def test_italic_annotation_survives_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "table_rich_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "emphasized text" in round_tripped
+
+    def test_code_annotation_survives_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "table_rich_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "`inline code`" in round_tripped
+
+    def test_strikethrough_annotation_survives_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "table_rich_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "~~removed text~~" in round_tripped
+
+    def test_link_in_cell_survives_round_trip(self, converter, renderer):
+        md = (FIXTURES_DIR / "table_rich_annotations.md").read_text()
+        result = converter.convert(md)
+        blocks = _simulate_api_response(result.blocks)
+        round_tripped = renderer.render_blocks(blocks)
+        assert "click here" in round_tripped
+        assert "example.com" in round_tripped
