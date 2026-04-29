@@ -126,8 +126,12 @@ class TestCreatePageWithMarkdown:
 
         client.close()
 
-    def test_database_parent_type(self):
+    def test_create_page_database_parent_uses_data_source_id_on_2025_api(self):
         client = _make_sync_client()
+        client._transport.request = MagicMock(side_effect=[
+            {"data_sources": [{"id": "ds-1", "name": "Default"}]},
+            {"properties": {"Name": {"type": "title", "title": {}}}},
+        ])
         client._pages.create = MagicMock(return_value=_page_create_response())
 
         client.create_page_with_markdown(
@@ -139,7 +143,54 @@ class TestCreatePageWithMarkdown:
 
         call_args = client._pages.create.call_args
         parent = call_args.kwargs.get("parent") or call_args[0][0]
-        assert parent == {"database_id": "db-1"}
+        assert parent == {"type": "data_source_id", "data_source_id": "ds-1"}
+        client.close()
+
+    def test_create_page_database_parent_loads_schema_from_data_source(self):
+        client = _make_sync_client()
+        client._transport.request = MagicMock(side_effect=[
+            {"data_sources": [{"id": "ds-1", "name": "Default"}]},
+            {"properties": {"Name": {"type": "title", "title": {}}}},
+        ])
+        client._pages.create = MagicMock(return_value=_page_create_response())
+
+        client.create_page_with_markdown(
+            parent_id="db-1",
+            title="DB Page",
+            markdown="Content",
+            parent_type="database",
+        )
+
+        client._transport.request.assert_any_call("GET", "/databases/db-1")
+        client._transport.request.assert_any_call("GET", "/data_sources/ds-1")
+        client.close()
+
+    def test_create_page_database_parent_uses_actual_title_property_name(self):
+        client = _make_sync_client()
+        client._transport.request = MagicMock(side_effect=[
+            {"data_sources": [{"id": "ds-1", "name": "Default"}]},
+            {
+                "properties": {
+                    "Tag": {"type": "multi_select", "multi_select": {}},
+                    "标题": {"type": "title", "title": {}},
+                }
+            },
+        ])
+        client._pages.create = MagicMock(return_value=_page_create_response())
+
+        client.create_page_with_markdown(
+            parent_id="db-1",
+            title="DB Page",
+            markdown="Content",
+            parent_type="database",
+        )
+
+        call_args = client._pages.create.call_args
+        properties = call_args.kwargs.get("properties") or call_args[0][1]
+        assert properties["标题"] == {
+            "title": [{"text": {"content": "DB Page"}}]
+        }
+        assert "title" not in properties
         client.close()
 
     def test_invalid_parent_type_raises(self):
@@ -1323,6 +1374,10 @@ class TestAsyncCreatePageDatabase:
         client = AsyncNotionifyClient(token="test-token")
         client._pages.create = AsyncMock(return_value={"id": "pg-db", "url": "https://notion.so/p"})
         client._blocks.append_children = AsyncMock(return_value={"results": []})
+        client._transport.request = AsyncMock(side_effect=[
+            {"data_sources": [{"id": "ds-123", "name": "Default"}]},
+            {"properties": {"Name": {"type": "title", "title": {}}}},
+        ])
 
         result = await client.create_page_with_markdown(
             parent_id="db-123",
@@ -1331,9 +1386,14 @@ class TestAsyncCreatePageDatabase:
             parent_type="database",
         )
         assert result.page_id == "pg-db"
-        # Verify database_id was used in parent
         call_args = client._pages.create.call_args
-        assert "database_id" in call_args.kwargs["parent"]
+        assert call_args.kwargs["parent"] == {
+            "type": "data_source_id",
+            "data_source_id": "ds-123",
+        }
+        assert call_args.kwargs["properties"]["Name"] == {
+            "title": [{"text": {"content": "Hello"}}]
+        }
         await client.close()
 
 

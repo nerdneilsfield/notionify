@@ -65,6 +65,19 @@ from notionify.observability import NoopMetricsHook
 from notionify.utils.chunk import chunk_children
 
 
+def _uses_data_source_api(notion_version: str) -> bool:
+    """Return whether the configured Notion API version uses data sources."""
+    return notion_version >= "2025-09-03"
+
+
+def _find_title_property_name(properties: dict[str, Any]) -> str:
+    """Return the schema property name whose Notion type is ``title``."""
+    for name, schema in properties.items():
+        if isinstance(schema, dict) and schema.get("type") == "title":
+            return name
+    raise ValueError("Database/data source schema does not contain a title property")
+
+
 class NotionifyClient:
     """Synchronous Notion SDK client.
 
@@ -170,14 +183,20 @@ class NotionifyClient:
 
         # 4. Build parent dict
         if parent_type == "database":
-            parent = {"database_id": parent_id}
+            parent, title_prop_name = self._database_page_parent_and_title_property(parent_id)
         else:
             parent = {"page_id": parent_id}
+            title_prop_name = "title"
 
         # 5. Build properties with title
         if properties is None:
             properties = {}
-        properties.setdefault("title", [{"text": {"content": effective_title}}])
+        if parent_type == "database":
+            properties.setdefault(title_prop_name, {
+                "title": [{"text": {"content": effective_title}}]
+            })
+        else:
+            properties.setdefault(title_prop_name, [{"text": {"content": effective_title}}])
 
         # 6. Chunk blocks into batches of 100
         batches = chunk_children(blocks)
@@ -204,6 +223,29 @@ class NotionifyClient:
             images_uploaded=images_uploaded,
             warnings=warnings,
         )
+
+    def _database_page_parent_and_title_property(
+        self,
+        database_id: str,
+    ) -> tuple[dict[str, Any], str]:
+        """Resolve the page parent and title property for a database target."""
+        if _uses_data_source_api(self._config.notion_version):
+            database = self._transport.request("GET", f"/databases/{database_id}")
+            data_sources = database.get("data_sources") or []
+            if not data_sources:
+                raise ValueError(f"Database {database_id!r} does not contain any data sources")
+
+            data_source_id = data_sources[0]["id"]
+            data_source = self._transport.request("GET", f"/data_sources/{data_source_id}")
+            title_prop_name = _find_title_property_name(data_source.get("properties") or {})
+            return (
+                {"type": "data_source_id", "data_source_id": data_source_id},
+                title_prop_name,
+            )
+
+        database = self._transport.request("GET", f"/databases/{database_id}")
+        title_prop_name = _find_title_property_name(database.get("properties") or {})
+        return {"database_id": database_id}, title_prop_name
 
     # ------------------------------------------------------------------
     # Append
@@ -992,5 +1034,4 @@ class NotionifyClient:
                 current_depth=current_depth + 1,
                 max_depth=max_depth,
             )
-
 

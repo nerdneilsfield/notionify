@@ -66,7 +66,7 @@ class TestPageAPISync:
         api = PageAPI(t)
         children = [{"object": "block", "type": "paragraph"}]
         result = api.create(
-            parent={"database_id": "db-1"},
+            parent={"type": "data_source_id", "data_source_id": "ds-1"},
             properties={"Name": {"title": [{"text": {"content": "Row"}}]}},
             children=children,
         )
@@ -74,7 +74,7 @@ class TestPageAPISync:
             "POST",
             "/pages",
             json={
-                "parent": {"database_id": "db-1"},
+                "parent": {"type": "data_source_id", "data_source_id": "ds-1"},
                 "properties": {"Name": {"title": [{"text": {"content": "Row"}}]}},
                 "children": children,
             },
@@ -178,7 +178,7 @@ class TestPageAPIAsync:
         api = AsyncPageAPI(t)
         children = [{"type": "paragraph"}]
         result = await api.create(
-            parent={"database_id": "db-a"},
+            parent={"type": "data_source_id", "data_source_id": "ds-a"},
             properties={},
             children=children,
         )

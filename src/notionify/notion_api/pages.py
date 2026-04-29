@@ -38,7 +38,7 @@ class PageAPI:
         ----------
         parent:
             Parent object, e.g. ``{"page_id": "..."}`` or
-            ``{"database_id": "..."}``.
+            ``{"type": "data_source_id", "data_source_id": "..."}``.
         properties:
             Page properties.  For pages under another page the minimal
             required shape is
