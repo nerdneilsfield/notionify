@@ -218,7 +218,12 @@ class TestBuildList:
             "children": [{
                 "type": "task_list_item",
                 "attrs": {"checked": False},
-                "children": [{"type": "paragraph", "children": [{"type": "text", "raw": "Buy milk"}]}],
+                "children": [
+                    {
+                        "type": "paragraph",
+                        "children": [{"type": "text", "raw": "Buy milk"}],
+                    }
+                ],
             }],
         }
         blocks, _, _ = build_blocks([token], _config())
@@ -797,7 +802,12 @@ class TestHeadingOverflowEdgeCases:
         token = {
             "type": "heading",
             "attrs": {"level": 5},
-            "children": [{"type": "emphasis", "children": [{"type": "text", "raw": "italic heading"}]}],
+            "children": [
+                {
+                    "type": "emphasis",
+                    "children": [{"type": "text", "raw": "italic heading"}],
+                }
+            ],
         }
         blocks, _, _ = build_blocks([token], _config(heading_overflow="paragraph"))
         assert blocks[0]["type"] == "paragraph"

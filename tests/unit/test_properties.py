@@ -15,6 +15,7 @@ import re
 import string
 from datetime import datetime
 from datetime import timezone as _tz
+from typing import ClassVar
 
 import pytest
 from hypothesis import assume, given, settings
@@ -3052,7 +3053,7 @@ class TestComputeSignatureProperties:
         assert compute_signature(block) == compute_signature(block)
 
     # Paragraph color properties
-    _NOTION_COLORS = [
+    _NOTION_COLORS: ClassVar[list[str]] = [
         "default", "gray", "brown", "orange", "yellow",
         "green", "blue", "purple", "pink", "red",
     ]
@@ -9173,4 +9174,3 @@ class TestEscapeLinkTextProperties:
         r"""Complex string with all special chars is escaped correctly."""
         result = _escape_link_text("a\\b[c]d")
         assert result == "a\\\\b\\[c\\]d"
-

@@ -274,7 +274,7 @@ class TestComputeSignature:
         assert attrs["color"] == "red"
 
     def test_to_do_different_colors_different_signatures(self):
-        """Two to-do blocks with same text/checked but different colors produce different signatures."""
+        """Same to-do text/checked with different colors yields different signatures."""
         block_default = {
             "type": "to_do",
             "to_do": {"rich_text": [{"plain_text": "task"}], "checked": False, "color": "default"},
