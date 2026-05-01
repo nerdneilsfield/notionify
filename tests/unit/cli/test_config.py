@@ -54,7 +54,7 @@ def test_load_config_default_parent_prefers_explicit_file_over_home_and_env(
     assert loaded.default_parent == "file-parent"
 
 
-def test_load_config_with_explicit_file_falls_back_to_home_then_env(
+def test_explicit_config_no_fallback_to_home_or_env(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -70,10 +70,8 @@ def test_load_config_with_explicit_file_falls_back_to_home_then_env(
     monkeypatch.setenv("NOTION_TOKEN", "env-token")
     monkeypatch.setenv("NOTION_DEFAULT_PARENT", "env-parent")
 
-    loaded = load_config(_args(config_path=str(explicit)))
-
-    assert loaded.token == "env-token"
-    assert loaded.default_parent == "home-parent"
+    with pytest.raises(ConfigError, match="token"):
+        load_config(_args(config_path=str(explicit)))
 
 
 def test_load_config_uses_env_token_when_files_absent(

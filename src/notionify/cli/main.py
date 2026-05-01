@@ -83,12 +83,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    raw = list(sys.argv[1:] if argv is None else argv)
-    parser = build_parser()
-    return _normalise_global_defaults(parser.parse_args(raw))
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     raw = list(sys.argv[1:] if argv is None else argv)

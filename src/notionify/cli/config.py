@@ -44,11 +44,16 @@ def load_config(args: argparse.Namespace) -> CLIConfig:
             raise ConfigError(f"config file not found: {explicit_path}")
         explicit_section = _profile_section(_read_toml(explicit_path), profile, explicit_path)
 
-    token = (
-        _optional_str(getattr(args, "token", None))
-        or _section_str(explicit_section, "token")
-        or os.environ.get("NOTION_TOKEN")
-        or _section_str(home_section, "token")
+    flag_token = _optional_str(getattr(args, "token", None))
+    explicit_token = _section_str(explicit_section, "token")
+    if explicit_section is not None and not (flag_token or explicit_token):
+        raise ConfigError(
+            f"No Notion token found in explicit config profile {profile!r}. "
+            "Pass --token or add token to the selected config profile."
+        )
+    token = flag_token or explicit_token or os.environ.get("NOTION_TOKEN") or _section_str(
+        home_section,
+        "token",
     )
     if not token:
         raise ConfigError(
