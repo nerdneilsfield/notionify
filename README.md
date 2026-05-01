@@ -92,17 +92,20 @@ The `notionify-cli` command wraps the SDK for local conversion, Notion page
 push/pull/sync flows, raw API inspection, and diff dry-runs. It is also
 available as `python -m notionify.cli`.
 
-Common commands:
+### CLI quickstart
 
 ```bash
-# Convert markdown to Notion blocks JSON without an API call
+# Convert Markdown to Notion blocks JSON without an API call
 notionify-cli convert doc.md
 
-# Create a new page
+# Preview a new page conversion without token, parent, or API calls
+notionify-cli push doc.md --dry-run
+
+# Create a new page under a page or database
 NOTION_TOKEN=secret_xxx \
   notionify-cli push doc.md --parent <parent_id> --title "Doc"
 
-# Incrementally sync an existing page
+# Incrementally sync an existing page from Markdown
 notionify-cli sync doc.md --page <page_id>
 
 # Show the diff plan without applying it
@@ -115,16 +118,108 @@ notionify-cli pull <page_id> --out out.md
 notionify-cli inspect <page_id> --children --json
 ```
 
-Configure it with `--token`, `NOTION_TOKEN`, or `~/.notionify.toml`:
+Global flags can be placed before or after the subcommand:
+
+```bash
+notionify-cli --json --profile work inspect <page_id> --children
+notionify-cli inspect <page_id> --children --json --profile work
+```
+
+Useful global flags:
+
+- `--token TOKEN` — Notion integration token
+- `-c, --config PATH` — use a specific TOML config file
+- `--profile NAME` — select a TOML section, defaults to `default`
+- `-v` / `-vv` — show progress or detailed diagnostics
+- `--json` — emit machine-readable result/error payloads
+
+### CLI configuration
+
+For one-off commands, use environment variables:
+
+```bash
+export NOTION_TOKEN="secret_xxx"
+export NOTION_DEFAULT_PARENT="<page-or-database-id>"
+
+notionify-cli push doc.md --title "Doc"
+```
+
+For repeated use, create `~/.notionify.toml`:
 
 ```toml
 [default]
 token = "secret_xxx"
-default_parent = "abc123..."
+default_parent = "12345678-1234-1234-1234-123456789abc"
+
+[work]
+token = "secret_work_xxx"
+default_parent = "abcdefab-cdef-abcd-efab-cdefabcdefab"
+
+[personal]
+token = "secret_personal_xxx"
+default_parent = "11111111-2222-3333-4444-555555555555"
 ```
 
-Use `-c PATH` for a non-default config file and `--profile NAME` to select a
-TOML section.
+Then select profiles with `--profile`:
+
+```bash
+notionify-cli --profile work push docs/release.md --title "Release Notes"
+notionify-cli --profile personal pull <page_id> --out notes.md
+```
+
+Use `-c PATH` for a project-local config file. The repository includes
+[examples/notionify.test.toml](examples/notionify.test.toml) as a safe
+template with placeholder tokens:
+
+```bash
+notionify-cli -c examples/notionify.test.toml --profile staging \
+  sync doc.md --page <page_id>
+```
+
+Token precedence is:
+
+1. `--token`
+2. `-c PATH` selected profile
+3. `NOTION_TOKEN`
+4. `~/.notionify.toml` selected profile, only when `-c` is not used
+
+`default_parent` precedence is:
+
+1. `-c PATH` selected profile
+2. `~/.notionify.toml` selected profile, only when `-c` is not used
+3. `NOTION_DEFAULT_PARENT`
+
+When `-c PATH` is provided, notionify treats that file as explicit and does
+not fall back to `~/.notionify.toml`.
+
+### CLI command reference
+
+```bash
+# convert: Markdown -> Notion block JSON, no token required
+notionify-cli convert doc.md --out blocks.json
+notionify-cli convert doc.md --no-images
+
+# push: create a new Notion page
+notionify-cli push doc.md --parent <parent_id> --title "Doc"
+notionify-cli push doc.md --parent <database_id> --parent-type database
+notionify-cli push doc.md --upload-remote-images
+notionify-cli push doc.md --dry-run --json
+
+# sync: update an existing page
+notionify-cli sync doc.md --page <page_id>
+notionify-cli sync doc.md --page <page_id> --dry-run --json
+
+# diff: alias for sync --dry-run
+notionify-cli diff doc.md --page <page_id>
+
+# pull: export Notion page Markdown
+notionify-cli pull <page_id>
+notionify-cli pull <page_id> --out out.md
+notionify-cli pull <page_id> --json
+
+# inspect: dump raw page JSON for debugging
+notionify-cli inspect <page_id> --children --json
+```
 
 ## Configuration
 

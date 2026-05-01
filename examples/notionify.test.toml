@@ -1,0 +1,17 @@
+# Example CLI config for local testing.
+# Copy to ~/.notionify.toml or pass with:
+#   notionify-cli -c examples/notionify.test.toml --profile staging ...
+#
+# Replace token values before running commands that call the Notion API.
+
+[default]
+token = "secret_test_default_replace_me"
+default_parent = "12345678-1234-1234-1234-123456789abc"
+
+[staging]
+token = "secret_test_staging_replace_me"
+default_parent = "abcdefab-cdef-abcd-efab-cdefabcdefab"
+
+[personal]
+token = "secret_test_personal_replace_me"
+default_parent = "11111111-2222-3333-4444-555555555555"
