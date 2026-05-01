@@ -109,7 +109,7 @@ token 缺失时打印:
 error: no Notion token found. Set NOTION_TOKEN, pass --token, or configure ~/.notionify.toml
 ```
 
-**Python 3.10 注**: 标准库 `tomllib` 仅 3.11+；3.10 下若需读配置文件会报友好错误，提示用 env 或升级 Python。
+**Python 3.10 注**: 标准库 `tomllib` 仅 3.11+。`pyproject.toml` 增加条件依赖 `tomli; python_version < "3.11"` 作为 fallback，所有 Python 版本均可读配置文件。
 
 ### ID 解析
 
@@ -238,6 +238,7 @@ class Reporter:
 
 ## 风险与注意
 
-- Python 3.10 无 `tomllib` → 配置文件不可用，env 仍可用，需友好提示
-- SDK 公开方法可能需要补薄 wrapper（`plan_sync`, `markdown_to_blocks`）
+- Python 3.10 无 `tomllib` → 加 `tomli` 作为 conditional dep
+- SDK 补一个 `plan_page_update()` 公共方法（diff dry-run 用）
 - 退出码与 `--json` 错误结构成为对外契约，后续变更需谨慎
+- `inspect` 故意使用 `client._pages` / `client._blocks`（私有 API）作为调试 escape hatch

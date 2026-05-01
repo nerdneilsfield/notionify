@@ -56,7 +56,7 @@
 - Create: `src/notionify/cli/__main__.py`
 - Create: `src/notionify/cli/main.py`
 - Create: `src/notionify/cli/commands/__init__.py`
-- Modify: `pyproject.toml`
+- Modify: `pyproject.toml` (add script entry + `tomli; python_version < "3.11"` dep)
 - Test: `tests/unit/cli/test_main.py`
 
 - [ ] **Step 1: Write failing test for empty CLI invocation**
@@ -142,24 +142,34 @@ import argparse
 from typing import Sequence
 
 
+def build_global_parser() -> argparse.ArgumentParser:
+    """Parent parser holding global flags. Used as ``parents=[...]`` on every
+    subcommand so flags work both before and after the subcommand name."""
+    p = argparse.ArgumentParser(add_help=False)
+    p.add_argument("--token", help="Notion API token (overrides env / config).")
+    p.add_argument("-c", "--config", dest="config_path",
+                   help="Path to a notionify TOML config file.")
+    p.add_argument("--profile", default="default",
+                   help="Profile name in the config file.")
+    p.add_argument("-v", "--verbose", action="count", default=0,
+                   help="Increase verbosity (-v, -vv).")
+    p.add_argument("--json", dest="json_mode", action="store_true",
+                   help="Emit machine-readable JSON output.")
+    return p
+
+
 def build_parser() -> argparse.ArgumentParser:
+    global_parser = build_global_parser()
     parser = argparse.ArgumentParser(
         prog="notionify-cli",
         description="Debug CLI for the notionify SDK.",
+        parents=[global_parser],
     )
-    parser.add_argument("--token", help="Notion API token (overrides env / config).")
-    parser.add_argument("-c", "--config", dest="config_path",
-                        help="Path to a notionify TOML config file.")
-    parser.add_argument("--profile", default="default",
-                        help="Profile name in the config file.")
-    parser.add_argument("-v", "--verbose", action="count", default=0,
-                        help="Increase verbosity (-v, -vv).")
-    parser.add_argument("--json", dest="json_mode", action="store_true",
-                        help="Emit machine-readable JSON output.")
-    parser.set_defaults(_command=None)
-
+    parser.set_defaults(command=None, _command=None)
     subparsers = parser.add_subparsers(dest="command", metavar="<command>")
-    # subcommands registered in later tasks
+    # subcommands registered in later tasks. Each task will pass
+    # parents=[global_parser] when calling subparsers.add_parser(...).
+    parser._global_parser = global_parser  # type: ignore[attr-defined]
     return parser
 
 
@@ -169,18 +179,36 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command is None:
         parser.print_help()
         return 1
-    # dispatch wired in Task 3+
+    # dispatch wired in Task 7+
     return 1
 ```
 
-- [ ] **Step 4: Add the script entry to pyproject.toml**
+**Key idea:** `add_parser` calls in later tasks must do
+`subparsers.add_parser("name", parents=[parser._global_parser], help="...")`
+so the subcommand also accepts `--token`, `--json`, etc.
 
-Modify `pyproject.toml`. After `[project.urls]` block (or wherever fits), add:
+- [ ] **Step 4: Update pyproject.toml**
+
+Modify `pyproject.toml` two places:
+
+1. In `[project] dependencies = [...]` add a conditional dep so 3.10 has TOML reading:
+
+```toml
+dependencies = [
+    "mistune>=3.0,<4.0",
+    "httpx>=0.27,<1.0",
+    'tomli>=2.0; python_version < "3.11"',
+]
+```
+
+2. After `[project.urls]` block, add:
 
 ```toml
 [project.scripts]
 notionify-cli = "notionify.cli:main"
 ```
+
+**TOML scoping reminder (from project memory):** keep `dependencies` BEFORE `[project.urls]`.
 
 - [ ] **Step 5: Reinstall package so the script is registered**
 
@@ -535,9 +563,9 @@ from pathlib import Path
 from typing import Any
 
 if sys.version_info >= (3, 11):
-    import tomllib  # type: ignore[unresolved-import]
+    import tomllib
 else:  # pragma: no cover - exercised on Py 3.10 only
-    tomllib = None  # type: ignore[assignment]
+    import tomli as tomllib  # type: ignore[no-redef]
 
 
 class ConfigError(RuntimeError):
@@ -551,11 +579,6 @@ class CLIConfig:
 
 
 def _read_toml(path: Path) -> dict[str, Any]:
-    if tomllib is None:  # pragma: no cover
-        raise ConfigError(
-            "Reading TOML config files requires Python 3.11+. "
-            "Use NOTION_TOKEN env or upgrade Python."
-        )
     with path.open("rb") as fh:
         return tomllib.load(fh)
 
@@ -581,44 +604,46 @@ def load_config(args: argparse.Namespace) -> CLIConfig:
       4. ``~/.notionify.toml`` + ``--profile`` (only when ``-c`` not given)
       5. ``NOTION_DEFAULT_PARENT`` env (for ``default_parent`` only)
     """
-    profile = getattr(args, "profile", "default") or "default"
-    explicit_config = getattr(args, "config_path", None)
+    profile: str = getattr(args, "profile", "default") or "default"
+    explicit_config: str | None = getattr(args, "config_path", None)
 
-    token: str | None = getattr(args, "token", None)
-    default_parent: str | None = None
+    explicit_data: dict[str, Any] | None = None
+    home_data: dict[str, Any] | None = None
 
-    file_data: dict[str, Any] | None = None
-    file_source: str | None = None
     if explicit_config:
         path = Path(explicit_config).expanduser()
         if not path.exists():
             raise ConfigError(f"config file not found: {path}")
-        file_data = _section(_read_toml(path), profile, str(path))
-        file_source = str(path)
+        explicit_data = _section(_read_toml(path), profile, str(path))
     else:
         home_cfg = Path(os.path.expanduser("~/.notionify.toml"))
-        if home_cfg.exists() and tomllib is not None:
+        if home_cfg.exists():
             raw = _read_toml(home_cfg)
             if profile in raw:
-                file_data = _section(raw, profile, str(home_cfg))
-                file_source = str(home_cfg)
+                home_data = _section(raw, profile, str(home_cfg))
 
-    if token is None and file_data is not None:
-        token = file_data.get("token")  # type: ignore[assignment]
+    # Token precedence: --token > -c file > NOTION_TOKEN > ~/.notionify.toml
+    flag_token: str | None = getattr(args, "token", None)
+    explicit_token: str | None = explicit_data.get("token") if explicit_data else None
+    env_token: str | None = os.environ.get("NOTION_TOKEN")
+    home_token: str | None = home_data.get("token") if home_data else None
 
-    if token is None:
-        token = os.environ.get("NOTION_TOKEN")
-
-    if file_data is not None:
-        default_parent = file_data.get("default_parent")  # type: ignore[assignment]
-    if default_parent is None:
-        default_parent = os.environ.get("NOTION_DEFAULT_PARENT")
+    token: str | None = flag_token or explicit_token or env_token or home_token
 
     if not token:
         raise ConfigError(
             "no Notion token found. Set NOTION_TOKEN, pass --token, "
             "or configure ~/.notionify.toml"
         )
+
+    # default_parent precedence: -c file > ~/.notionify.toml > NOTION_DEFAULT_PARENT
+    default_parent: str | None = None
+    if explicit_data is not None:
+        default_parent = explicit_data.get("default_parent")
+    if default_parent is None and home_data is not None:
+        default_parent = home_data.get("default_parent")
+    if default_parent is None:
+        default_parent = os.environ.get("NOTION_DEFAULT_PARENT")
 
     return CLIConfig(token=token, default_parent=default_parent)
 ```
@@ -874,11 +899,17 @@ class PlanResult:
     """Returned by :meth:`NotionifyClient.plan_page_update`."""
 
     ops: list[DiffOp]
-    warnings: list[Any]
+    warnings: list[ConversionWarning]
     images_to_upload: int
 ```
 
-(You'll need `from dataclasses import dataclass` and `from notionify.models import DiffOp` if not already imported, plus `from typing import Any`.)
+Required imports (`client.py` currently has none of these — add them):
+
+```python
+from dataclasses import dataclass
+```
+
+And in the existing `from notionify.models import (...)` block, add `DiffOp` to the list (`ConversionWarning` is already imported).
 
 Then add the method to the `NotionifyClient` class:
 
@@ -898,11 +929,10 @@ def plan_page_update(
     conversion = self._converter.convert(markdown)
     new_blocks = conversion.blocks
     ops = self._diff_planner.plan(existing_blocks, new_blocks)
-    pending = len(conversion.pending_images) if hasattr(conversion, "pending_images") else 0
     return PlanResult(
         ops=list(ops),
         warnings=list(conversion.warnings),
-        images_to_upload=pending,
+        images_to_upload=len(conversion.images),
     )
 ```
 
@@ -954,19 +984,37 @@ def md_file(tmp_path: Path) -> Path:
     return f
 
 
+_CLIENT_USERS = (
+    "notionify.cli.commands.push",
+    "notionify.cli.commands.sync",
+    "notionify.cli.commands.pull",
+    "notionify.cli.commands.inspect",
+)
+
+
 @pytest.fixture
 def fake_client(monkeypatch):
     """Patch ``NotionifyClient`` in command modules with a MagicMock factory.
 
-    Returns the MagicMock instance that commands receive.
+    Modules that haven't been created yet are silently skipped — earlier
+    tasks can use this fixture even before later command modules exist.
+    Also patches the context-manager protocol so ``with NotionifyClient(...)
+    as client`` returns the mock instance.
     """
+    import importlib
+
     instance = MagicMock(name="NotionifyClient_instance")
+    instance.__enter__ = MagicMock(return_value=instance)
+    instance.__exit__ = MagicMock(return_value=False)
     factory = MagicMock(name="NotionifyClient_factory", return_value=instance)
-    monkeypatch.setattr("notionify.cli.commands.push.NotionifyClient", factory)
-    monkeypatch.setattr("notionify.cli.commands.sync.NotionifyClient", factory)
-    monkeypatch.setattr("notionify.cli.commands.pull.NotionifyClient", factory)
-    monkeypatch.setattr("notionify.cli.commands.inspect.NotionifyClient", factory)
-    monkeypatch.setattr("notionify.cli.commands.diff.NotionifyClient", factory)
+
+    for module_path in _CLIENT_USERS:
+        try:
+            mod = importlib.import_module(module_path)
+        except ImportError:
+            continue
+        if hasattr(mod, "NotionifyClient"):
+            monkeypatch.setattr(f"{module_path}.NotionifyClient", factory)
     return instance
 
 
@@ -1067,10 +1115,14 @@ from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 
 
-def add_parser(subparsers: argparse._SubParsersAction) -> None:
+def add_parser(
+    subparsers: argparse._SubParsersAction,
+    global_parser: argparse.ArgumentParser,
+) -> None:
     p = subparsers.add_parser(
         "convert",
         help="Convert markdown to Notion blocks JSON (no API calls).",
+        parents=[global_parser],
     )
     p.add_argument("file", help="Path to a markdown file.")
     p.add_argument("--out", help="Output file (default: stdout).")
@@ -1099,32 +1151,72 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
 
 - [ ] **Step 4: Wire it up in `main.py`**
 
-Modify `src/notionify/cli/main.py`. Replace the placeholder `subparsers = parser.add_subparsers(...)` block and dispatch:
+Replace `src/notionify/cli/main.py` with the full dispatcher:
 
 ```python
+"""Top-level argparse parser and dispatch."""
+from __future__ import annotations
+
+import argparse
+from typing import Sequence
+
+from notionify.cli._common import InvalidIdError
 from notionify.cli.commands import convert as cmd_convert
-from notionify.cli.output import Reporter
-from notionify.cli._common import format_error
 from notionify.cli.config import ConfigError, load_config
+from notionify.cli.output import Reporter
+from notionify.errors import (
+    NotionifyAuthError,
+    NotionifyConversionError,
+    NotionifyError,
+    NotionifyNetworkError,
+    NotionifyRetryExhaustedError,
+)
+
+
+# Commands that don't need a token / config loaded.
+_NO_CONFIG_COMMANDS: set[str] = {"convert"}
+
+
+def build_global_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(add_help=False)
+    p.add_argument("--token")
+    p.add_argument("-c", "--config", dest="config_path")
+    p.add_argument("--profile", default="default")
+    p.add_argument("-v", "--verbose", action="count", default=0)
+    p.add_argument("--json", dest="json_mode", action="store_true")
+    return p
 
 
 def build_parser() -> argparse.ArgumentParser:
+    global_parser = build_global_parser()
     parser = argparse.ArgumentParser(
         prog="notionify-cli",
         description="Debug CLI for the notionify SDK.",
+        parents=[global_parser],
     )
-    parser.add_argument("--token")
-    parser.add_argument("-c", "--config", dest="config_path")
-    parser.add_argument("--profile", default="default")
-    parser.add_argument("-v", "--verbose", action="count", default=0)
-    parser.add_argument("--json", dest="json_mode", action="store_true")
-
+    parser.set_defaults(command=None, _command=None)
     subparsers = parser.add_subparsers(dest="command", metavar="<command>")
-    cmd_convert.add_parser(subparsers)
+    cmd_convert.add_parser(subparsers, global_parser)
+    # later tasks register their commands here
     return parser
 
 
-def main(argv=None) -> int:
+def _classify(err: BaseException) -> int:
+    if isinstance(err, ConfigError):
+        return 2
+    if isinstance(err, (NotionifyAuthError, NotionifyNetworkError,
+                        NotionifyRetryExhaustedError)):
+        return 3
+    if isinstance(err, NotionifyConversionError):
+        return 4
+    if isinstance(err, NotionifyError):
+        return 3
+    if isinstance(err, (InvalidIdError, FileNotFoundError, ValueError)):
+        return 1
+    return 1
+
+
+def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command is None:
@@ -1133,22 +1225,20 @@ def main(argv=None) -> int:
 
     reporter = Reporter(verbosity=args.verbose, json_mode=args.json_mode)
     handler = getattr(args, "_command", None)
-    if handler is None:
-        return reporter.fail(RuntimeError(f"command not implemented: {args.command}"))
+    if handler is None:  # pragma: no cover - argparse guards this
+        return reporter.fail(
+            RuntimeError(f"command not implemented: {args.command}")
+        )
 
     try:
-        return handler(args, reporter) if not _needs_config(args.command) \
-               else handler(args, reporter, load_config(args))
-    except FileNotFoundError as e:
-        return reporter.fail(e, exit_code=1)
-    except ConfigError as e:
-        return reporter.fail(e, exit_code=2)
-    except Exception as e:  # noqa: BLE001
-        return reporter.fail(e, exit_code=1)
-
-
-def _needs_config(command: str) -> bool:
-    return command not in {"convert"}
+        if args.command in _NO_CONFIG_COMMANDS:
+            return int(handler(args, reporter))
+        config = load_config(args)
+        return int(handler(args, reporter, config))
+    except BaseException as e:  # noqa: BLE001
+        if isinstance(e, (KeyboardInterrupt, SystemExit)):
+            raise
+        return reporter.fail(e, exit_code=_classify(e))
 ```
 
 - [ ] **Step 5: Run tests to verify they pass**
@@ -1187,7 +1277,7 @@ from notionify.cli.main import main
 
 
 def test_inspect_page_only(env_token, fake_client, capsys):
-    fake_client.pages.retrieve.return_value = {"id": "abc", "object": "page"}
+    fake_client._pages.retrieve.return_value = {"id": "abc", "object": "page"}
     rc = main(
         ["inspect", "12345678-1234-1234-1234-123456789abc", "--json"]
     )
@@ -1199,8 +1289,8 @@ def test_inspect_page_only(env_token, fake_client, capsys):
 
 
 def test_inspect_with_children(env_token, fake_client, capsys):
-    fake_client.pages.retrieve.return_value = {"id": "abc"}
-    fake_client.blocks.get_children.return_value = [
+    fake_client._pages.retrieve.return_value = {"id": "abc"}
+    fake_client._blocks.get_children.return_value = [
         {"id": "b1", "type": "paragraph"}
     ]
     rc = main([
@@ -1226,17 +1316,7 @@ def test_inspect_no_token_returns_config_error(monkeypatch, capsys):
     assert "token" in capsys.readouterr().err.lower()
 ```
 
-The `fake_client` fixture exposes `.pages` and `.blocks` as MagicMock attributes (already true since MagicMock auto-creates). But the SDK uses underscore-prefixed `_pages` / `_blocks` internally — for the CLI we'll go through public attributes if available, otherwise call methods exposed on the client. Adjust `inspect.py` to use `client._pages.retrieve` and `client._blocks.get_children` (matches existing internal API). Update fixture/test accordingly:
-
-Update `tests/unit/cli/test_inspect.py` to use `_pages` / `_blocks`:
-
-```python
-def test_inspect_page_only(env_token, fake_client, capsys):
-    fake_client._pages.retrieve.return_value = {"id": "abc", "object": "page"}
-    # ... rest same, but use _pages / _blocks throughout
-```
-
-(Apply this to all four tests in this task.)
+`inspect.py` reaches into `client._pages.retrieve` / `client._blocks.get_children` — this is intentional debug-only access (see Notes section).
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -1259,10 +1339,14 @@ from notionify.cli.config import CLIConfig
 from notionify.cli.output import Reporter
 
 
-def add_parser(subparsers: argparse._SubParsersAction) -> None:
+def add_parser(
+    subparsers: argparse._SubParsersAction,
+    global_parser: argparse.ArgumentParser,
+) -> None:
     p = subparsers.add_parser(
         "inspect",
         help="Fetch a page's raw JSON (and optionally its children).",
+        parents=[global_parser],
     )
     p.add_argument("page", help="Page ID or Notion URL.")
     p.add_argument("--children", action="store_true",
@@ -1294,10 +1378,10 @@ In `src/notionify/cli/main.py`, add to the imports:
 from notionify.cli.commands import inspect as cmd_inspect
 ```
 
-And in `build_parser()` after `cmd_convert.add_parser(subparsers)`:
+And in `build_parser()` after `cmd_convert.add_parser(subparsers, global_parser)`:
 
 ```python
-cmd_inspect.add_parser(subparsers)
+cmd_inspect.add_parser(subparsers, global_parser)
 ```
 
 - [ ] **Step 5: Run tests to verify they pass**
@@ -1379,8 +1463,14 @@ from notionify.cli.config import CLIConfig
 from notionify.cli.output import Reporter
 
 
-def add_parser(subparsers: argparse._SubParsersAction) -> None:
-    p = subparsers.add_parser("pull", help="Pull a Notion page as markdown.")
+def add_parser(
+    subparsers: argparse._SubParsersAction,
+    global_parser: argparse.ArgumentParser,
+) -> None:
+    p = subparsers.add_parser(
+        "pull", help="Pull a Notion page as markdown.",
+        parents=[global_parser],
+    )
     p.add_argument("page", help="Page ID or Notion URL.")
     p.add_argument("--out", help="Output file (default: stdout).")
     p.set_defaults(_command=run)
@@ -1402,7 +1492,7 @@ def run(args: argparse.Namespace, reporter: Reporter, config: CLIConfig) -> int:
 
 - [ ] **Step 4: Register in `main.py`**
 
-Add `from notionify.cli.commands import pull as cmd_pull` and `cmd_pull.add_parser(subparsers)`.
+Add `from notionify.cli.commands import pull as cmd_pull` and `cmd_pull.add_parser(subparsers, global_parser)`.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -1445,9 +1535,9 @@ def _stub_create_result(page_id="page-xyz"):
     return PageCreateResult(
         page_id=page_id,
         url=f"https://notion.so/{page_id}",
-        warnings=[],
-        images_uploaded=0,
         blocks_created=1,
+        images_uploaded=0,
+        warnings=[],
     )
 
 
@@ -1524,9 +1614,19 @@ from notionify.cli.output import Reporter
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 
+# NotionifyConfig is used only by the dry-run path (no token needed for
+# local conversion). The non-dry-run path passes kwargs straight to
+# NotionifyClient(token=..., **kwargs); see client.py:93.
 
-def add_parser(subparsers: argparse._SubParsersAction) -> None:
-    p = subparsers.add_parser("push", help="Create a new Notion page from markdown.")
+
+def add_parser(
+    subparsers: argparse._SubParsersAction,
+    global_parser: argparse.ArgumentParser,
+) -> None:
+    p = subparsers.add_parser(
+        "push", help="Create a new Notion page from markdown.",
+        parents=[global_parser],
+    )
     p.add_argument("file", help="Path to a markdown file.")
     p.add_argument("--parent", help="Parent page or database ID. "
                                     "Falls back to NOTION_DEFAULT_PARENT.")
@@ -1558,11 +1658,11 @@ def run(args: argparse.Namespace, reporter: Reporter, config: CLIConfig) -> int:
         return _dry_run(md, reporter)
 
     reporter.step(f"creating page under {parent_id}")
-    notion_config = NotionifyConfig(
+    with NotionifyClient(
         token=config.token,
         remote_image_upload=args.upload_remote_images,
-    )
-    with NotionifyClient(token=config.token, config=notion_config) as client:
+        image_base_dir=str(Path(args.file).resolve().parent),
+    ) as client:
         result = client.create_page_with_markdown(
             parent_id=parent_id,
             title=title,
@@ -1592,11 +1692,11 @@ def _dry_run(md: str, reporter: Reporter) -> int:
     return 0
 ```
 
-(Note: `NotionifyClient` may not accept a `config` kwarg in addition to `token`. Check the signature first; if it does not, drop the `config=` kwarg and rely on the kwargs `**kwargs` forwarding via `NotionifyClient(token=..., remote_image_upload=args.upload_remote_images)`. Adjust before running tests.)
+**Note:** `NotionifyClient.__init__(token, **kwargs)` forwards every kwarg to `NotionifyConfig`. Pass `remote_image_upload` and `image_base_dir` directly — never a `config=` kwarg. Verified at `src/notionify/client.py:93`.
 
 - [ ] **Step 4: Register in `main.py`**
 
-Add `from notionify.cli.commands import push as cmd_push` and `cmd_push.add_parser(subparsers)`.
+Add `from notionify.cli.commands import push as cmd_push` and `cmd_push.add_parser(subparsers, global_parser)`.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -1635,9 +1735,16 @@ from notionify.cli.main import main
 
 
 def test_sync_executes(env_token, fake_client, md_file: Path, capsys):
-    update_result = MagicMock()
-    update_result.applied_ops = 3
-    update_result.warnings = []
+    from notionify.models import UpdateResult
+    update_result = UpdateResult(
+        strategy_used="diff",
+        blocks_kept=2,
+        blocks_inserted=1,
+        blocks_deleted=0,
+        blocks_replaced=0,
+        images_uploaded=0,
+        warnings=[],
+    )
     fake_client.update_page_from_markdown.return_value = update_result
 
     rc = main([
@@ -1649,6 +1756,8 @@ def test_sync_executes(env_token, fake_client, md_file: Path, capsys):
     fake_client.update_page_from_markdown.assert_called_once()
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
+    assert payload["strategy_used"] == "diff"
+    assert payload["blocks_inserted"] == 1
 
 
 def test_sync_dry_run_calls_plan_only(env_token, fake_client, md_file: Path):
@@ -1687,6 +1796,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from pathlib import Path
 
 from notionify import NotionifyClient
 from notionify.cli._common import parse_id, read_markdown, strip_images
@@ -1694,9 +1804,13 @@ from notionify.cli.config import CLIConfig
 from notionify.cli.output import Reporter
 
 
-def add_parser(subparsers: argparse._SubParsersAction) -> None:
+def add_parser(
+    subparsers: argparse._SubParsersAction,
+    global_parser: argparse.ArgumentParser,
+) -> None:
     p = subparsers.add_parser(
-        "sync", help="Incrementally update an existing page from markdown."
+        "sync", help="Incrementally update an existing page from markdown.",
+        parents=[global_parser],
     )
     p.add_argument("file")
     p.add_argument("--page", required=True, help="Page ID or Notion URL.")
@@ -1716,6 +1830,7 @@ def run(args: argparse.Namespace, reporter: Reporter, config: CLIConfig) -> int:
     with NotionifyClient(
         token=config.token,
         remote_image_upload=args.upload_remote_images,
+        image_base_dir=str(Path(args.file).resolve().parent),
     ) as client:
         if args.dry_run:
             reporter.step(f"planning diff for {page_id}")
@@ -1740,15 +1855,20 @@ def run(args: argparse.Namespace, reporter: Reporter, config: CLIConfig) -> int:
         result = client.update_page_from_markdown(page_id, md)
         reporter.result({
             "page_id": page_id,
-            "applied_ops": getattr(result, "applied_ops", None),
-            "warnings": [str(w) for w in getattr(result, "warnings", [])],
+            "strategy_used": result.strategy_used,
+            "blocks_kept": result.blocks_kept,
+            "blocks_inserted": result.blocks_inserted,
+            "blocks_deleted": result.blocks_deleted,
+            "blocks_replaced": result.blocks_replaced,
+            "images_uploaded": result.images_uploaded,
+            "warnings": [str(w) for w in result.warnings],
         })
     return 0
 ```
 
 - [ ] **Step 4: Register in `main.py`**
 
-Add `from notionify.cli.commands import sync as cmd_sync` and `cmd_sync.add_parser(subparsers)`.
+Add `from notionify.cli.commands import sync as cmd_sync` and `cmd_sync.add_parser(subparsers, global_parser)`. Inside `build_parser`, retrieve `global_parser` via the local variable already created.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -1823,9 +1943,14 @@ import argparse
 from notionify.cli.commands.sync import run as sync_run
 
 
-def add_parser(subparsers: argparse._SubParsersAction) -> None:
+def add_parser(
+    subparsers: argparse._SubParsersAction,
+    global_parser: argparse.ArgumentParser,
+) -> None:
     p = subparsers.add_parser(
-        "diff", help="Show the diff plan for syncing markdown to a page (no execution)."
+        "diff",
+        help="Show the diff plan for syncing markdown to a page (no execution).",
+        parents=[global_parser],
     )
     p.add_argument("file")
     p.add_argument("--page", required=True, help="Page ID or Notion URL.")
@@ -1833,16 +1958,27 @@ def add_parser(subparsers: argparse._SubParsersAction) -> None:
     p.set_defaults(_command=run, dry_run=True, upload_remote_images=False)
 
 
-def run(args, reporter, config):
+def run(
+    args: argparse.Namespace,
+    reporter: "Reporter",
+    config: "CLIConfig",
+) -> int:
     # Delegate to sync's run with dry_run forced True
     args.dry_run = True
     args.upload_remote_images = False
     return sync_run(args, reporter, config)
 ```
 
+Add the missing imports at the top of `diff.py`:
+
+```python
+from notionify.cli.config import CLIConfig
+from notionify.cli.output import Reporter
+```
+
 - [ ] **Step 4: Register in `main.py`**
 
-Add `from notionify.cli.commands import diff as cmd_diff` and `cmd_diff.add_parser(subparsers)`.
+Add `from notionify.cli.commands import diff as cmd_diff` and `cmd_diff.add_parser(subparsers, global_parser)`.
 
 - [ ] **Step 5: Run test to verify it passes**
 
@@ -1974,9 +2110,20 @@ git status
 
 ## Notes for the Implementer
 
-- **`NotionifyClient` constructor**: takes `token` plus `**kwargs` forwarded to `NotionifyConfig`. Pass `remote_image_upload=...` directly. Verify by reading `client.py:93` before writing the call site in `push.py` / `sync.py`.
-- **`PageCreateResult` field names**: confirm against `src/notionify/models.py` before writing the test stub in Task 10. The expected fields are `page_id`, `url`, `warnings`, `images_uploaded`, `blocks_created`. Adjust if names differ.
-- **`UpdateResult` field names**: confirm in models.py. The sync test uses `applied_ops`; if the actual field is named differently (e.g. `ops_applied`), update the test and the `getattr` in `sync.py`.
-- **`PlanResult.ops`**: each op exposes `op_type` (a `DiffOpType` enum), `existing_id`, and `depth`. Confirm the field names match `DiffOp` in `models.py`.
-- **`HOME` env in tests**: tests use `monkeypatch.setenv("HOME", ...)`. `os.path.expanduser("~/.notionify.toml")` honors `HOME` on POSIX. On Windows this would need `USERPROFILE`; project CI is Linux/macOS, so we don't fix this here.
-- **Avoid hidden coupling**: `inspect.py` reaches into `client._pages` / `client._blocks`. This is intentional — the CLI is a debugging tool and may use private SDK access. If the SDK exposes public accessors later, switch to those.
+**SDK contract (verified against current source):**
+
+- `NotionifyClient(token, **kwargs)` forwards every kwarg to `NotionifyConfig`. Pass `remote_image_upload=...` and `image_base_dir=...` directly. **Never** pass a `config=` kwarg — `NotionifyConfig` has no such field. (`src/notionify/client.py:93`)
+- `PageCreateResult` fields: `page_id`, `url`, `blocks_created`, `images_uploaded`, `warnings`. (`src/notionify/models.py:240`)
+- `UpdateResult` fields: `strategy_used`, `blocks_kept`, `blocks_inserted`, `blocks_deleted`, `blocks_replaced`, `images_uploaded`, `warnings`. (`src/notionify/models.py:284`)
+- `ConversionResult.images` (NOT `pending_images`) is the list of `PendingImage`s awaiting upload. (`src/notionify/models.py:148`)
+- `DiffOp` exposes `op_type` (`DiffOpType` enum), `existing_id`, `new_block`, `position_after`, `depth`. (`src/notionify/models.py:157`)
+
+**Image base directory:** `push` and `sync` always pass `image_base_dir=str(Path(args.file).resolve().parent)` so relative image paths in the markdown resolve relative to the markdown file, not the CWD. Without this, `![](pic.png)` next to the markdown file fails when the user runs the CLI from a different directory. (`src/notionify/client.py:790` reads this from `NotionifyConfig.image_base_dir`.)
+
+**Inspect uses private SDK access on purpose.** `inspect.py` reaches into `client._pages` / `client._blocks` to dump raw JSON — that's the whole point of the command. Document with a comment in the file: this command is a debug-only escape hatch, not a normal SDK consumer. If/when the SDK adds public accessors, swap to them.
+
+**Global flags use the parent-parser pattern.** Every subcommand's `add_parser` accepts a `global_parser: argparse.ArgumentParser` and passes `parents=[global_parser]`. This makes `notionify-cli inspect <id> --json` work the same as `notionify-cli --json inspect <id>`. Without this pattern, argparse rejects subcommand-level `--json` / `--token` / `-v` as unknown args.
+
+**`HOME` env in tests:** tests use `monkeypatch.setenv("HOME", ...)`. `os.path.expanduser("~/.notionify.toml")` honors `HOME` on POSIX. Project CI is Linux/macOS; Windows is out of scope.
+
+**Strict mypy:** `pyproject.toml` enables `[tool.mypy] strict = true`. Every function — including `main()`, command `run()` functions, and helpers — needs full type annotations. The plan's snippets include them; do not omit them when implementing.
