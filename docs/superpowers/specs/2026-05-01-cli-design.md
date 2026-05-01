@@ -5,7 +5,7 @@
 
 ## 目标
 
-为 notionify SDK 提供一个调试用 CLI，覆盖库的核心能力：双向 markdown↔Notion 转换、API 访问、diff 同步。要求零新依赖（标准库 argparse + tomllib）。
+为 notionify SDK 提供一个调试用 CLI，覆盖库的核心能力：双向 markdown↔Notion 转换、API 访问、diff 同步。尽量少依赖：CLI 解析使用标准库 `argparse`，TOML 配置在 Python 3.11+ 使用标准库 `tomllib`，Python 3.10 使用条件依赖 `tomli`。
 
 ## 范围
 
@@ -40,6 +40,10 @@ notionify-cli diff <markdown_file> --page <id_or_url>
 - `-v` / `-vv` — verbose 等级
 - `--json` — 机读输出
 
+全局参数必须同时支持放在子命令名前或子命令名后，例如
+`notionify-cli --json inspect <id>` 和 `notionify-cli inspect <id> --json`
+等价。
+
 ### 入口
 
 - `pyproject.toml` 注册 `[project.scripts] notionify-cli = "notionify.cli:main"`
@@ -67,7 +71,7 @@ src/notionify/cli/
 └── _common.py           # 共享：load markdown / parse_id / format_error
 ```
 
-每个 command 文件暴露 `add_parser(subparsers)` + `run(args, reporter, config) -> int`，`main.py` 只负责装配。
+每个 command 文件暴露 `add_parser(subparsers, global_parser)`，`main.py` 只负责装配。需要 Notion token 的命令暴露 `run(args, reporter, config) -> int`；纯本地 `convert` 暴露 `run(args, reporter) -> int`，由 `main.py` 的 `_NO_CONFIG_COMMANDS` 分派。`global_parser` 通过 `parents=[global_parser]` 挂到顶层 parser 和每个 subparser；所有全局参数必须使用 `default=argparse.SUPPRESS`，再由 `main.py` 补默认值，避免 subparser 默认值覆盖子命令名前的全局参数。
 
 ### 配置加载
 
@@ -119,37 +123,59 @@ error: no Notion token found. Set NOTION_TOKEN, pass --token, or configure ~/.no
 
 **push**:
 ```
-md = read_file(args.file)
-client = NotionifyClient(token, remote_image_upload=..., skip_images=...)
+md = read_markdown(args.file)
+if args.no_images:
+    md = strip_images(md)
 if dry_run:
-    blocks = client.markdown_to_blocks(md)
-    reporter.result({"blocks": len(blocks), "outline": [...]})
+    conversion = MarkdownToNotionConverter(NotionifyConfig(token="dummy")).convert(md)
+    reporter.result({"blocks": len(conversion.blocks), "outline": [...]})
 else:
-    page = client.create_page(parent=parent_id, title=..., markdown=md)
-    reporter.result({"page_id": page.id, "url": page.url})
+    client = NotionifyClient(
+        token=config.token,
+        remote_image_upload=args.upload_remote_images,
+        image_base_dir=str(Path(args.file).resolve().parent),
+    )
+    page = client.create_page_with_markdown(
+        parent_id=parent_id,
+        title=title,
+        markdown=md,
+        parent_type=args.parent_type,
+    )
+    reporter.result({"page_id": page.page_id, "url": page.url})
 ```
 
 **sync**:
 ```
-md = read_file(args.file)
-client = NotionifyClient(...)
+md = read_markdown(args.file)
+if args.no_images:
+    md = strip_images(md)
+client = NotionifyClient(
+    token=config.token,
+    remote_image_upload=args.upload_remote_images,
+    image_base_dir=str(Path(args.file).resolve().parent),
+)
 if dry_run:
-    plan = client.plan_sync(page_id, md)
-    reporter.result({"inserts": ..., "updates": ..., "deletes": ...})
+    plan = client.plan_page_update(page_id, md)
+    reporter.result({"total_ops": len(plan.ops), "by_op": {...}})
 else:
-    result = client.sync_page(page_id, md)
-    reporter.result({"applied": result.ops, "page_id": page_id})
+    result = client.update_page_from_markdown(page_id, md)
+    reporter.result({
+        "strategy_used": result.strategy_used,
+        "blocks_inserted": result.blocks_inserted,
+        "blocks_deleted": result.blocks_deleted,
+        "blocks_replaced": result.blocks_replaced,
+    })
 ```
 
-**pull**: `client.block_to_markdown(page_id, recursive=True)` → stdout 或 `--out`。
+**pull**: `client.page_to_markdown(page_id, recursive=True)` → stdout 或 `--out`。
 
 **convert**: 直接调 converter（无需 client/token），输出 Notion blocks JSON。
 
-**inspect**: `client.pages.get(page_id)` + 可选 `client.blocks.list_all(page_id)`，输出 JSON。
+**inspect**: 调试命令，故意使用私有 SDK escape hatch：`client._pages.retrieve(page_id)` + 可选 `client._blocks.get_children(page_id)`，输出 JSON。若 SDK 以后暴露 public inspection API，再切换过去。
 
 **diff**: 等价 `sync --dry-run`。
 
-**SDK 补丁**: 若 `plan_sync` / `markdown_to_blocks` 当前未公开暴露，实现阶段补薄 wrapper（不改核心逻辑）。
+**SDK 补丁**: 增加 `NotionifyClient.plan_page_update(page_id, markdown)`，返回 `PlanResult(ops, warnings, images_to_upload)`，不执行 diff、不上传图片。
 
 ### 输出与日志
 
@@ -161,8 +187,8 @@ class Reporter:
     def step(self, msg): ...        # -v
     def detail(self, obj): ...      # -vv
     def warn(self, msg): ...        # always to stderr
-    def result(self, payload: dict): ...  # final result to stdout
-    def fail(self, err: Exception) -> int: ...
+    def result(self, payload: dict[str, Any]): ...  # final result to stdout
+    def fail(self, err: BaseException, *, exit_code: int = 1) -> int: ...
 ```
 
 **约定**:
@@ -176,11 +202,11 @@ class Reporter:
 | 0 | 成功 |
 | 1 | 一般错误 |
 | 2 | 配置错误（无 token、坏 profile） |
-| 3 | 网络/API 错误（NotionifyAPIError, NotionifyNetworkError） |
+| 3 | 网络/API 错误（`NotionifyError` 的 API/transport 子类，如 auth/network/retry/rate-limit/not-found） |
 | 4 | 转换错误（NotionifyConversionError） |
 
 **错误格式化**（`_common.format_error`）:
-- `NotionifyAPIError` → status + Notion `code` + `message`
+- `NotionifyError` → `code` + `message` + 可选 context
 - `NotionifyNetworkError` → underlying cause
 - `NotionifyConversionError` → 位置（行号若有）
 - `--json` 模式: `{"ok": false, "error_type": "...", "message": "...", "code": "..."}`

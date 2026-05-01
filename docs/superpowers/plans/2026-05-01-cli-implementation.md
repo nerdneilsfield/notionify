@@ -4,9 +4,9 @@
 
 **Goal:** Add a debug CLI (`notionify-cli` / `python -m notionify.cli`) covering all SDK capabilities: push, sync, pull, convert, inspect, diff.
 
-**Architecture:** A new `src/notionify/cli/` subpackage. argparse + tomllib (stdlib only, no new deps). Each subcommand in its own file with `add_parser` / `run` interface. Shared `Reporter` for `-v`/`-vv`/`--json` output, shared `CLIConfig` loader with documented precedence. Calls into existing public client methods; adds one small SDK helper (`plan_page_update`) so the `diff` / `sync --dry-run` commands can render a diff plan without executing.
+**Architecture:** A new `src/notionify/cli/` subpackage. argparse + tomllib with a conditional `tomli` fallback for Python 3.10. Each subcommand lives in its own file with an `add_parser` / `run` interface. Shared `Reporter` handles `-v`/`-vv`/`--json` output; shared `CLIConfig` loads token/default parent with documented precedence. Commands call existing public client methods except `inspect`, which deliberately uses private SDK internals as a debug escape hatch; one small SDK helper (`plan_page_update`) lets `diff` / `sync --dry-run` render a diff plan without executing.
 
-**Tech Stack:** Python 3.10+, argparse, tomllib (Py 3.11+), existing notionify SDK (`NotionifyClient`, `NotionifyConfig`, `MarkdownToNotionConverter`).
+**Tech Stack:** Python 3.10+, argparse, tomllib/tomli, existing notionify SDK (`NotionifyClient`, `NotionifyConfig`, `MarkdownToNotionConverter`).
 
 **Spec:** [`docs/superpowers/specs/2026-05-01-cli-design.md`](../specs/2026-05-01-cli-design.md)
 
@@ -44,7 +44,7 @@
 
 **Modified:**
 
-- `pyproject.toml` — add `[project.scripts] notionify-cli = "notionify.cli:main"`
+- `pyproject.toml` — add conditional `tomli` dependency for Python 3.10 and `[project.scripts] notionify-cli = "notionify.cli:main"`
 - `src/notionify/client.py` — add `plan_page_update()` public method (returns ops + warnings without executing)
 
 ---
@@ -139,21 +139,29 @@ if __name__ == "__main__":
 from __future__ import annotations
 
 import argparse
+import sys
 from typing import Sequence
 
 
 def build_global_parser() -> argparse.ArgumentParser:
-    """Parent parser holding global flags. Used as ``parents=[...]`` on every
-    subcommand so flags work both before and after the subcommand name."""
+    """Parent parser holding global flags.
+
+    Defaults are SUPPRESS so the subparser copy does not overwrite values
+    parsed before the subcommand name.
+    """
     p = argparse.ArgumentParser(add_help=False)
-    p.add_argument("--token", help="Notion API token (overrides env / config).")
+    p.add_argument("--token", default=argparse.SUPPRESS,
+                   help="Notion API token (overrides env / config).")
     p.add_argument("-c", "--config", dest="config_path",
+                   default=argparse.SUPPRESS,
                    help="Path to a notionify TOML config file.")
-    p.add_argument("--profile", default="default",
+    p.add_argument("--profile", default=argparse.SUPPRESS,
                    help="Profile name in the config file.")
-    p.add_argument("-v", "--verbose", action="count", default=0,
+    p.add_argument("-v", "--verbose", action="count",
+                   default=argparse.SUPPRESS,
                    help="Increase verbosity (-v, -vv).")
     p.add_argument("--json", dest="json_mode", action="store_true",
+                   default=argparse.SUPPRESS,
                    help="Emit machine-readable JSON output.")
     return p
 
@@ -166,26 +174,45 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[global_parser],
     )
     parser.set_defaults(command=None, _command=None)
-    subparsers = parser.add_subparsers(dest="command", metavar="<command>")
+    parser.add_subparsers(dest="command", metavar="<command>")
     # subcommands registered in later tasks. Each task will pass
     # parents=[global_parser] when calling subparsers.add_parser(...).
-    parser._global_parser = global_parser  # type: ignore[attr-defined]
     return parser
 
 
+def _normalise_global_defaults(args: argparse.Namespace) -> argparse.Namespace:
+    """Fill defaults for global options suppressed by the parent parser."""
+    if not hasattr(args, "token"):
+        args.token = None
+    if not hasattr(args, "config_path"):
+        args.config_path = None
+    if not hasattr(args, "profile"):
+        args.profile = "default"
+    if not hasattr(args, "verbose"):
+        args.verbose = 0
+    if not hasattr(args, "json_mode"):
+        args.json_mode = False
+    return args
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    raw = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw)
     if args.command is None:
         parser.print_help()
         return 1
+    args = _normalise_global_defaults(args)
+
     # dispatch wired in Task 7+
     return 1
 ```
 
 **Key idea:** `add_parser` calls in later tasks must do
-`subparsers.add_parser("name", parents=[parser._global_parser], help="...")`
-so the subcommand also accepts `--token`, `--json`, etc.
+`subparsers.add_parser("name", parents=[global_parser], help="...")`.
+The parent parser uses `default=argparse.SUPPRESS`; without that, argparse
+copies default values onto each subparser and silently overwrites global flags
+provided before the subcommand name.
 
 - [ ] **Step 4: Update pyproject.toml**
 
@@ -565,7 +592,7 @@ from typing import Any
 if sys.version_info >= (3, 11):
     import tomllib
 else:  # pragma: no cover - exercised on Py 3.10 only
-    import tomli as tomllib  # type: ignore[no-redef]
+    import tomli as tomllib
 
 
 class ConfigError(RuntimeError):
@@ -1116,7 +1143,7 @@ from notionify.converter.md_to_notion import MarkdownToNotionConverter
 
 
 def add_parser(
-    subparsers: argparse._SubParsersAction,
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
     global_parser: argparse.ArgumentParser,
 ) -> None:
     p = subparsers.add_parser(
@@ -1158,6 +1185,7 @@ Replace `src/notionify/cli/main.py` with the full dispatcher:
 from __future__ import annotations
 
 import argparse
+import sys
 from typing import Sequence
 
 from notionify.cli._common import InvalidIdError
@@ -1179,11 +1207,19 @@ _NO_CONFIG_COMMANDS: set[str] = {"convert"}
 
 def build_global_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(add_help=False)
-    p.add_argument("--token")
-    p.add_argument("-c", "--config", dest="config_path")
-    p.add_argument("--profile", default="default")
-    p.add_argument("-v", "--verbose", action="count", default=0)
-    p.add_argument("--json", dest="json_mode", action="store_true")
+    p.add_argument("--token", default=argparse.SUPPRESS,
+                   help="Notion API token (overrides env / config).")
+    p.add_argument("-c", "--config", dest="config_path",
+                   default=argparse.SUPPRESS,
+                   help="Path to a notionify TOML config file.")
+    p.add_argument("--profile", default=argparse.SUPPRESS,
+                   help="Profile name in the config file.")
+    p.add_argument("-v", "--verbose", action="count",
+                   default=argparse.SUPPRESS,
+                   help="Increase verbosity (-v, -vv).")
+    p.add_argument("--json", dest="json_mode", action="store_true",
+                   default=argparse.SUPPRESS,
+                   help="Emit machine-readable JSON output.")
     return p
 
 
@@ -1199,6 +1235,20 @@ def build_parser() -> argparse.ArgumentParser:
     cmd_convert.add_parser(subparsers, global_parser)
     # later tasks register their commands here
     return parser
+
+
+def _normalise_global_defaults(args: argparse.Namespace) -> argparse.Namespace:
+    if not hasattr(args, "token"):
+        args.token = None
+    if not hasattr(args, "config_path"):
+        args.config_path = None
+    if not hasattr(args, "profile"):
+        args.profile = "default"
+    if not hasattr(args, "verbose"):
+        args.verbose = 0
+    if not hasattr(args, "json_mode"):
+        args.json_mode = False
+    return args
 
 
 def _classify(err: BaseException) -> int:
@@ -1217,11 +1267,13 @@ def _classify(err: BaseException) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    raw = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw)
     if args.command is None:
         parser.print_help()
         return 1
+    args = _normalise_global_defaults(args)
 
     reporter = Reporter(verbosity=args.verbose, json_mode=args.json_mode)
     handler = getattr(args, "_command", None)
@@ -1314,6 +1366,22 @@ def test_inspect_no_token_returns_config_error(monkeypatch, capsys):
     rc = main(["inspect", "12345678-1234-1234-1234-123456789abc"])
     assert rc == 2
     assert "token" in capsys.readouterr().err.lower()
+
+
+def test_inspect_accepts_global_flags_before_subcommand(
+    monkeypatch, fake_client, capsys
+):
+    monkeypatch.delenv("NOTION_TOKEN", raising=False)
+    fake_client._pages.retrieve.return_value = {"id": "abc", "object": "page"}
+    rc = main([
+        "--token", "secret_from_flag",
+        "--json",
+        "inspect", "12345678-1234-1234-1234-123456789abc",
+    ])
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["page"]["id"] == "abc"
 ```
 
 `inspect.py` reaches into `client._pages.retrieve` / `client._blocks.get_children` — this is intentional debug-only access (see Notes section).
@@ -1332,6 +1400,7 @@ Expected: FAIL — inspect command not registered.
 from __future__ import annotations
 
 import argparse
+from typing import Any
 
 from notionify import NotionifyClient
 from notionify.cli._common import parse_id
@@ -1340,7 +1409,7 @@ from notionify.cli.output import Reporter
 
 
 def add_parser(
-    subparsers: argparse._SubParsersAction,
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
     global_parser: argparse.ArgumentParser,
 ) -> None:
     p = subparsers.add_parser(
@@ -1360,7 +1429,7 @@ def run(args: argparse.Namespace, reporter: Reporter, config: CLIConfig) -> int:
 
     with NotionifyClient(token=config.token) as client:
         page = client._pages.retrieve(page_id)
-        payload: dict = {"page": page}
+        payload: dict[str, Any] = {"page": page}
         if args.children:
             reporter.step("fetching children")
             children = client._blocks.get_children(page_id)
@@ -1387,7 +1456,7 @@ cmd_inspect.add_parser(subparsers, global_parser)
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `uv run pytest tests/unit/cli/test_inspect.py -v`
-Expected: 4 passed.
+Expected: 5 passed.
 
 - [ ] **Step 6: Commit**
 
@@ -1464,7 +1533,7 @@ from notionify.cli.output import Reporter
 
 
 def add_parser(
-    subparsers: argparse._SubParsersAction,
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
     global_parser: argparse.ArgumentParser,
 ) -> None:
     p = subparsers.add_parser(
@@ -1525,7 +1594,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock
 
 from notionify.cli.main import main
 from notionify.models import PageCreateResult
@@ -1620,7 +1688,7 @@ from notionify.converter.md_to_notion import MarkdownToNotionConverter
 
 
 def add_parser(
-    subparsers: argparse._SubParsersAction,
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
     global_parser: argparse.ArgumentParser,
 ) -> None:
     p = subparsers.add_parser(
@@ -1805,7 +1873,7 @@ from notionify.cli.output import Reporter
 
 
 def add_parser(
-    subparsers: argparse._SubParsersAction,
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
     global_parser: argparse.ArgumentParser,
 ) -> None:
     p = subparsers.add_parser(
@@ -1941,10 +2009,12 @@ from __future__ import annotations
 import argparse
 
 from notionify.cli.commands.sync import run as sync_run
+from notionify.cli.config import CLIConfig
+from notionify.cli.output import Reporter
 
 
 def add_parser(
-    subparsers: argparse._SubParsersAction,
+    subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
     global_parser: argparse.ArgumentParser,
 ) -> None:
     p = subparsers.add_parser(
@@ -1960,20 +2030,13 @@ def add_parser(
 
 def run(
     args: argparse.Namespace,
-    reporter: "Reporter",
-    config: "CLIConfig",
+    reporter: Reporter,
+    config: CLIConfig,
 ) -> int:
     # Delegate to sync's run with dry_run forced True
     args.dry_run = True
     args.upload_remote_images = False
     return sync_run(args, reporter, config)
-```
-
-Add the missing imports at the top of `diff.py`:
-
-```python
-from notionify.cli.config import CLIConfig
-from notionify.cli.output import Reporter
 ```
 
 - [ ] **Step 4: Register in `main.py`**
@@ -2122,8 +2185,8 @@ git status
 
 **Inspect uses private SDK access on purpose.** `inspect.py` reaches into `client._pages` / `client._blocks` to dump raw JSON — that's the whole point of the command. Document with a comment in the file: this command is a debug-only escape hatch, not a normal SDK consumer. If/when the SDK adds public accessors, swap to them.
 
-**Global flags use the parent-parser pattern.** Every subcommand's `add_parser` accepts a `global_parser: argparse.ArgumentParser` and passes `parents=[global_parser]`. This makes `notionify-cli inspect <id> --json` work the same as `notionify-cli --json inspect <id>`. Without this pattern, argparse rejects subcommand-level `--json` / `--token` / `-v` as unknown args.
+**Global flags use the parent-parser pattern with suppressed defaults.** Every subcommand's `add_parser` accepts a `global_parser: argparse.ArgumentParser` and passes `parents=[global_parser]`. Every global option in that parent parser must set `default=argparse.SUPPRESS`; after parsing, `_normalise_global_defaults()` fills missing values. This makes `notionify-cli inspect <id> --json` work the same as `notionify-cli --json inspect <id>` without the subparser copy overwriting a value parsed before the subcommand name.
 
 **`HOME` env in tests:** tests use `monkeypatch.setenv("HOME", ...)`. `os.path.expanduser("~/.notionify.toml")` honors `HOME` on POSIX. Project CI is Linux/macOS; Windows is out of scope.
 
-**Strict mypy:** `pyproject.toml` enables `[tool.mypy] strict = true`. Every function — including `main()`, command `run()` functions, and helpers — needs full type annotations. The plan's snippets include them; do not omit them when implementing.
+**Strict mypy:** `pyproject.toml` enables `[tool.mypy] strict = true`. Every function — including `main()`, command `run()` functions, and helpers — needs full type annotations. Type subparser actions as `argparse._SubParsersAction[argparse.ArgumentParser]`, not bare `argparse._SubParsersAction`.

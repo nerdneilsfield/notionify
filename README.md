@@ -86,6 +86,36 @@ async def main():
 asyncio.run(main())
 ```
 
+## Planned Debug CLI
+
+A debug CLI is planned for local conversion, Notion page push/pull/sync flows,
+raw API inspection, and diff dry-runs. The implementation design is tracked in
+the [CLI design spec](docs/superpowers/specs/2026-05-01-cli-design.md) and
+[CLI implementation plan](docs/superpowers/plans/2026-05-01-cli-implementation.md).
+
+Planned command shape:
+
+```bash
+# Convert markdown to Notion blocks JSON without an API call
+notionify-cli convert doc.md
+
+# Create a new page
+NOTION_TOKEN=secret_xxx \
+  notionify-cli push doc.md --parent <parent_id> --title "Doc"
+
+# Incrementally sync an existing page
+notionify-cli sync doc.md --page <page_id>
+
+# Show the diff plan without applying it
+notionify-cli diff doc.md --page <page_id>
+
+# Pull a page back to markdown
+notionify-cli pull <page_id> --out out.md
+
+# Inspect a page's raw JSON
+notionify-cli inspect <page_id> --children --json
+```
+
 ## Configuration
 
 All options are passed as keyword arguments to the client constructor:
