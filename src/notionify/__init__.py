@@ -80,6 +80,7 @@ from notionify.models import (
     PageCreateResult,
     PageSnapshot,
     PendingImage,
+    PlanResult,
     UpdateResult,
     UploadState,
 )
@@ -131,6 +132,7 @@ __all__ = [
     "UpdateResult",
     "BlockUpdateResult",
     "InsertResult",
+    "PlanResult",
     "ConversionWarning",
     # Models — conversion internals
     "ConversionResult",

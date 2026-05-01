@@ -55,6 +55,7 @@ from notionify.models import (
     InsertResult,
     PageCreateResult,
     PendingImage,
+    PlanResult,
     UpdateResult,
 )
 from notionify.notion_api.blocks import BlockAPI, extract_block_ids
@@ -362,6 +363,35 @@ class NotionifyClient:
     # ------------------------------------------------------------------
     # Update (diff or overwrite) methods
     # ------------------------------------------------------------------
+
+    def plan_page_update(
+        self,
+        page_id: str,
+        markdown: str,
+    ) -> PlanResult:
+        """Plan a page update without applying changes or processing images.
+
+        Parameters
+        ----------
+        page_id:
+            The Notion page ID to diff against.
+        markdown:
+            The desired Markdown content.
+
+        Returns
+        -------
+        PlanResult
+            Diff operations, conversion warnings, and pending image count.
+        """
+        existing_blocks = self._blocks.get_children(page_id)
+        conversion = self._converter.convert(markdown)
+        ops = self._diff_planner.plan(existing_blocks, conversion.blocks)
+
+        return PlanResult(
+            ops=ops,
+            warnings=list(conversion.warnings),
+            images_to_upload=len(conversion.images),
+        )
 
     def update_page_from_markdown(
         self,
@@ -1034,4 +1064,3 @@ class NotionifyClient:
                 current_depth=current_depth + 1,
                 max_depth=max_depth,
             )
-

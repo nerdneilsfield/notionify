@@ -430,11 +430,12 @@ wheels = [
 
 [[package]]
 name = "notionify"
-version = "3.0.0"
+version = "0.1.3"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
     { name = "mistune" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 
 [package.optional-dependencies]
@@ -461,6 +462,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0" },
 ]
 
 [[package]]

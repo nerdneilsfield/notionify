@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added the `notionify-cli` debug command with `convert`, `inspect`, `pull`,
+  `push`, `sync`, and `diff` subcommands.
+- Added `NotionifyClient.plan_page_update()` for computing diff dry-run plans
+  without executing page updates.
+
 ### Documentation
 
-- Added README pointers, a design spec, and a TDD implementation plan for the
-  planned `notionify-cli` debug command.
+- Added README usage examples for the debug CLI.
 
 ## [3.0.0] - 2026-02-26
 

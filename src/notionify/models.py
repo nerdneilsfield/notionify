@@ -315,6 +315,26 @@ class UpdateResult:
 
 
 @dataclass
+class PlanResult:
+    """Dry-run result from :meth:`NotionifyClient.plan_page_update`.
+
+    Attributes
+    ----------
+    ops:
+        Diff operations that would be executed for the page update.
+    warnings:
+        Non-fatal conversion warnings.
+    images_to_upload:
+        Number of images discovered during conversion that would require
+        upload or embedding during a real update.
+    """
+
+    ops: list[DiffOp]
+    warnings: list[ConversionWarning] = field(default_factory=list)
+    images_to_upload: int = 0
+
+
+@dataclass
 class BlockUpdateResult:
     """Result of :meth:`NotionifyClient.update_block`.
 

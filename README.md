@@ -86,14 +86,13 @@ async def main():
 asyncio.run(main())
 ```
 
-## Planned Debug CLI
+## Debug CLI
 
-A debug CLI is planned for local conversion, Notion page push/pull/sync flows,
-raw API inspection, and diff dry-runs. The implementation design is tracked in
-the [CLI design spec](docs/superpowers/specs/2026-05-01-cli-design.md) and
-[CLI implementation plan](docs/superpowers/plans/2026-05-01-cli-implementation.md).
+The `notionify-cli` command wraps the SDK for local conversion, Notion page
+push/pull/sync flows, raw API inspection, and diff dry-runs. It is also
+available as `python -m notionify.cli`.
 
-Planned command shape:
+Common commands:
 
 ```bash
 # Convert markdown to Notion blocks JSON without an API call
@@ -115,6 +114,17 @@ notionify-cli pull <page_id> --out out.md
 # Inspect a page's raw JSON
 notionify-cli inspect <page_id> --children --json
 ```
+
+Configure it with `--token`, `NOTION_TOKEN`, or `~/.notionify.toml`:
+
+```toml
+[default]
+token = "secret_xxx"
+default_parent = "abc123..."
+```
+
+Use `-c PATH` for a non-default config file and `--profile NAME` to select a
+TOML section.
 
 ## Configuration
 
