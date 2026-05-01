@@ -33,6 +33,14 @@ def run(args: argparse.Namespace, reporter: Reporter, config: CLIConfig) -> int:
     if args.out:
         Path(args.out).write_text(markdown, encoding="utf-8")
         reporter.result({"output": args.out, "bytes": len(markdown.encode("utf-8"))})
+    elif reporter.json_mode:
+        reporter.result(
+            {
+                "page_id": page_id,
+                "markdown": markdown,
+                "bytes": len(markdown.encode("utf-8")),
+            }
+        )
     else:
         reporter.write_raw(markdown)
     return 0

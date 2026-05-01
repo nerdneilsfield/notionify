@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from notionify.cli.main import main
@@ -28,3 +29,15 @@ def test_pull_to_file(env_token, fake_client, tmp_path: Path) -> None:
 
     assert rc == 0
     assert out_path.read_text(encoding="utf-8") == "stuff\n"
+
+
+def test_pull_json_to_stdout(env_token, fake_client, capsys) -> None:  # type: ignore[no-untyped-def]
+    fake_client.page_to_markdown.return_value = "# Pulled\n\nbody\n"
+
+    rc = main(["pull", "12345678-1234-1234-1234-123456789abc", "--json"])
+
+    assert rc == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["page_id"] == "12345678-1234-1234-1234-123456789abc"
+    assert payload["markdown"] == "# Pulled\n\nbody\n"

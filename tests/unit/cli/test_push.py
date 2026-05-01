@@ -73,3 +73,20 @@ def test_push_dry_run_does_not_call_create(
     assert rc == 0
     fake_client.create_page_with_markdown.assert_not_called()
     assert "blocks" in capsys.readouterr().out.lower()
+
+
+def test_push_dry_run_does_not_require_token_or_parent(
+    monkeypatch,
+    fake_client,
+    md_file: Path,
+    capsys,
+) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.delenv("NOTION_TOKEN", raising=False)
+    monkeypatch.delenv("NOTION_DEFAULT_PARENT", raising=False)
+    monkeypatch.setenv("HOME", "/nonexistent")
+
+    rc = main(["push", str(md_file), "--dry-run"])
+
+    assert rc == 0
+    fake_client.create_page_with_markdown.assert_not_called()
+    assert "blocks" in capsys.readouterr().out.lower()

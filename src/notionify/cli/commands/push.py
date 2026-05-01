@@ -34,6 +34,12 @@ def add_parser(
 
 
 def run(args: argparse.Namespace, reporter: Reporter, config: CLIConfig) -> int:
+    markdown = read_markdown(args.file)
+    if args.no_images:
+        markdown = strip_images(markdown)
+    if args.dry_run:
+        return _dry_run(markdown, reporter)
+
     parent_raw = args.parent or config.default_parent
     if not parent_raw:
         return reporter.fail(
@@ -41,11 +47,6 @@ def run(args: argparse.Namespace, reporter: Reporter, config: CLIConfig) -> int:
             exit_code=2,
         )
     parent_id = parse_id(parent_raw)
-    markdown = read_markdown(args.file)
-    if args.no_images:
-        markdown = strip_images(markdown)
-    if args.dry_run:
-        return _dry_run(markdown, reporter)
 
     with NotionifyClient(
         token=config.token,

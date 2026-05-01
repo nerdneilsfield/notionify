@@ -13,7 +13,7 @@ from notionify.cli.commands import inspect as cmd_inspect
 from notionify.cli.commands import pull as cmd_pull
 from notionify.cli.commands import push as cmd_push
 from notionify.cli.commands import sync as cmd_sync
-from notionify.cli.config import ConfigError, load_config
+from notionify.cli.config import CLIConfig, ConfigError, load_config
 from notionify.cli.output import Reporter
 from notionify.errors import (
     NotionifyAuthError,
@@ -104,6 +104,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return reporter.fail(RuntimeError(f"command not implemented: {args.command}"))
 
     try:
+        if args.command == "push" and getattr(args, "dry_run", False):
+            return int(handler(args, reporter, CLIConfig(token="", default_parent=None)))
         if args.command in _NO_CONFIG_COMMANDS:
             return int(handler(args, reporter))
         config = load_config(args)
