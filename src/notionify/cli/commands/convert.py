@@ -11,6 +11,8 @@ from notionify.cli.output import Reporter
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 
+_LOCAL_CONVERSION_PLACEHOLDER = "notionify-local-conversion"
+
 
 def add_parser(
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
@@ -33,7 +35,8 @@ def run(args: argparse.Namespace, reporter: Reporter) -> int:
         markdown = strip_images(markdown)
 
     reporter.step(f"converting {args.file}")
-    conversion = MarkdownToNotionConverter(NotionifyConfig(token="dummy")).convert(markdown)
+    config = NotionifyConfig(token=_LOCAL_CONVERSION_PLACEHOLDER)
+    conversion = MarkdownToNotionConverter(config).convert(markdown)
     blocks_json = json.dumps(conversion.blocks, ensure_ascii=False, indent=2)
 
     if args.out:

@@ -24,6 +24,7 @@ from notionify.errors import (
 )
 
 _NO_CONFIG_COMMANDS: set[str] = {"convert"}
+_DRY_RUN_CONFIG_PLACEHOLDER = "notionify-local-dry-run"
 
 
 def build_global_parser() -> argparse.ArgumentParser:
@@ -99,7 +100,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         if args.command == "push" and getattr(args, "dry_run", False):
-            return int(handler(args, reporter, CLIConfig(token="", default_parent=None)))
+            config = CLIConfig(token=_DRY_RUN_CONFIG_PLACEHOLDER, default_parent=None)
+            return int(handler(args, reporter, config))
         if args.command in _NO_CONFIG_COMMANDS:
             return int(handler(args, reporter))
         config = load_config(args)

@@ -13,6 +13,8 @@ from notionify.cli.output import Reporter
 from notionify.config import NotionifyConfig
 from notionify.converter.md_to_notion import MarkdownToNotionConverter
 
+_LOCAL_CONVERSION_PLACEHOLDER = "notionify-local-conversion"
+
 
 def add_parser(
     subparsers: argparse._SubParsersAction[argparse.ArgumentParser],
@@ -72,7 +74,8 @@ def run(args: argparse.Namespace, reporter: Reporter, config: CLIConfig) -> int:
 
 
 def _dry_run(markdown: str, reporter: Reporter) -> int:
-    conversion = MarkdownToNotionConverter(NotionifyConfig(token="dummy")).convert(markdown)
+    config = NotionifyConfig(token=_LOCAL_CONVERSION_PLACEHOLDER)
+    conversion = MarkdownToNotionConverter(config).convert(markdown)
     reporter.result(
         {
             "blocks": len(conversion.blocks),
