@@ -11,7 +11,7 @@ import base64
 import binascii
 import mimetypes
 import re
-from urllib.parse import unquote_to_bytes
+from urllib.parse import unquote, unquote_to_bytes, urlsplit
 
 from notionify.config import NotionifyConfig
 from notionify.errors import (
@@ -59,7 +59,15 @@ def _sniff_mime(data: bytes) -> str | None:
 
 def _guess_mime_from_path(src: str) -> str | None:
     """Guess MIME type from a file path or URL using the extension."""
-    mime_type, _ = mimetypes.guess_type(src)
+    candidate = src
+    try:
+        parsed = urlsplit(src)
+    except ValueError:
+        parsed = None
+    if parsed is not None and parsed.scheme in ("http", "https") and parsed.path:
+        candidate = unquote(parsed.path)
+
+    mime_type, _ = mimetypes.guess_type(candidate)
     return mime_type
 
 

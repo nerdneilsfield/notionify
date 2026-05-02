@@ -724,6 +724,25 @@ class TestImageValidationEdgeCases:
         )
         assert mime == "image/png"
 
+    def test_external_url_query_params_do_not_depend_on_mimetypes_url_support(
+        self, monkeypatch
+    ):
+        """URL MIME guessing uses the parsed path, not full-URL guess_type quirks."""
+        import notionify.image.validate as validate_module
+        from notionify.image.validate import _guess_mime_from_path
+
+        def fake_guess_type(path):
+            if path == "/img.png":
+                return "image/png", None
+            return None, None
+
+        monkeypatch.setattr(validate_module.mimetypes, "guess_type", fake_guess_type)
+
+        assert (
+            _guess_mime_from_path("https://cdn.example.com/img.png?token=abc&w=200")
+            == "image/png"
+        )
+
     def test_webp_magic_check(self):
         """RIFF header must also have WEBP marker at offset 8."""
         config = NotionifyConfig(token="test")
