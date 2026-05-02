@@ -163,10 +163,12 @@ class TestMetricsHookProtocol:
 
     def test_protocol_is_runtime_checkable(self):
         """MetricsHook is decorated with @runtime_checkable."""
-        # Protocol should be usable with isinstance()
-        assert hasattr(MetricsHook, "__protocol_attrs__") or callable(
-            getattr(MetricsHook, "_is_runtime_protocol", None)
-        )
+        # Public behavior of @runtime_checkable: isinstance() is allowed.
+        try:
+            result = isinstance(NoopMetricsHook(), MetricsHook)
+        except TypeError as exc:  # pragma: no cover - assertion path
+            pytest.fail(f"MetricsHook is not runtime-checkable: {exc}")
+        assert result is True
 
 
 # ---------------------------------------------------------------------------
